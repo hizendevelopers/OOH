@@ -1,7 +1,5 @@
 import { beforeAll, afterAll, describe, it, expect } from "vitest";
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
+import { testDirectory } from "../scripts/test-directory";
 import { randomBytes, randomUUID } from "node:crypto";
 import { getDb, closeDb } from "../apps/web/src/server/db";
 import { migrate } from "../scripts/migrate";
@@ -23,7 +21,7 @@ const csv =
   "code,structure_code,city,zone,latitude,longitude\nTST-001,STR-001,Baghdad,Karrada,33.3,44.4\nTST-002,STR-001,Baghdad,Karrada,33.3,44.4";
 beforeAll(async () => {
   delete process.env.DATABASE_URL;
-  process.env.IBVS_LOCAL_DB = await mkdtemp(path.join(tmpdir(), "ibvs-test-"));
+  process.env.IBVS_LOCAL_DB = await testDirectory("integration-");
   process.env.BETTER_AUTH_SECRET = randomBytes(48).toString("base64url");
   await migrate();
   await migrate();

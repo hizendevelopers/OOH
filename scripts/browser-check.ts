@@ -1,17 +1,18 @@
 import { randomBytes } from "node:crypto";
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
+import { testDirectory } from "./test-directory";
 import { spawn } from "node:child_process";
 const environment: {
   -readonly [K in keyof NodeJS.ProcessEnv]: NodeJS.ProcessEnv[K];
 } = {
   ...process.env,
   IBVS_DEMO_PASSWORD: randomBytes(32).toString("base64url"),
-  IBVS_LOCAL_DB: await mkdtemp(path.join(tmpdir(), "ibvs-browser-")),
+  IBVS_LOCAL_DB: await testDirectory("browser-db-"),
+  IBVS_EVIDENCE_DIR: await testDirectory("browser-evidence-"),
+  TMP: await testDirectory("browser-temp-"),
   BETTER_AUTH_SECRET: randomBytes(48).toString("base64url"),
   BETTER_AUTH_URL: "http://localhost:3000",
 };
+environment.TEMP = environment.TMP;
 delete environment.DATABASE_URL;
 async function run(args: string[]) {
   return new Promise<void>((resolve, reject) => {

@@ -46,6 +46,10 @@ Production organization: `npm run org:create -- "Iraq Operations" iraq-operation
 - Generated local secret and DB live in ignored `.local/`; protect using Windows account permissions. Embedded DB is single-process development only. Integration/browser tests use separate temporary databases.
 
 ## Next milestones
+Phase 2 implementation has started. Baseline Phase 1 re-verification: 26 tests, lint, typecheck, build and all 3 browser flows passed. Additive migration 002 introduces bound inspections, challenges, media receipts and resumable part metadata. New worker-only APIs validate ownership, immutable payload/idempotency, JPEG bytes/dimensions and server SHA-256, then issue explicit server receipts without baseline approval. Private storage uses an authenticated single-host filesystem adapter outside public assets; S3 integration is deferred. Backend checkpoint: 34 tests passed, typecheck/lint/build passed. Tests include task tampering, interrupted upload with database reopen, duplicate replay, foreign access, expired challenges and malformed images. Worker PWA is still being added; this is not yet a completed Phase 2 claim.
+
+System C: drive was full during verification. Tests now use ignored workspace-local databases and temporary directories. No user files were deleted.
+
 M2: implement explicitly downloaded worker tasks, live camera/GPS metadata, Dexie Blob drafts, storage diagnostics, cache-safe shell and durable foreground queue; test on actual Android/iOS under reload, denial, quota and connectivity failure.
 
 M3: private S3/R2 multipart sessions, bounded byte/dimension validation, server hashes and anomaly candidates, receipts, idempotency, immutable/versioned human review and reference policy. M4: independent 50–100-face pilot, security/operational hardening and restore drill. M5 only after verified references and blind evaluation.
