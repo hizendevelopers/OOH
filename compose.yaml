@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_DB: ibvs
+      POSTGRES_USER: ibvs
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a strong POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ibvs -d ibvs"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  web:
+    build: .
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL using host db for Compose}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set at least 32 random characters}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?Set the externally accessible HTTPS origin}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  postgres_data:

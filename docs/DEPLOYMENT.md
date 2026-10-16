@@ -1,0 +1,20 @@
+# Deployment and operations
+
+## Local to staging
+1. Start Docker Desktop Linux engine. Set POSTGRES_PASSWORD, DATABASE_URL, BETTER_AUTH_SECRET and BETTER_AUTH_URL in the session. For Compose web the database host is `db`; local migration commands use `localhost`.
+2. `docker compose up -d db`. Do not remove the named volume. `npm run db:migrate` applies portable migrations. Then `psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f db/spatial.sql` applies PostGIS (psql must be installed). The spatial script is additive/idempotent.
+3. Run `npm run org:create -- "Iraq Operations" iraq-operations`, then `npm run user:create -- admin@example.com "Administrator" admin iraq-operations` with IBVS_USER_PASSWORD set securely in the environment. Use role `worker` for field accounts. Never provision demo data in production. No runtime signup endpoint is enabled.
+4. Use a least-privilege runtime database role: only required SELECT/INSERT/UPDATE permissions; no schema ownership, migrations, audit/source UPDATE/DELETE, or superuser privileges. The Compose default database user is for local/staging bootstrap, not production least privilege.
+5. `docker compose build web`; `docker compose up -d web`. Place behind HTTPS reverse proxy with bounded request bodies, connection limits and login/API throttles. Set exactly matching BETTER_AUTH_URL and forwarded origin policy. Bind container ports to loopback as supplied.
+6. Health check `/api/health`; unauthenticated inventory must return 401. Sign in with two different workers and verify assignment isolation. Import a small staging fixture; check audit, export, RTL and phone widths. Use an isolated database for automated demo browser tests.
+
+## Security deployment gates
+Admin MFA/SSO must be integrated and tested before Internet exposure. Current self-hosted email/password sessions are an M1 foundation. Review/tighten CSP for production: development currently allows inline styles/scripts and eval for Next.js development; deploy a tested nonce/hash policy before pilot. Add HSTS at the HTTPS proxy. Apply OS permissions to local development secret files. No browser clients receive database/storage secrets.
+
+## Backups and restore drill
+Schedule encrypted `pg_dump --format=custom` backups to a private backup destination using secret-managed credentials; retain according to the agreed policy. Before each migration, record schema version and take a snapshot. Restore with `pg_restore --no-owner` into a **new empty isolated database**, run migrations if needed, verify face/source/audit counts and hashes, sample task access and sign-in, then record restoration duration and data loss window. Never restore over the live database without an approved recovery plan. Do not delete original data to fix migration failures.
+
+Target policy for pilot: daily backup, RPO ≤24h, RTO ≤4h, validated by an actual restore drill. These are targets, not measured guarantees. Embedded local data requires stopping all app processes before an OS-level copy of `.local/`; it is not the production backup method.
+
+## Monitoring / rollback
+Poll health (database connectivity). Capture sanitized request failure IDs from server stderr. Alert on 5xx rate, login throttles, disk/DB capacity and backup age. Add request latency histograms and upload queue metrics in M3. On application regression redeploy previous image while preserving database; roll schema forward where possible. Schema rollback requires explicit reviewed data migration and a verified backup. Docker build, staging smoke and restore are unverified until recorded in handover.

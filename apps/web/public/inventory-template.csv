@@ -1,0 +1,3 @@
+code,structure_code,city,zone,latitude,longitude,uncertainty_m,orientation
+SAMPLE-BGD-001,SAMPLE-STRUCT-001,Baghdad,Karrada,33.3102,44.4351,50,N
+SAMPLE-BGD-002,SAMPLE-STRUCT-001,Baghdad,Karrada,33.3102,44.4351,50,S

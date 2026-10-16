@@ -1,0 +1,45 @@
+{
+  "name": "ibvs",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @ibvs/web",
+    "build": "npm run build -w @ibvs/web",
+    "start": "npm run start -w @ibvs/web",
+    "typecheck": "tsc --noEmit -p apps/web/tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:browser": "tsx scripts/browser-check.ts",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "user:create": "tsx scripts/provision.ts",
+    "org:create": "tsx scripts/organization.ts"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.5.10",
+    "better-auth": "1.7.10",
+    "csv-parse": "7.0.3",
+    "kysely": "^0.28.11",
+    "pg": "^8.16.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^24.10.0",
+    "@types/pg": "^8.15.6",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "eslint": "^9.39.0",
+    "eslint-config-next": "16.4.2",
+    "prettier": "3.9.10",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}
