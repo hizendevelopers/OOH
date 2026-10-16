@@ -42,10 +42,39 @@ async function camera(page: Page) {
 test("offline camera evidence survives reload and interrupted upload; server receipt is idempotent", async ({
   page,
   context,
+  browser,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await context.grantPermissions(["camera"]);
   await field(page, "DEMO-BGD-001");
+  const tasks = await (await page.request.get("/api/assignments")).json();
+  const bound = tasks.find(
+    (task: { code: string }) => task.code === "DEMO-BGD-001",
+  );
+  const forged = {
+    operationId: crypto.randomUUID(),
+    assignmentId: bound.assignment_id,
+    faceId: crypto.randomUUID(),
+    faceCode: bound.code,
+    assignmentVersion: bound.version,
+    challengeId: null,
+    photos: ["front", "wide"].map((kind) => ({
+      kind,
+      bytes: 1,
+      sha256: "a".repeat(64),
+      capturedAt: new Date().toISOString(),
+      captureMode: "offline",
+      gps: { status: "denied", observedAt: new Date().toISOString() },
+    })),
+  };
+  expect(
+    (
+      await page.request.post("/api/inspections", {
+        headers: { Origin: "http://localhost:3000" },
+        data: forged,
+      })
+    ).status(),
+  ).toBe(409);
   await page
     .getByRole("button", { name: "Record location fix", exact: true })
     .click();
@@ -75,11 +104,9 @@ test("offline camera evidence survives reload and interrupted upload; server rec
   await expect(
     page.getByRole("heading", { name: "Field workspace", exact: true }),
   ).toBeVisible();
-  const card = page
-    .locator("article.field-visit")
-    .filter({
-      has: page.getByRole("heading", { name: "DEMO-BGD-001", exact: true }),
-    });
+  const card = page.locator("article.field-visit").filter({
+    has: page.getByRole("heading", { name: "DEMO-BGD-001", exact: true }),
+  });
   await card
     .getByRole("button", { name: "Continue inspection", exact: true })
     .click();
@@ -149,6 +176,53 @@ test("offline camera evidence survives reload and interrupted upload; server rec
   });
   expect(cached.some((url) => url.startsWith("/api/"))).toBe(false);
   expect(cached).toContain("/field");
+  expect(
+    (
+      await page.request.post("/api/inspections/" + row.id + "/submit", {
+        headers: { Origin: "https://evil.invalid" },
+        data: {},
+      })
+    ).status(),
+  ).toBe(403);
+  const outsider = await browser.newContext({
+    baseURL: "http://localhost:3000",
+  });
+  expect((await outsider.request.get("/api/inspections")).status()).toBe(401);
+  expect(
+    (
+      await outsider.request.post("/api/auth/sign-in/email", {
+        headers: { Origin: "http://localhost:3000" },
+        data: { email: "worker2@demo.ibvs.test", password },
+      })
+    ).status(),
+  ).toBe(200);
+  for (const route of [row.id, row.id + "/media/front"])
+    expect(
+      (await outsider.request.get("/api/inspections/" + route)).status(),
+    ).toBe(404);
+  expect(
+    (
+      await outsider.request.post("/api/inspections/" + row.id + "/submit", {
+        headers: { Origin: "http://localhost:3000" },
+        data: {},
+      })
+    ).status(),
+  ).toBe(404);
+  expect(
+    (
+      await outsider.request.put(
+        "/api/inspections/" + row.id + "/parts/front/0",
+        {
+          headers: {
+            Origin: "http://localhost:3000",
+            "Content-Type": "application/octet-stream",
+          },
+          data: Buffer.from([0]),
+        },
+      )
+    ).status(),
+  ).toBe(404);
+  await outsider.close();
 });
 test("GPS success, simulated storage exhaustion and denied camera preserve honest states", async ({
   page,

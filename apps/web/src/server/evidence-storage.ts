@@ -14,15 +14,21 @@ export function evidenceRoot() {
     process.env.IBVS_ALLOW_LOCAL_DB !== "true"
   )
     throw new Error("Production requires private persistent IBVS_EVIDENCE_DIR");
-  const directory = path.resolve(/* turbopackIgnore: true */
+  const directory = path.resolve(
+    /* turbopackIgnore: true */
     configured || path.join(root(), ".local", "evidence"),
   );
   const publicDirectory = path.resolve(root(), "apps", "web");
+  const relative = path.relative(publicDirectory, directory);
   if (
-    directory === publicDirectory ||
-    directory.startsWith(publicDirectory + path.sep)
+    relative === "" ||
+    (!relative.startsWith(".." + path.sep) &&
+      relative !== ".." &&
+      !path.isAbsolute(relative))
   )
-    throw new Error("Evidence cannot be stored under the web application directory");
+    throw new Error(
+      "Evidence cannot be stored under the web application directory",
+    );
   return directory;
 }
 function filename(key: string) {
@@ -38,13 +44,15 @@ export async function putPrivate(key: string, data: Buffer) {
   const file = filename(key);
   await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
   const temp = file + "." + randomUUID() + ".tmp";
-  await writeFile(temp, data, { flag: "wx", mode: 0o600 });
   try {
+    await writeFile(temp, data, { flag: "wx", mode: 0o600, flush: true });
     await link(temp, file);
   } catch (e) {
     if ((e as { code?: string }).code !== "EEXIST") throw e;
   } finally {
-    await unlink(temp);
+    await unlink(temp).catch((error) => {
+      if (error.code !== "ENOENT") throw error;
+    });
   }
 }
 export const readPrivate = (key: string) => readFile(filename(key));

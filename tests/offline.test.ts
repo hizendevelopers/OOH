@@ -194,3 +194,55 @@ it("session expiry and task conflicts pause retry without losing originals", asy
     expect(draft!.photos.front!.blob.size).toBeGreaterThan(0);
   }
 });
+it("skips acknowledged pieces when resuming within a photograph", async () => {
+  const store = create();
+  await store.start(task);
+  for (const kind of ["front", "wide"] as const) {
+    const blob = new Blob(
+      [new Uint8Array(kind === "front" ? 256 * 1024 + 41 : 50)],
+      { type: "image/jpeg" },
+    );
+    await store.savePhoto(task.assignment_id, {
+      kind,
+      blob,
+      bytes: blob.size,
+      sha256: await digestBlob(blob),
+      capturedAt: new Date().toISOString(),
+      captureMode: "offline",
+      gps: { status: "denied", observedAt: new Date().toISOString() },
+    });
+  }
+  await store.queue(task.assignment_id);
+  const calls: string[] = [];
+  const receipt: Receipt = {
+    inspectionId: crypto.randomUUID(),
+    receiptId: crypto.randomUUID(),
+    receivedAt: new Date().toISOString(),
+    status: "server_received",
+    flags: [],
+  };
+  const transport = (async (url: string) => {
+    calls.push(url);
+    if (url === "me") return { ...store.owner, role: "worker" };
+    if (url === "inspections")
+      return {
+        inspectionId: receipt.inspectionId,
+        chunkSize: 256 * 1024,
+        photos: [
+          { kind: "front", receivedParts: [0], receiptId: null },
+          { kind: "wide", receivedParts: [], receiptId: null },
+        ],
+        receipt: null,
+      };
+    if (url.endsWith("/submit")) return receipt;
+    return { receiptId: "photo" };
+  }) as Transport;
+  await syncDraft(store, task.assignment_id, transport);
+  expect(calls).not.toContain(
+    `inspections/${receipt.inspectionId}/parts/front/0`,
+  );
+  expect(calls).toContain(`inspections/${receipt.inspectionId}/parts/front/1`);
+  expect((await store.drafts.get(task.assignment_id))!.receipt).toEqual(
+    receipt,
+  );
+});

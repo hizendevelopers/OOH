@@ -264,6 +264,11 @@ export default function FieldWorkspace() {
           {t.receipt}: <bdi>{d.receipt.receiptId}</bdi>
         </p>
       )}
+      {["session_expired", "account_mismatch"].includes(d.lastError || "") && (
+        <Link href="/sign-in" className="text-button">
+          {t.signin}
+        </Link>
+      )}
     </div>
   );
   return (

@@ -1,4 +1,5 @@
-import { beforeAll, afterAll, it, expect } from "vitest";
+import { beforeAll, afterAll, it, expect, vi } from "vitest";
+import * as storage from "../apps/web/src/server/evidence-storage";
 import { testDirectory } from "../scripts/test-directory";
 import { randomUUID, createHash, randomBytes } from "node:crypto";
 import sharp from "sharp";
@@ -156,6 +157,19 @@ it("creates a stable session and rejects idempotency payload changes", async () 
   ).toHaveLength(1);
 });
 it("retains interrupted uploads without issuing receipts and denies foreign access", async () => {
+  const exhausted = vi
+    .spyOn(storage, "putPrivate")
+    .mockRejectedValueOnce(
+      Object.assign(new Error("No space"), { code: "ENOSPC" }),
+    );
+  await expect(
+    uploadPart(worker, id, "front", 0, front.subarray(0, CHUNK_SIZE)),
+  ).rejects.toThrow("No space");
+  exhausted.mockRestore();
+  expect(
+    (await inspectionStatus(worker, id)).photos.find((p) => p.kind === "front")!
+      .receivedParts,
+  ).toEqual([]);
   await uploadPart(worker, id, "front", 0, front.subarray(0, CHUNK_SIZE));
   await closeDb(); // Simulate process restart; neither metadata nor private parts are in memory.
   expect(
@@ -167,6 +181,82 @@ it("retains interrupted uploads without issuing receipts and denies foreign acce
   await expect(evidenceAccess(other, id, "front")).rejects.toThrow("not found");
   await expect(uploadPart(other, id, "wide", 0, wide)).rejects.toThrow(
     "not found",
+  );
+});
+it("refuses unsafe storage configuration", () => {
+  const original = process.env.IBVS_EVIDENCE_DIR;
+  try {
+    process.env.IBVS_EVIDENCE_DIR = "relative/path";
+    expect(() => storage.evidenceRoot()).toThrow("absolute");
+    process.env.IBVS_EVIDENCE_DIR = process.cwd() + "/apps/web/public/evidence";
+    expect(() => storage.evidenceRoot()).toThrow("web application");
+  } finally {
+    process.env.IBVS_EVIDENCE_DIR = original;
+  }
+});
+it("resumes inside a multi-part JPEG after reopening the database", async () => {
+  await importCsv(
+    admin,
+    "code,structure_code,city,latitude,longitude\nTST-MULTI,STR-MULTI,Baghdad,33,44",
+    "multipart-test.csv",
+  );
+  const face = (await inventory(admin)).find((f) => f.code === "TST-MULTI")!;
+  await assign(admin, {
+    faceIds: [face.id],
+    workerId: worker.id,
+    dueDate: "2026-11-01",
+  });
+  const task = (await assignments(worker)).find((t) => t.id === face.id)!;
+  const image = await sharp(randomBytes(640 * 480 * 3), {
+    raw: { width: 640, height: 480, channels: 3 },
+  })
+    .jpeg({ quality: 95 })
+    .toBuffer();
+  expect(image.length).toBeGreaterThan(CHUNK_SIZE);
+  const payload: InspectionInput = {
+    ...input,
+    operationId: randomUUID(),
+    assignmentId: task.assignment_id,
+    faceId: face.id,
+    faceCode: face.code,
+    challengeId: null,
+    photos: input.photos.map((p) =>
+      p.kind === "front"
+        ? { ...p, bytes: image.length, sha256: digest(image) }
+        : { ...p },
+    ),
+  };
+  const session = await beginInspection(worker, payload);
+  await uploadPart(
+    worker,
+    session.inspectionId,
+    "front",
+    0,
+    image.subarray(0, CHUNK_SIZE),
+  );
+  await expect(
+    completePhoto(worker, session.inspectionId, "front"),
+  ).rejects.toThrow("incomplete");
+  await closeDb();
+  expect(
+    (await inspectionStatus(worker, session.inspectionId)).photos.find(
+      (p) => p.kind === "front",
+    )!.receivedParts,
+  ).toEqual([0]);
+  for (let part = 0; part < Math.ceil(image.length / CHUNK_SIZE); part++)
+    await uploadPart(
+      worker,
+      session.inspectionId,
+      "front",
+      part,
+      image.subarray(part * CHUNK_SIZE, (part + 1) * CHUNK_SIZE),
+    );
+  const receipt = await completePhoto(worker, session.inspectionId, "front");
+  expect(
+    (await completePhoto(worker, session.inspectionId, "front")).receiptId,
+  ).toBe(receipt.receiptId);
+  expect(await evidenceAccess(worker, session.inspectionId, "front")).toEqual(
+    image,
   );
 });
 it("replays identical chunks and rejects altered bytes", async () => {
@@ -198,7 +288,11 @@ it("validates JPEGs and returns stable photo and inspection receipts on replay",
   );
   expect(await submitInspection(worker, id)).toEqual(received);
   expect((await beginInspection(worker, input)).receipt).toEqual(received);
-  expect((await assignments(worker))[0].status).toBe("server_received");
+  expect(
+    (await assignments(worker)).find(
+      (task) => task.assignment_id === input.assignmentId,
+    )?.status,
+  ).toBe("server_received");
   expect(await evidenceAccess(admin, id, "front")).toEqual(front);
   expect(await evidenceAccess(worker, id, "wide")).toEqual(wide);
   expect(
@@ -217,6 +311,39 @@ it("received submissions cannot be overwritten", async () => {
     ),
   ).rejects.toThrow("immutable");
 });
-it('rejects malformed media without issuing a receipt',async()=>{
- await importCsv(admin,'code,structure_code,city,latitude,longitude\nTST-BAD,STR-BAD,Baghdad,33,44','bad-image-test.csv');const face=(await inventory(admin)).find(f=>f.code==='TST-BAD')!;await assign(admin,{faceIds:[face.id],workerId:worker.id,dueDate:'2026-11-01'});const task=(await assignments(worker)).find(t=>t.id===face.id)!;const invalid=Buffer.from('This is not a JPEG');const request:InspectionInput={...input,operationId:randomUUID(),assignmentId:task.assignment_id,faceId:face.id,faceCode:face.code,challengeId:null,photos:input.photos.map(p=>({...p,bytes:invalid.length,sha256:digest(invalid)}))};const upload=await beginInspection(worker,request);await uploadPart(worker,upload.inspectionId,'front',0,invalid);await expect(completePhoto(worker,upload.inspectionId,'front')).rejects.toThrow('Invalid JPEG');expect((await inspectionStatus(worker,upload.inspectionId)).photos[0].receiptId).toBeNull();
+it("rejects malformed media without issuing a receipt", async () => {
+  await importCsv(
+    admin,
+    "code,structure_code,city,latitude,longitude\nTST-BAD,STR-BAD,Baghdad,33,44",
+    "bad-image-test.csv",
+  );
+  const face = (await inventory(admin)).find((f) => f.code === "TST-BAD")!;
+  await assign(admin, {
+    faceIds: [face.id],
+    workerId: worker.id,
+    dueDate: "2026-11-01",
+  });
+  const task = (await assignments(worker)).find((t) => t.id === face.id)!;
+  const invalid = Buffer.from("This is not a JPEG");
+  const request: InspectionInput = {
+    ...input,
+    operationId: randomUUID(),
+    assignmentId: task.assignment_id,
+    faceId: face.id,
+    faceCode: face.code,
+    challengeId: null,
+    photos: input.photos.map((p) => ({
+      ...p,
+      bytes: invalid.length,
+      sha256: digest(invalid),
+    })),
+  };
+  const upload = await beginInspection(worker, request);
+  await uploadPart(worker, upload.inspectionId, "front", 0, invalid);
+  await expect(
+    completePhoto(worker, upload.inspectionId, "front"),
+  ).rejects.toThrow("Invalid JPEG");
+  expect(
+    (await inspectionStatus(worker, upload.inspectionId)).photos[0].receiptId,
+  ).toBeNull();
 });

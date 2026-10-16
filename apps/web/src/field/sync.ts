@@ -141,7 +141,9 @@ export async function syncDraft(
   }
 }
 async function acknowledge(store: FieldStore, id: string, result: Receipt) {
+  const draft = await store.drafts.get(id);
   if (
+    result.inspectionId !== draft?.serverId ||
     result.status !== "server_received" ||
     !result.receiptId ||
     !result.receivedAt

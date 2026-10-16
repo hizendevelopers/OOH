@@ -21,6 +21,9 @@ services:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL using host db for Compose}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set at least 32 random characters}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?Set the externally accessible HTTPS origin}
+      IBVS_EVIDENCE_DIR: /var/lib/ibvs/evidence
+    volumes:
+      - evidence_data:/var/lib/ibvs/evidence
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
@@ -29,3 +32,4 @@ services:
     restart: unless-stopped
 volumes:
   postgres_data:
+  evidence_data:

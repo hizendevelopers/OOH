@@ -21,6 +21,7 @@ const schema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   IBVS_ALLOW_LOCAL_DB: z.enum(["true", "false"]).default("false"),
+  IBVS_EVIDENCE_DIR: z.string().min(1).optional(),
 });
 export function environment() {
   const result = schema.safeParse(process.env);
@@ -36,6 +37,10 @@ export function environment() {
       );
     if (!env.BETTER_AUTH_URL.startsWith("https://"))
       throw new Error("Production requires an HTTPS BETTER_AUTH_URL");
+    if (!env.IBVS_EVIDENCE_DIR)
+      throw new Error(
+        "Production requires IBVS_EVIDENCE_DIR for private persistent evidence",
+      );
   }
   return env;
 }

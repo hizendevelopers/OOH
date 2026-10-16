@@ -11,3 +11,5 @@
 | Operations | Health, Docker/PostGIS, backup/restore, staging smoke | M4 |
 
 Results belong in PROJECT_HANDOVER.md. An unrun test is not a pass. Real-phone/offline tests and Docker spatial tests are separate from embedded PostgreSQL tests.
+
+Phase 2 implemented coverage: Dexie Blob persistence and reopen, front/wide requirement, quota failure atomicity, stable operation payload, interrupted/resumed upload, lost final response, backoff, session/account mismatch pause, server disk-write failure rollback, wrong face/version/worker, expired challenge flagging, malformed image, chunk/receipt duplicate replay, private media access, server DB reopen mid-upload, production evidence config/path restrictions. Playwright uses fake live media and simulated GPS (denied/success), quota and network faults; it exercises offline reload, resumable retry, scoped media APIs, CSRF/task tampering, public-cache exclusions, RTL/dark and 360/390/768/1440 widths. Real phones, OS eviction, real server process kill/power loss, Docker/PostGIS, scanning, staging and restore drills remain unrun.

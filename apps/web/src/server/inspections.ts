@@ -391,8 +391,8 @@ export async function submitInspection(actor: Actor, id: string) {
     )
       flags.add("challenge_claim_missing");
     const duplicates = await db.query(
-      "SELECT id FROM media_evidence WHERE inspection_id<>$1 AND server_hash=ANY($2::text[])",
-      [id, media.map((m) => m.server_hash)],
+      "SELECT m.id FROM media_evidence m JOIN inspections i ON i.id=m.inspection_id WHERE m.inspection_id<>$1 AND m.server_hash=ANY($2::text[]) AND i.organization_id=$3",
+      [id, media.map((m) => m.server_hash), actor.organizationId],
     );
     if (duplicates.length) flags.add("duplicate_photo_candidate");
     const receiptId = randomUUID(),

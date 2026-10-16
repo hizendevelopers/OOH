@@ -24,7 +24,7 @@ async function handle(request: Request) {
     const route = new URL(request.url).pathname.replace("/api/", "");
     if (route === "health") {
       await (await getDb()).query("SELECT 1");
-      return json({ status: "ok", service: "ibvs", phase: "M1" });
+      return json({ status: "ok", service: "ibvs", phase: "M2" });
     }
     const actor = await currentActor();
     if (request.method === "GET") {
