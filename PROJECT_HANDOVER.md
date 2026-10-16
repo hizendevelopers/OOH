@@ -50,6 +50,8 @@ Phase 2 implementation has started. Baseline Phase 1 re-verification: 26 tests, 
 
 System C: drive was full during verification. Tests now use ignored workspace-local databases and temporary directories. No user files were deleted.
 
+Worker PWA checkpoint: `/field` is a public static shell with no embedded private data. Worker-only downloads and photo Blobs are stored in scoped Dexie databases. Live camera, explicit GPS observations, front/wide guidance, quota diagnostics, local/queued/uploading/received states, foreground backoff and replay are implemented. Service worker caches only the field shell and static assets. Camera tracks stop when hidden, unmounted or queued. English/Arabic primary UI and responsive styles extend the existing design. At this checkpoint 41 tests, lint/typecheck/build and 5 Chromium browser flows passed; final security/deployment review remains. No real phones, Docker or production environment have been tested.
+
 M2: implement explicitly downloaded worker tasks, live camera/GPS metadata, Dexie Blob drafts, storage diagnostics, cache-safe shell and durable foreground queue; test on actual Android/iOS under reload, denial, quota and connectivity failure.
 
 M3: private S3/R2 multipart sessions, bounded byte/dimension validation, server hashes and anomaly candidates, receipts, idempotency, immutable/versioned human review and reference policy. M4: independent 50–100-face pilot, security/operational hardening and restore drill. M5 only after verified references and blind evaluation.

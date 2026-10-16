@@ -32,6 +32,8 @@ export default function SignIn() {
         );
         return;
       }
+      localStorage.removeItem("ibvs-field-locked");
+      localStorage.removeItem("ibvs-field-owner-v2");
       location.assign("/");
     } catch {
       setError("Connection unavailable. Reconnect to sign in.");

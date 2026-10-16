@@ -9,6 +9,12 @@ export default defineConfig({
     baseURL: "http://localhost:3000",
     trace: "off",
     reducedMotion: "reduce",
+    launchOptions: {
+      args: [
+        "--use-fake-device-for-media-stream",
+        "--use-fake-ui-for-media-stream",
+      ],
+    },
   },
   webServer: {
     command:

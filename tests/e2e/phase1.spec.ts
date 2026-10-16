@@ -83,7 +83,9 @@ test("admin imports, assigns, worker sees authorized visit; CSRF and scope are e
     worker.getByRole("heading", { name: face, exact: true }),
   ).toBeVisible();
   await expect(
-    worker.getByText("Capture is not enabled in Phase 1.", { exact: false }),
+    worker.getByText("Open the field workspace for live capture", {
+      exact: false,
+    }),
   ).toBeVisible();
   expect((await worker.request.get("/api/inventory")).status()).toBe(403);
   await context.close();

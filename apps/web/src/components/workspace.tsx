@@ -90,13 +90,13 @@ const words = {
       "Your fieldwork, organized. Open a visit for its locked location details.",
     signout: "Sign out",
     offline:
-      "You are offline. Phase 1 requires a connection; offline capture is not yet available.",
+      "You are offline. This operations view requires a connection. Use downloaded tasks in the field workspace for offline capture.",
     detail: "Assignment details",
     locked: "Locked face identity",
     uncertainty: "Coordinate uncertainty",
     navigation: "Navigate to location",
     notCapture:
-      "Capture is not enabled in Phase 1. No evidence or server receipt is claimed.",
+      "Open the field workspace for live capture and offline drafts. Server receipt does not verify billboard identity.",
     close: "Close",
     preview: "Validate & preview",
     commit: "Import valid rows",
@@ -155,13 +155,13 @@ const words = {
       "عملك الميداني منظّم. افتح الزيارة لعرض تفاصيل الموقع الثابتة.",
     signout: "تسجيل الخروج",
     offline:
-      "أنت غير متصل. المرحلة الأولى تتطلب الاتصال؛ الالتقاط دون إنترنت غير متاح بعد.",
+      "أنت غير متصل. مساحة العمليات تتطلب الاتصال. استخدم المهام المحمّلة في مساحة العمل الميداني للالتقاط دون اتصال.",
     detail: "تفاصيل المهمة",
     locked: "هوية الواجهة الثابتة",
     uncertainty: "عدم دقة الإحداثيات",
     navigation: "الاتجاه إلى الموقع",
     notCapture:
-      "الالتقاط غير متاح في المرحلة الأولى. لم يتم تسجيل دليل أو إيصال خادم.",
+      "افتح مساحة العمل الميداني للالتقاط المباشر والمسودات دون اتصال. إيصال الخادم لا يثبت هوية الواجهة.",
     close: "إغلاق",
     preview: "تحقق ومعاينة",
     commit: "استيراد الصفوف الصالحة",
@@ -464,8 +464,11 @@ export default function Workspace({ actor }: { actor: Actor }) {
                   headers: { "Content-Type": "application/json" },
                   body: "{}",
                 });
-                if (response.ok) location.assign("/sign-in");
-                else setToast("Sign out failed. Please retry.");
+                if (response.ok) {
+                  localStorage.removeItem("ibvs-field-owner-v2");
+                  localStorage.setItem("ibvs-field-locked", "1");
+                  location.assign("/sign-in");
+                } else setToast("Sign out failed. Please retry.");
               }}
             >
               <LogOut size={17} />
@@ -553,6 +556,13 @@ export default function Workspace({ actor }: { actor: Actor }) {
               </p>
             </div>
             <div className="heading-actions">
+              {!isAdmin && (
+                <Link href="/field" className="primary">
+                  {locale === "ar"
+                    ? "فتح مساحة العمل الميداني"
+                    : "Open field workspace"}
+                </Link>
+              )}
               {isAdmin && (tab === "overview" || tab === "inventory") && (
                 <button className="primary" onClick={() => openModal("import")}>
                   <Plus size={17} />
