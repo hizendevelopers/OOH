@@ -60,10 +60,12 @@ export type Assignment = Face & {
   due_date: string;
   status: string;
   version: number;
+  parent_inspection_id?: string | null;
+  instructions?: string | null;
 };
 export async function assignments(actor: Actor, id?: string) {
   return (await getDb()).query<Assignment>(
-    `SELECT f.id,f.code,f.orientation,s.code structure_code,s.city,s.zone,c.latitude,c.longitude,c.uncertainty_m,a.id assignment_id,a.status,a.worker_id,a.due_date::text,a.version,u.name worker_name FROM assignments a JOIN billboard_faces f ON f.id=a.face_id JOIN billboard_structures s ON s.id=f.structure_id JOIN source_coordinates c ON c.face_id=f.id JOIN "user" u ON u.id=a.worker_id WHERE a.organization_id=$1 AND ($2::text='admin' OR a.worker_id=$3) AND ($4::text IS NULL OR a.id=$4) ORDER BY a.due_date,a.created_at DESC LIMIT 10000`,
+    `SELECT f.id,f.code,f.orientation,s.code structure_code,s.city,s.zone,c.latitude,c.longitude,c.uncertainty_m,a.id assignment_id,a.parent_inspection_id,a.instructions,a.status,a.worker_id,a.due_date::text,a.version,u.name worker_name FROM assignments a JOIN billboard_faces f ON f.id=a.face_id JOIN billboard_structures s ON s.id=f.structure_id JOIN source_coordinates c ON c.face_id=f.id JOIN "user" u ON u.id=a.worker_id WHERE a.organization_id=$1 AND ($2::text='admin' OR a.worker_id=$3) AND ($4::text IS NULL OR a.id=$4) ORDER BY a.due_date,a.created_at DESC LIMIT 10000`,
     [actor.organizationId, actor.role, actor.id, id ?? null],
   );
 }
@@ -232,7 +234,7 @@ export async function overview(actor: Actor) {
     verified: number;
     rejected: number;
   }>(
-    `SELECT (SELECT count(*)::int FROM billboard_faces WHERE organization_id=$1) faces,(SELECT count(*)::int FROM billboard_structures WHERE organization_id=$1) structures,(SELECT count(*)::int FROM organization_members WHERE organization_id=$1 AND role='worker') workers,(SELECT count(*)::int FROM assignments WHERE organization_id=$1 AND status='assigned') assigned,(SELECT count(*)::int FROM assignments WHERE organization_id=$1 AND status='pending_review') pending,(SELECT count(*)::int FROM assignments WHERE organization_id=$1 AND status='baseline_verified') verified,(SELECT count(*)::int FROM assignments WHERE organization_id=$1 AND status='rejected') rejected`,
+    `SELECT (SELECT count(*)::int FROM billboard_faces WHERE organization_id=$1) faces,(SELECT count(*)::int FROM billboard_structures WHERE organization_id=$1) structures,(SELECT count(*)::int FROM organization_members WHERE organization_id=$1 AND role='worker') workers,(SELECT count(*)::int FROM assignments WHERE organization_id=$1 AND status='assigned') assigned,(SELECT count(*)::int FROM assignments WHERE organization_id=$1 AND status IN ('server_received','pending_review','ambiguous')) pending,(SELECT count(*)::int FROM reference_baselines b LEFT JOIN baseline_events e ON e.baseline_id=b.id WHERE b.organization_id=$1 AND e.id IS NULL) verified,(SELECT count(*)::int FROM assignments WHERE organization_id=$1 AND status='rejected') rejected`,
     [actor.organizationId],
   );
   const cities = await db.query<{

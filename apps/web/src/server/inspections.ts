@@ -13,6 +13,7 @@ import {
 import { getDb, type Database } from "./db";
 import { ApiError, audit } from "./service";
 import { putPrivate, readPrivate } from "./evidence-storage";
+import { assessInspection } from "./risk-analysis";
 
 const hash = (bytes: Buffer | string) =>
   createHash("sha256").update(bytes).digest("hex");
@@ -313,7 +314,9 @@ export async function completePhoto(actor: Actor, id: string, kind: PhotoKind) {
   });
 }
 export async function submitInspection(actor: Actor, id: string) {
-  return (await getDb()).transaction(async (db) => {
+  const result = await (
+    await getDb()
+  ).transaction(async (db) => {
     const row = await owned(db, actor, id, true);
     const bound = await task(db, actor, row.assignment_id);
     if (row.receipt_id) return receipt(row)!;
@@ -409,6 +412,10 @@ export async function submitInspection(actor: Actor, id: string) {
       receiptId,
       flags: [...flags],
     });
+    await db.query(
+      "INSERT INTO review_cases(inspection_id,organization_id) VALUES($1,$2) ON CONFLICT(inspection_id) DO NOTHING",
+      [id, actor.organizationId],
+    );
     return {
       inspectionId: id,
       receiptId,
@@ -417,6 +424,14 @@ export async function submitInspection(actor: Actor, id: string) {
       flags: [...flags],
     };
   });
+  try {
+    await assessInspection(actor, id);
+  } catch {
+    console.error(
+      JSON.stringify({ category: "risk_analysis_pending", inspectionId: id }),
+    );
+  }
+  return result;
 }
 export async function inspectionStatus(actor: Actor, id: string) {
   const db = await getDb();

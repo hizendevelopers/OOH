@@ -25,6 +25,14 @@ import {
   type InspectionInput,
 } from "../packages/domain/src/inspection";
 import type { Actor } from "../packages/domain/src";
+import {
+  reviewDetail,
+  reviewQueue,
+  decide,
+  enrollBaseline,
+  withdrawBaseline,
+} from "../apps/web/src/server/review";
+import { assessInspection } from "../apps/web/src/server/risk-analysis";
 
 const admin: Actor = {
   id: "admin",
@@ -346,4 +354,120 @@ it("rejects malformed media without issuing a receipt", async () => {
   expect(
     (await inspectionStatus(worker, upload.inspectionId)).photos[0].receiptId,
   ).toBeNull();
+});
+
+it("authorizes reviews, preserves decisions, explicitly enrolls and withdraws references, links resurvey", async () => {
+  await expect(reviewQueue(worker)).rejects.toThrow("Administrator");
+  await expect(
+    reviewDetail({ ...admin, organizationId: "foreign" }, id),
+  ).rejects.toThrow("not found");
+  let detail = await reviewDetail(admin, id);
+  expect(detail.baselines).toHaveLength(0);
+  const report = await assessInspection(admin, id);
+  const approval = {
+    operationId: randomUUID(),
+    expectedVersion: detail.review.version,
+    assessmentHash: report.assessmentHash,
+    action: "approve",
+    reason: "Exact face inspected by supervisor",
+    identityConfirmed: true,
+    riskAcknowledged: true,
+  };
+  const result = await decide(admin, id, approval);
+  expect(await decide(admin, id, approval)).toEqual(result);
+  await expect(
+    decide(admin, id, { ...approval, reason: "Different content" }),
+  ).rejects.toThrow("Operation ID");
+  detail = await reviewDetail(admin, id);
+  if (detail.review.state === "ambiguous") {
+    const db = await getDb();
+    await db.query(
+      `INSERT INTO "user"(id,name,email) VALUES('reviewer2','Second reviewer','r2@test.invalid')`,
+    );
+    await db.query(
+      "INSERT INTO organization_members(organization_id,user_id,role) VALUES('org','reviewer2','admin')",
+    );
+    await expect(
+      decide(admin, id, {
+        ...approval,
+        operationId: randomUUID(),
+        expectedVersion: detail.review.version,
+      }),
+    ).rejects.toThrow("Another supervisor");
+    await decide({ ...admin, id: "reviewer2" }, id, {
+      ...approval,
+      operationId: randomUUID(),
+      expectedVersion: detail.review.version,
+    });
+    detail = await reviewDetail(admin, id);
+  }
+  expect(detail.review.state).toBe("approved");
+  const enrollment = {
+    operationId: randomUUID(),
+    expectedVersion: detail.review.version,
+    assessmentHash: report.assessmentHash,
+    faceId: detail.inspection.face_id,
+    identityConfirmed: true,
+    shape: "Rectangle",
+    mounting: "Steel double posts",
+    numberOfFaces: 2,
+    facing: "N",
+    landmarks: "Adjacent road junction",
+    reason: "Supervisor controlled initial reference",
+  };
+  await expect(enrollBaseline(worker, id, enrollment)).rejects.toThrow(
+    "Administrator",
+  );
+  await expect(
+    enrollBaseline(admin, id, { ...enrollment, faceId: randomUUID() }),
+  ).rejects.toThrow("exact-face");
+  const baseline = await enrollBaseline(admin, id, enrollment);
+  expect(await enrollBaseline(admin, id, enrollment)).toEqual(baseline);
+  await expect(
+    decide(admin, id, {
+      ...approval,
+      operationId: randomUUID(),
+      expectedVersion: detail.review.version,
+      action: "reject",
+    }),
+  ).rejects.toThrow("Withdraw");
+  await withdrawBaseline(admin, baseline.id, {
+    operationId: randomUUID(),
+    reason: "Reference mounting needs correction",
+  });
+  const corrected = await enrollBaseline(admin, id, {
+    ...enrollment,
+    operationId: randomUUID(),
+    mounting: "Corrected steel mounting",
+  });
+  expect(corrected.id).not.toBe(baseline.id);
+  await withdrawBaseline(admin, corrected.id, {
+    operationId: randomUUID(),
+    reason: "Additional site evidence required",
+  });
+  const resurvey = {
+    ...approval,
+    operationId: randomUUID(),
+    expectedVersion: detail.review.version,
+    action: "resurvey",
+    instructions: "Photograph mounting and neighboring face separately",
+    dueDate: "2026-11-15",
+  };
+  const followup = (await decide(admin, id, resurvey)) as {
+    followupAssignmentId: string;
+  };
+  expect(await decide(admin, id, resurvey)).toEqual(followup);
+  const task = (await assignments(worker)).find(
+    (t) => t.assignment_id === followup.followupAssignmentId,
+  )!;
+  expect(task.parent_inspection_id).toBe(id);
+  expect(task.instructions).toContain("mounting");
+  expect(task.status).toBe("resurvey_requested");
+  await expect(
+    (await getDb()).query(
+      "UPDATE review_decisions SET reason='altered' WHERE inspection_id=$1",
+      [id],
+    ),
+  ).rejects.toThrow();
+  expect((await inspectionStatus(worker, id)).receipt).toBeTruthy();
 });
