@@ -18,7 +18,9 @@ export default defineConfig({
   },
   webServer: {
     command:
-      process.env.IBVS_E2E_PRODUCTION === "true" ? "npm start" : "npm run dev",
+      process.env.IBVS_E2E_PRODUCTION === "true"
+        ? "node node_modules/next/dist/bin/next start apps/web --hostname 127.0.0.1"
+        : "npm run dev",
     url: "http://localhost:3000/sign-in",
     reuseExistingServer: false,
     timeout: 120000,

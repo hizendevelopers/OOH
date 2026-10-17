@@ -181,7 +181,7 @@ it("retains interrupted uploads without issuing receipts and denies foreign acce
       .receivedParts,
   ).toEqual([]);
   await uploadPart(worker, id, "front", 0, front.subarray(0, CHUNK_SIZE));
-  await closeDb(); // Simulate process restart; neither metadata nor private parts are in memory.
+  await closeDb(); // Reopen the persistent database in this process; not a server-process restart.
   expect(
     (await inspectionStatus(worker, id)).photos.find((p) => p.kind === "front")!
       .receivedParts,

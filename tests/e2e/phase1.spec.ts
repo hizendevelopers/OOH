@@ -8,12 +8,31 @@ async function login(page: import("@playwright/test").Page, email: string) {
   await page.goto("/sign-in");
   await page.getByLabel("Email address").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password!);
-  const signedIn = page.waitForResponse(
-    (response) => response.url().endsWith("/api/auth/sign-in/email"),
-    { timeout: 60000 },
-  );
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  expect((await signedIn).status()).toBe(200);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const signedIn = page.waitForResponse(
+      (response) => response.url().endsWith("/api/auth/sign-in/email"),
+      { timeout: 60000 },
+    );
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    const response = await signedIn;
+    if (response.status() === 429 && attempt < 2) {
+      // Preserve real shared-IP throttling as the isolated suite gains login flows.
+      const seconds = Math.min(
+        60,
+        Math.max(1, Number(response.headers()["retry-after"]) || 60),
+      );
+      await new Promise((resolve) => setTimeout(resolve, (seconds + 1) * 1000));
+      continue;
+    }
+    expect(response.status()).toBe(200);
+    break;
+  }
+  if (email.startsWith("worker")) {
+    await expect(
+      page.getByRole("heading", { name: "My assignments" }),
+    ).toBeVisible();
+    return;
+  }
   await expect(
     page.getByRole("heading", { name: "A clearer view of the field." }),
   ).toBeVisible();
@@ -25,6 +44,7 @@ test("admin imports, assigns, worker sees authorized visit; CSRF and scope are e
   page,
   browser,
 }) => {
+  test.setTimeout(240000);
   await login(page, "admin@demo.ibvs.test");
   await expect(
     page.getByText("DEMO WORKSPACE", { exact: false }),
@@ -68,13 +88,7 @@ test("admin imports, assigns, worker sees authorized visit; CSRF and scope are e
   ).toBe(403);
   const context = await browser.newContext();
   const worker = await context.newPage();
-  await worker.goto("/sign-in");
-  await worker.getByLabel("Email address").fill("worker@demo.ibvs.test");
-  await worker.getByLabel("Password", { exact: true }).fill(password!);
-  await worker.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(
-    worker.getByRole("heading", { name: "My assignments" }),
-  ).toBeVisible();
+  await login(worker, "worker@demo.ibvs.test");
   await worker
     .getByRole("button")
     .filter({ has: worker.getByRole("heading", { name: face, exact: true }) })
@@ -91,13 +105,7 @@ test("admin imports, assigns, worker sees authorized visit; CSRF and scope are e
   await context.close();
   const otherContext = await browser.newContext();
   const other = await otherContext.newPage();
-  await other.goto("/sign-in");
-  await other.getByLabel("Email address").fill("worker2@demo.ibvs.test");
-  await other.getByLabel("Password", { exact: true }).fill(password!);
-  await other.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(
-    other.getByRole("heading", { name: "My assignments" }),
-  ).toBeVisible();
+  await login(other, "worker2@demo.ibvs.test");
   expect(
     (
       await other.request.get("/api/assignments/" + task.assignment_id)
@@ -109,6 +117,7 @@ test("responsive widths, RTL, themes, offline warning and CSV validation", async
   page,
   context,
 }) => {
+  test.setTimeout(240000);
   await login(page, "admin@demo.ibvs.test");
   for (const width of [360, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });

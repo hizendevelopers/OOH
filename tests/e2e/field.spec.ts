@@ -312,3 +312,175 @@ test("GPS success, simulated storage exhaustion and denied camera preserve hones
     });
   }
 });
+
+test("same-browser logout locks offline access and separates workers without deleting saved evidence", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(180000);
+  await context.grantPermissions(["camera"]);
+  await field(page, "DEMO-BGD-003");
+  await camera(page);
+  await page.getByRole("button", { name: "Capture", exact: true }).click();
+  await expect(
+    page.getByText("Photo saved locally", { exact: true }),
+  ).toHaveCount(1);
+  const originalOwner = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("ibvs-field-owner-v2")!),
+  );
+  const databaseName = `ibvs-field-v2:${encodeURIComponent(originalOwner.organizationId)}:${encodeURIComponent(originalOwner.id)}`;
+  const snapshot = () =>
+    page.evaluate(async (name) => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open(name);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        const drafts = await new Promise<
+          {
+            operationId: string;
+            task: { code: string };
+            state: string;
+            photos: { front?: { blob: Blob; sha256: string } };
+          }[]
+        >((resolve, reject) => {
+          const request = db
+            .transaction("drafts", "readonly")
+            .objectStore("drafts")
+            .getAll();
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        const draft = drafts.find((d) => d.task.code === "DEMO-BGD-003")!;
+        const photo = draft.photos.front!;
+        const hash = Array.from(
+          new Uint8Array(
+            await crypto.subtle.digest(
+              "SHA-256",
+              await photo.blob.arrayBuffer(),
+            ),
+          ),
+          (byte) => byte.toString(16).padStart(2, "0"),
+        ).join("");
+        return {
+          operationId: draft.operationId,
+          state: draft.state,
+          sha256: photo.sha256,
+          actualHash: hash,
+          bytes: photo.blob.size,
+        };
+      } finally {
+        db.close();
+      }
+    }, databaseName);
+  const saved = await snapshot();
+  expect(saved.state).toBe("local_draft");
+  expect(saved.bytes).toBeGreaterThan(0);
+  expect(saved.actualHash).toBe(saved.sha256);
+  await page
+    .getByRole("button", { name: "Sign out / lock device", exact: true })
+    .click();
+  await expect(page).toHaveURL("http://localhost:3000/sign-in");
+  expect(
+    await page.evaluate(() => localStorage.getItem("ibvs-field-locked")),
+  ).toBe("1");
+  expect(
+    await page.evaluate(() => localStorage.getItem("ibvs-field-owner-v2")),
+  ).toBeNull();
+  await context.setOffline(true);
+  await page.goto("/field");
+  await expect(
+    page
+      .getByRole("link", {
+        name: "Sign in to open your downloaded assignments.",
+        exact: true,
+      })
+      .first(),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Photo saved locally", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "DEMO-BGD-003", exact: true }),
+  ).toHaveCount(0);
+  expect(await snapshot()).toEqual(saved);
+  await context.setOffline(false);
+  const signIn = async (email: string) => {
+    await page.goto("/sign-in");
+    await page.getByLabel("Email address").fill(email);
+    await page.getByLabel("Password", { exact: true }).fill(password!);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = page.waitForResponse((r) =>
+        r.url().endsWith("/api/auth/sign-in/email"),
+      );
+      await page.getByRole("button", { name: "Sign in", exact: true }).click();
+      const result = await response;
+      if (result.status() === 429 && attempt === 0) {
+        await new Promise((resolve) =>
+          setTimeout(
+            resolve,
+            (Math.min(
+              60,
+              Math.max(1, Number(result.headers()["retry-after"]) || 60),
+            ) +
+              1) *
+              1000,
+          ),
+        );
+        continue;
+      }
+      expect(result.status()).toBe(200);
+      break;
+    }
+    await expect(page).toHaveURL("http://localhost:3000/");
+    await page.getByRole("link", { name: "Open field workspace" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Field workspace", exact: true }),
+    ).toBeVisible();
+  };
+  let evidenceWrites = 0;
+  const watch = (request: { url(): string; method(): string }) => {
+    if (
+      new URL(request.url()).pathname.startsWith("/api/inspections") &&
+      request.method() !== "GET"
+    )
+      evidenceWrites++;
+  };
+  page.on("request", watch);
+  await signIn("worker2@demo.ibvs.test");
+  await page
+    .getByRole("button", { name: "Download assignments", exact: true })
+    .click();
+  const otherOwner = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("ibvs-field-owner-v2")!),
+  );
+  expect(otherOwner.id).not.toBe(originalOwner.id);
+  await expect(
+    page.getByRole("heading", { name: "DEMO-BGD-003", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText("Photo saved locally", { exact: true }),
+  ).toHaveCount(0);
+  expect(await snapshot()).toEqual(saved);
+  expect(evidenceWrites).toBe(0);
+  await page
+    .getByRole("button", { name: "Sign out / lock device", exact: true })
+    .click();
+  await expect(page).toHaveURL("http://localhost:3000/sign-in");
+  await signIn("worker@demo.ibvs.test");
+  const card = page
+    .locator("article.field-visit")
+    .filter({
+      has: page.getByRole("heading", { name: "DEMO-BGD-003", exact: true }),
+    });
+  await card
+    .getByRole("button", { name: "Continue inspection", exact: true })
+    .click();
+  await expect(
+    page.getByText("Photo saved locally", { exact: true }),
+  ).toHaveCount(1);
+  expect(await snapshot()).toEqual(saved);
+  expect(evidenceWrites).toBe(0);
+  page.off("request", watch);
+});
