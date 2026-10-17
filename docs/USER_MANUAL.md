@@ -26,3 +26,14 @@ If blocked by expired session/account change, sign in as the original worker and
 
 ## Preferences and accessibility
 Use the language button to switch English/Arabic and page direction; immutable IDs remain LTR. Theme button switches light/dark. Preferences remain on the browser. Technical CSV/API errors and some operational text currently remain English. Keyboard users can skip to main content; forms have labels, dialogs support Escape and trap focus. Tables scroll within their panel on phones.
+
+
+## Human review and reference enrollment
+1. Sign in as an administrator and open Review center. Filter pending/ambiguous/approved/rejected/resurvey cases by worker ID, city, receipt date, billboard, risk and capture class. Queue safety limit is 500; narrow filters for older work.
+2. Compare front/wide photos; open either in the authorized full-resolution viewer. Inspect capture claims, server receipt times, GPS uncertainty, exact face orientation, structural details and neighboring candidates. The coordinate map has no street tiles and is not an identity proof.
+3. Read Risk analysis and Audit & sync. A severity is a review aid, never an accusation. Historical Phase 2 cases may need Reanalyze before deciding. Integrity failures require resurvey.
+4. Select approve/reject/resurvey/ambiguous and give a specific reason. Approving requires exact-face confirmation; high-risk signals also require acknowledgement. Ambiguous locations need two distinct supervisors approving the same current assessment. An initial approval can therefore remain ambiguous until a second supervisor acts.
+5. Approval does not create a reference. In References, explicitly enroll the exact face with shape, mounting, face count, facing, distinctive landmarks and a reason. Withdraw an invalid active reference with a reason before correction; new enrollment creates the next version. Review audit history is permanent.
+6. To request more evidence, give specific instructions and a due date. The original inspection remains unchanged. Workers download assignments to see supervisor decisions and the new linked task; new drafts support offline saving and existing retries. A rejected inspection can receive a subsequent resurvey decision without deleting the rejection.
+
+Shortcuts: J/K queue navigation; A/R/S/M action selection; Ctrl+Enter records a valid form; Escape closes the photo dialog. Shortcuts do not fire while editing fields. A 409 means a version/assessment changed: refresh and review deliberately. If a response is lost, retry the same unchanged form; operation IDs make duplicate submission safe. Verify the audit history after uncertain connectivity.

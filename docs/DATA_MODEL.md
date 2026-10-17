@@ -11,3 +11,9 @@ For Phase 2, GPS observations and sync idempotency metadata are stored in inspec
 Assignments remain assigned while the server has a partial uploading session. Only a validated final receipt advances the assignment to server_received. pending_review/baseline_verified/rejected/resurvey_requested review transitions are Phase 3. local_draft/queued/blocked are client states and never server receipt claims.
 
 Unique active assignment per face; foreign keys for organization and worker membership; transactional import and batch assignment; audit insert in the same transaction. Future review uses expected version and compare-and-swap. Spatial migration adds geography points and GiST index without replacing original numeric coordinates.
+
+
+## Phase 3 schema
+Migration 003 adds `review_cases` (mutable optimistic version/approval epoch projection), append-only `verification_runs` and `media_analysis`, append-only `review_decisions`, `reference_baselines`, `reference_photos` and `baseline_events`. Completed media receives a mutation-denial trigger. Existing migrations 001/002 and received metadata are preserved. No migration promotes worker photos to verified references.
+
+Assignments support approved/ambiguous/superseded states and optional `parent_inspection_id`/`instructions`. A resurvey transaction frees the original active task and inserts one new task linked to the original inspection. One follow-up per inspection and one attempt per assignment remain database-enforced. Each face reference has an increasing version; withdrawal is an append-only event, never deletion. Corrected enrollment retains historical image hashes and structural descriptions.
