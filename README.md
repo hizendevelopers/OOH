@@ -41,6 +41,8 @@ npm test
 npm run build
 npx playwright install chromium
 npm run test:browser
+# Isolated, directly owned loopback server restart during a partial upload:
+npm run test:restart
 # With demo password in the environment and a seeded dev database:
 npm run test:e2e
 # Optional: set IBVS_POSTGIS_TEST_URL to an isolated PostGIS database first:
@@ -68,6 +70,8 @@ npm run ops:restore-drill
 # Set DATABASE_URL (or absolute IBVS_LOCAL_DB), absolute IBVS_EVIDENCE_DIR,
 # and IBVS_RUN_INTEGRITY_CHECK=true before running:
 npm run ops:evidence-check
+# Same explicit isolated targets; IBVS_RUN_LIFECYCLE_PLAN=true; inventory only:
+npm run ops:lifecycle-plan
 ```
 
-See [operations scope](docs/M4_OPERATIONS.md) and [field pilot protocol](docs/M4_PILOT_RUNBOOK.md). The generated local restore and synthetic queue measurements do not certify production backups or a field pilot. Remote PostGIS CI is configured but has not been observed running. Exact results and outstanding external gates are in the handover.
+See [operations scope](docs/M4_OPERATIONS.md) and [field pilot protocol](docs/M4_PILOT_RUNBOOK.md). The generated local restore and synthetic queue measurements do not certify production backups or a field pilot. Remote PostGIS CI is configured but has not been observed running. See [M4 execution plan](docs/M4_EXECUTION_PLAN.md), [test report](docs/M4_TEST_REPORT.md), [security review](docs/M4_SECURITY_REVIEW.md), [staging/rollback](docs/M4_STAGING_AND_ROLLBACK.md) and [physical device checklist](docs/M4_FIELD_DEVICE_CHECKLIST.md). Exact results and outstanding external gates are in the handover.
