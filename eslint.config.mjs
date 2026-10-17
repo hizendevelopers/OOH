@@ -5,6 +5,7 @@ const config = [
   ...ts,
   {
     ignores: [
+      ".local/**",
       "**/.next/**",
       "node_modules/**",
       "playwright-report/**",
