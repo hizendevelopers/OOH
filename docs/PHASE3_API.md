@@ -4,7 +4,7 @@ All `/api/reviews` routes require a real session and current `admin` organizatio
 
 | Method and path | Behavior |
 |---|---|
-| GET `/api/reviews` | Received inspection queue; `state`, `worker` (ID), `city`, `date` (server receipt date), `billboard`, `risk`, `evidence=online/offline`. At most 500 results, newest first. Offline means at least one offline photograph; online is a device claim, not attestation. |
+| GET `/api/reviews` | Received inspection queue; `state`, `worker` (ID), `city`, `date` (server receipt date), `billboard`, `risk`, `evidence=online/offline`. Legacy array response: at most 500 results, newest first. Add `paged=true` for the paginated envelope described below. Offline means at least one offline photograph; online is a device claim, not attestation. |
 | GET `/api/reviews/:inspectionId` | Authorized inspection, latest versioned risk report, media hashes/receipts/part counts, decision history, face reference versions and audit events. |
 | GET `/api/reviews/:inspectionId/assessments/:runId` | Organization-authorized immutable historical risk report and supporting evidence. Detail lists the available run IDs/hashes; decisions retain the assessment hash they used. |
 | POST `/api/reviews/:inspectionId/analyze` | Re-read bounded private originals, verify hashes and recompute current versioned rules. Unchanged reports do not create duplicate audit events. |
@@ -39,3 +39,11 @@ Operation IDs bind actor, organization and canonical payload digest. Exact retri
 Production requires PostGIS and `db/spatial.sql`. Embedded local PostgreSQL uses explicitly labeled great-circle development calculations. Local verification does not certify the production spatial runtime.
 
 Changed risk assessments reopen previously approved cases as pending, increment their version/approval epoch and place mismatched active references on review hold. These references do not count as verified. The administrator sees the hold and must explicitly withdraw/correct the reference; original enrollment and decision events remain unchanged. This is a safety projection, not an automatic accusation or reference approval.
+
+## Paginated queue and bounded analysis
+
+`GET /api/reviews?paged=true&pageSize=50` returns `{items, nextCursor}`. Page size defaults to 50 and is limited to 100. Pass `cursor=nextCursor` with the same filters; null ends the queue. Cursor length is bounded and its version, organization and canonical filters are validated. Cursors are not authorization tokens: every page authenticates and scopes both inspections and cases to the organization. Ordering uses exact database microsecond receipt timestamps plus inspection ID, descending, to avoid gaps on ties. Date filtering uses UTC receipt dates. Changing filters requires a fresh cursor; malformed/mismatched cursors return 422. The legacy array remains available for older clients.
+
+Analysis admission precedes private image reads. Database leases allow two active admissions per organization, up to 60 starts per actor and 180 per organization per minute. Leases expire after five minutes for crash recovery and release on completion/failure. Admission exhaustion returns 429; retry later. It is synchronous admission control, not a durable job queue or a hard decoder execution timeout. A stuck decoder can outlive a lease. PostgreSQL lock/pool behavior requires staging verification.
+
+Initial receipt processing attempts automatic analysis once; already-received submission replay returns the immutable receipt without decoding again. If analysis was deferred or failed, an authorized supervisor explicitly invokes analyze. Existing decision/enrollment idempotent replays remain cheap. Failed/throttled analysis does not manufacture an approval or alter immutable decision history. `review_state` is authoritative for review status; assignment status is a separate lifecycle projection and may retain an earlier approved state after an assessment reopens review.

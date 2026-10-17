@@ -1,6 +1,6 @@
 # IBVS project handover
 
-Updated: 17 October 2026, Asia/Karachi. Delivery: Phase 1/2 preserved; Phase 3 human verification implemented and automated local acceptance passed. No external deployment or real-phone certification.
+Updated: 17 October 2026, Asia/Karachi. Delivery: Phase 1/2/3 preserved; M4 local security, review and operations hardening passed automated acceptance. Real field pilot remains outstanding. No external deployment or real-phone certification.
 
 ## Initial inspection
 The workspace was empty and not a Git repository. Node 24.12, npm 11.6 and Docker CLI were installed. Docker's Linux engine was unavailable. No pre-existing application or user data was overwritten. A new local Git repository was initialized on main.
@@ -38,12 +38,12 @@ Phase 2 browser acceptance additionally covers live fake-camera front/wide captu
 Database acceptance covers migration repeat, import rollback, duplicate rejection, original-coordinate/code/audit mutation denial, batch rollback, active-task conflicts, organization isolation, worker authorization and disabled signup. Embedded PostgreSQL is an actual database engine but does not validate production pg networking, pool behavior or PostGIS.
 
 ## Run / account setup
-See [README.md](README.md) for exact PowerShell commands. `npm ci`, `npm run db:migrate`, set a user-chosen IBVS_DEMO_PASSWORD securely, `npm run db:seed`, `npm run dev`. Accounts: admin@demo.ibvs.test, worker@demo.ibvs.test and worker2@demo.ibvs.test; use your supplied password. No default password exists. Normal workspace `.local/postgres` currently has the migrated empty schema, not automatically seeded user accounts.
+See [README.md](README.md) for exact PowerShell commands. `npm ci`, `npm run db:migrate`, set a user-chosen IBVS_DEMO_PASSWORD securely, `npm run db:seed`, `npm run dev`. Accounts: admin@demo.ibvs.test, worker@demo.ibvs.test and worker2@demo.ibvs.test; use your supplied password. No default password exists. The normal workspace `.local/postgres` now contains explicitly initialized demo accounts, including reviewer2@demo.ibvs.test, with the user-requested local password. M4 preserved those credentials/data; no password is committed. The earlier empty-schema state is historical.
 
-Production organization: `npm run org:create -- "Iraq Operations" iraq-operations`; then use `npm run user:create` with IBVS_USER_PASSWORD in the environment. Production requires PostgreSQL credentials, a ≥32-character auth secret, HTTPS origin and private persistent absolute IBVS_EVIDENCE_DIR. No production credentials were requested, provisioned or committed. Existing installs run `npm run db:migrate` for additive migration 002; schema 001 and original imports were preserved.
+Production organization: `npm run org:create -- "Iraq Operations" iraq-operations`; then use `npm run user:create` with IBVS_USER_PASSWORD in the environment. Production requires PostgreSQL credentials, a ≥32-character auth secret, HTTPS origin and private persistent absolute IBVS_EVIDENCE_DIR. No production credentials were requested, provisioned or committed. Existing installs run `npm run db:migrate` for all outstanding additive migrations through 005; schemas 001-003 and original imports were preserved during M4.
 
 ## Limitations and release gates
-- Phase 2 implementation passes local acceptance; M2 real-phone sign-off remains outstanding. Phase 3 review UI/versioned decisions, controlled resurvey attempts, verified references, perceptual matching, GIS, MFA and AI are not shipped. No production/staging deployment is claimed.
+- Phase 2 implementation passes local acceptance; M2 real-phone sign-off remains outstanding. Phase 3 review UI/versioned decisions, controlled resurveys, explicitly enrolled references and perceptual matching are implemented locally. Production GIS runtime, MFA and AI remain unverified or future work. No production/staging deployment is claimed.
 - First photos cannot become verified references automatically. Browser camera/GPS/device clocks and connectivity labels are untrusted; no offline timestamp attestation is promised. Online challenge issuance/expiry is recorded but does not prove genuine capture. GPS is requested explicitly, never continuously.
 - Production PostGIS/pg-path, Docker build, staging/private-volume validation, admin MFA, stricter CSP, reverse-proxy limits, least-privilege runtime role and encrypted backup/restore drills must pass before pilot. Compose bootstrap credentials are not a least-privilege runtime policy.
 - M1 inventory/task views are bounded at approximately 10,000 records; add true pagination/export streaming before exceeding the initial 1,000-site footprint. Audit UI shows the latest 200 events while retaining database history.
@@ -101,7 +101,7 @@ Acceptance refinement: the resurvey test initially reloaded before the asynchron
 ### Remaining release gates and next requirements
 1. Run the opt-in PostGIS runtime contract against an isolated `IBVS_POSTGIS_TEST_URL` (`npm run test:postgis`); apply `db/spatial.sql` with migration credentials. Production analysis deliberately requires PostGIS rather than silently using the development math. PostgreSQL pool/networking, geography indexes and production schema need staging verification.
 2. Actual Android/iOS camera/GPS, HTTPS installation/update, suspend/eviction/low-storage/network and orientation tests, plus an independent 50-100-face pilot with neighboring boards. Chromium media/GPS/quota faults are simulated.
-3. Synchronous analysis is bounded (10,000 media candidates, 500 worker inspections, 101 neighbors); queue is capped at 500. Add pagination, indexed retrieval, leased jobs and batch analysis of historical receipts before scale. Historical Phase 2 queue entries need explicit Reanalyze; missing/failed analysis never approves a case.
+3. Synchronous analysis is bounded (10,000 media candidates, 500 worker inspections, 101 neighbors); the legacy queue array is capped at 500, while M4 adds indexed keyset UI pagination and database admission leases. Durable background jobs and batch analysis of historical receipts remain future scale work. Historical Phase 2 queue entries need explicit Reanalyze; missing/failed analysis never approves a case.
 4. Current pHash/quality/travel thresholds are operational heuristics. Collect representative field cases, measure false positives and independent reviewer agreement, and blind-test before tuning or considering AI retrieval. Do not call severity a calibrated fraud probability. Browser camera, GPS, time and EXIF remain untrusted.
 5. Single-host private disk remains the storage adapter. Malware scanning, background derivatives, chunk/orphan cleanup, retention/holds, encrypted storage/backups, process-crash and restore drills, administrator MFA, least-privilege database role, CSP/rate/body limits and staging security review remain required before Internet/pilot release.
 6. Withdrawal preserves invalid references and evidence for audit. No automatic deletion or claim of immutable protection against database/filesystem superusers is made. Two-supervisor review mitigates ambiguity; it does not establish forensic identity or prevent collusion.
@@ -112,3 +112,48 @@ References: docs/PHASE3_API.md, docs/FRAUD_RULES.md, docs/PHASE3_PLAN.md and upd
 Additional hardening: changed assessments reopen approved cases with fresh epochs and put mismatched baselines on review hold, excluding them from verified counts. Exact hash detection includes historical received media even without pHash records; candidate ordering is deterministic and truncated scope is flagged. Historical risk reports are available through authorized drill-down; baseline versions link to their exact original inspection images. Private reads allocate no more than 6MiB and close file descriptors on failure.
 
 Dependency audit on 17 October: production-only audit reports zero vulnerabilities. Full audit reports five high development-chain findings rooted in the unpatched `braces` 3.0.3 stack-exhaustion advisory GHSA-vfj7-8cjw-p6xm, through micromatch/fast-glob/Next ESLint configuration. The registry's current braces release is 3.0.3; npm's suggested forced remediation downgrades eslint-config-next to 14.2.35. No forced framework-lint downgrade was applied. Track the upstream patch; do not feed untrusted glob patterns to development tooling.
+
+
+## M4 local hardening delivery
+Requested on 17 October 2026 with explicit parallel delegation and no destructive/production actions. Repository began clean at `9e0f631`. The only accessible attachment is the original 16 October IBVS master prompt; its M4 definition is pilot hardening, independent manual verification, security and measured performance. No separate M4 master prompt attachment was found; its text was requested while safe local work continued. This delivery does not claim execution of an unavailable attachment or completion of an actual 50-100-face pilot.
+
+Independent security, operations and UI workstreams inspected the implementation and performed final integration reviews with no blocking defects found. Baseline re-verification passed 52 tests and lint. Changes preserve migrations 001-003, private originals, existing local demo accounts/passwords, English/Arabic theme/design and offline drafts. No plaintext credential is recorded here.
+
+### Tested increments
+
+- `2d99c25`: generated-fixture snapshot restore with full schema/row fingerprints and audit immutability; explicitly scoped read-only registered-evidence reconciliation; operations tests and isolated PostGIS CI configuration.
+- `ae9da73`: organization/actor database admission limits before image reads, cheap immutable receipt replay with explicit supervisor analysis recovery, production CSP without eval, fail-fast absolute production evidence paths and security/environment tests. Migration 004 is additive.
+- `06f5040`: authorized filter-bound keyset pages with exact microsecond receipt ordering, migration 005 index, legacy API compatibility, bilingual Load more, synchronous supervisor mutation locks and extended database/production-browser acceptance.
+- Final documentation reconciles historical status, API contracts, resource limits and operational scope; adds the independent field pilot protocol. Risk rule semantics remain `ibvs-risk/1.0.0`.
+
+### Final integrated verification
+
+All results below were actually executed locally against this implementation. Test fixtures are isolated/generated; no real evidence, field observations, approvals or performance results are fabricated.
+
+| Check | Actual result |
+|---|---|
+| `npm run db:migrate` | Applied additive 004/005 to the existing local DB without reset/reseed. Tests also apply portable migrations to isolated databases. |
+| `npm test` | 65 passed across 9 files, 97.47s. Includes original offline/security/review regressions plus 4 security, 3 operations, 5 pagination and 1 environment checks. |
+| `npm run lint` / `npm run typecheck` | Both passed. |
+| `npm run build` | Passed production build, including private APIs and review/field routes. |
+| `npm run test:browser` | All 6 production Chromium flows passed, 1.8 minutes. Includes actual paged API loading, one immutable decision despite duplicate in-flight shortcuts/submission/navigation, Arabic keyboard tabs and existing offline/resurvey flows. |
+| Visual review | Current English desktop evidence and Arabic 390px dark screenshots inspected. Browser layout checks cover 360/390/768/1440 widths. Test-only JPEGs are synthetic fixtures; media/GPS faults are simulated. |
+| `npm run ops:restore-drill` | Standalone passed, 21,536ms; persisted PGlite snapshot restored into a new target, 28 tables/30 rows matched complete fingerprints/schema, immutable audit mutation rejected, 2 originals/2 parts verified. No application/user DB was restored over. |
+| `npm run ops:evidence-check` | Positive standalone check passed against only that generated restored fixture: 2 media/2 parts/2 originals, all failure counters zero. Missing opt-in refused before DB access; negative fixtures are tested. |
+| Local queue timing | 15 samples: p50 18.89ms / p95 34.36ms for a 100-row page across 100 synthetic faces/526 receipts in embedded PostgreSQL. Excludes network, photos, workers and production load; not a field latency guarantee. Aggregate artifact: ignored `.local/measurements/review-queue.json`. |
+| Dependency audit | Production-only audit: 0 vulnerabilities. Full audit: 5 high development-chain findings, 0 critical; upstream braces chain described above. No forced framework downgrade. |
+| `git diff --check` | Passed. Original migrations 001-003 unchanged. |
+| Docker / PostGIS runtime / remote CI | Not run: Docker Linux-engine pipe unavailable and no isolated PostGIS URL configured. Disposable CI job added but not observed executing. |
+| Real Android/iOS / actual 50-100-face pilot / staging / production | Not performed. No production changes or deployment. |
+
+### Remaining constraints and required external work
+
+1. Obtain the exact separate M4 prompt for a requirement-by-requirement gap check. Follow [M4_PILOT_RUNBOOK.md](docs/M4_PILOT_RUNBOOK.md) for real independent face adjudication, actual device behavior, measured field outcomes, privacy ownership and accountable sign-off. Synthetic 100-face tests do not replace a field pilot.
+2. Run Docker/production PostgreSQL/PostGIS and the configured CI spatial job, then staging schema/pool/permissions/geography checks. Embedded tests do not certify real PostgreSQL multi-process admission concurrency or production query performance.
+3. Analysis admits two active leases per organization, up to 60 actor starts/minute and 180 organization starts/minute. Five-minute crash expiry does not terminate a stuck decoder; add processing isolation/timeouts and durable jobs before broader load. Initial receipt analysis is attempted once; replay is cheap even when analysis was deferred. Explicit authorized Reanalyze is required for recovery. No successful assessment means no approval.
+4. The UI pages through the queue; the compatibility array is still capped at 500. Candidate/history bounds, unpaginated case history and synchronous image analysis remain constraints. Risk thresholds remain uncalibrated heuristics; no fraud probabilities or tamper-proof browser signals are claimed.
+5. Complete MFA, nonce/hash CSP (framework inline scripts/styles remain allowed), edge request/rate protections, least-privilege runtime roles, malware/derivative isolation, capacity monitoring and retention/dispute workflows. No automatic orphan/chunk deletion or repair was introduced.
+6. Perform coordinated encrypted production-like PostgreSQL/private-volume backup and isolated restoration, physical/process-crash recovery and measured RPO/RTO. The generated PGlite drill proves only its documented local fixture recovery path. Reconciliation checks registered files and receipts, not orphan enumeration, physical durability or full legal/reference semantics. See [M4_OPERATIONS.md](docs/M4_OPERATIONS.md).
+7. Browser offline originals remain subject to eviction/device loss; tests use fake media/GPS and simulated failures. No physical phone, power-loss or production evidence-storage certification is claimed. Existing local accounts and requested passwords were preserved, not promoted to a production identity policy.
+
+M4 is locally hardened and automatically verified within the scope above; field/operational sign-off remains open. No destructive repair, deletion, production action or external messaging was performed.

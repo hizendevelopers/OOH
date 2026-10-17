@@ -9,7 +9,7 @@ flowchart LR
   S --> P[(PostgreSQL / PostGIS)]
   S --> O[(Private persistent evidence directory)]
   S --> V[Bounded JPEG decode / SHA-256 validation]
-  O -. Phase 3 .-> Q[Derivatives / scanning / retention jobs]
+  O -. Future operations .-> Q[Derivatives / scanning / retention jobs]
 ```
 
 One deployable web app and a shared domain package keep the initial operating footprint small. Raw parameterized SQL provides visible transactions and constraints. Better Auth supplies password hashing, session rotation and origin checks. Role membership is fetched server-side, never accepted from a client claim. No public sign-up. Admin MFA integration is a deployment gate, not a claimed Phase 1 feature.
@@ -26,6 +26,12 @@ JPEG validation currently runs synchronously with 6MB/24MP limits and a versione
 ## Phase 3 review boundary
 Received inspections and media remain immutable. `review_cases` is a mutable versioned projection; decisions, risk runs, reference versions, reference photo hashes and withdrawal events are append-only tables. Supervisors are existing organization administrators, always authorized server-side. Decisions use optimistic case versions, canonical operation digests and transactional organization/case locks. Same-assessment two-person confirmation is required for nearby faces and high-risk independent-review signals. Supervisor approval and explicit structural baseline enrollment are distinct operations.
 
-Risk analysis reopens bounded originals, decodes JPEGs and recomputes SHA-256/DCT hashes. Production geographic distances and neighboring-face search use PostGIS geography; embedded development tests use a named great-circle fallback. Failures retain server receipts and prevent approval until assessment succeeds. Reports and decisions retain rule/assessment versions. No browser evidence is attested and no weighted probability is presented. Processing is currently synchronous and bounded; leases/background jobs are required before scaling.
+Risk analysis reopens bounded originals, decodes JPEGs and recomputes SHA-256/DCT hashes. Production geographic distances and neighboring-face search use PostGIS geography; embedded development tests use a named great-circle fallback. Failures retain server receipts and prevent approval until assessment succeeds. Reports and decisions retain rule/assessment versions. No browser evidence is attested and no weighted probability is presented. Processing is synchronous and bounded, with database-backed admission leases. Durable background jobs remain required before broader scaling.
 
 Resurvey creates a new assignment ID with `parent_inspection_id` and immutable historical receipts. This preserves the Phase 2 one-inspection-per-task and worker-scoped IndexedDB keys. Downloaded tasks carry supervisor reasons/instructions; stale offline views explicitly represent the latest downloaded state, not live supervisor decisions. See PHASE3_API.md and FRAUD_RULES.md for contracts and limits.
+
+## M4 hardening boundary
+
+Migration 004 adds ephemeral analysis admission records; migration 005 adds a received-inspection keyset index. Review pagination retains exact receipt microseconds and organization/filter-bound cursors. Production CSP excludes eval; inline framework scripts/styles remain allowed. Admission limits, explicit failed-analysis recovery and legacy API compatibility are documented in PHASE3_API.md. These controls do not terminate stuck decoder execution or establish production concurrency certification.
+
+Generated-fixture restore and read-only registered-object reconciliation are executable under M4_OPERATIONS.md. The pilot protocol and real-device/staging/backup gates remain separate in M4_PILOT_RUNBOOK.md.

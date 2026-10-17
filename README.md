@@ -16,7 +16,7 @@ npm run dev
 
 Open http://localhost:3000. Sign in as `admin@demo.ibvs.test`, `worker@demo.ibvs.test` or `worker2@demo.ibvs.test` using the password you supplied. Demo records are clearly labeled and contain no real evidence or approvals. Seed is explicit and refuses to overwrite an existing demo organization. The ignored `.local/` directory contains the local PostgreSQL engine data and generated development auth secret. Protect that directory using your OS account permissions. Never open two application instances against the same embedded database.
 
-Existing installations: run `npm ci` and `npm run db:migrate` to apply additive migrations `002_inspections.sql` and `003_human_review.sql`; do not reseed or reset the database. Workers open **Open field workspace** or http://localhost:3000/field. While online, tap **Download assignments** and wait for **Offline shell ready**. Open a task, request a GPS observation, start the live camera, and capture separate front/wide-context photographs. Both are saved as original JPEG Blobs before queuing. Offline drafts survive reload after successful local saving; browser eviction/private mode/storage clearing can still erase them.
+Existing installations: run `npm ci` and `npm run db:migrate` to apply all outstanding additive migrations through `005_review_queue_index.sql`; do not reseed or reset the database. Workers open **Open field workspace** or http://localhost:3000/field. While online, tap **Download assignments** and wait for **Offline shell ready**. Open a task, request a GPS observation, start the live camera, and capture separate front/wide-context photographs. Both are saved as original JPEG Blobs before queuing. Offline drafts survive reload after successful local saving; browser eviction/private mode/storage clearing can still erase them.
 
 Synchronization retries in the foreground with backoff and resumes persisted server parts. **Saved locally / queued / uploading are not server receipts.** A received inspection has a backend receipt ID and server-received timestamp after both files pass byte/hash/image checks. This is not human approval or proof of genuine capture. GPS denial is retained as a review flag, not hidden. Device-claimed timestamps and offline/online challenge labels remain separate from receipt time.
 
@@ -55,4 +55,19 @@ Set DATABASE_URL, BETTER_AUTH_SECRET (32+ random characters), BETTER_AUTH_URL (e
 
 Source layout: `apps/web` Next.js UI/API/auth/services, `packages/domain` validation and policy helpers, `db` migrations, `scripts` migration/provisioning/fixtures, `tests` domain/database/browser acceptance.
 
-See [product requirements](docs/PRODUCT_REQUIREMENTS.md), [manual](docs/USER_MANUAL.md), [threat model](docs/SECURITY_THREAT_MODEL.md), [cost model](docs/COSTS.md), and [retention policy](docs/RETENTION.md). Human review, references, GIS tiles, AI, real-device certification and production deployment remain Phase 3/pilot work. Public registration remains disabled.
+See [product requirements](docs/PRODUCT_REQUIREMENTS.md), [manual](docs/USER_MANUAL.md), [threat model](docs/SECURITY_THREAT_MODEL.md), [cost model](docs/COSTS.md), and [retention policy](docs/RETENTION.md). Human review and controlled references are implemented. GIS tiles, AI, real-device certification and production deployment remain future work. Public registration remains disabled.
+
+## M4 local hardening and operations
+
+The review workspace uses organization-scoped keyset pagination, localized Load more and guarded supervisor actions. Analysis admission limits reduce repeated decoding; retrying an issued receipt does not re-run analysis. A supervisor explicitly chooses Reanalyze after deferred/failed analysis. Approval still requires a current successful assessment.
+
+```powershell
+# Generated fixture only; creates new ignored directories, never restores over user data:
+npm run ops:restore-drill
+# Only against an explicitly configured, quiesced isolated restore:
+# Set DATABASE_URL (or absolute IBVS_LOCAL_DB), absolute IBVS_EVIDENCE_DIR,
+# and IBVS_RUN_INTEGRITY_CHECK=true before running:
+npm run ops:evidence-check
+```
+
+See [operations scope](docs/M4_OPERATIONS.md) and [field pilot protocol](docs/M4_PILOT_RUNBOOK.md). The generated local restore and synthetic queue measurements do not certify production backups or a field pilot. Remote PostGIS CI is configured but has not been observed running. Exact results and outstanding external gates are in the handover.
