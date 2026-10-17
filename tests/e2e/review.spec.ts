@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import sharp from "sharp";
 import { randomBytes, createHash, randomUUID } from "node:crypto";
+import type { Assignment } from "../../apps/web/src/server/service";
 const password = process.env.IBVS_DEMO_PASSWORD;
 test.skip(!password, "Isolated demo credentials required");
 test.use({ actionTimeout: 30000 });
@@ -37,8 +38,12 @@ test("supervisors review adjacent faces, explicitly version references and reque
   test.setTimeout(240000);
   await login(page, "worker@demo.ibvs.test");
   expect((await page.request.get("/api/reviews")).status()).toBe(403);
-  const tasks = await (await page.request.get("/api/assignments")).json();
+  const tasks: Assignment[] = await (
+    await page.request.get("/api/assignments")
+  ).json();
   const task = tasks.find((t: { code: string }) => t.code === "DEMO-BGD-002");
+  expect(task).toBeTruthy();
+  expect(task?.worker_id).toBeTruthy();
   const bytes = await Promise.all(
     [0, 1].map(async () =>
       sharp(randomBytes(800 * 800 * 3), {
@@ -48,63 +53,98 @@ test("supervisors review adjacent faces, explicitly version references and reque
         .toBuffer(),
     ),
   );
-  const photos = bytes.map((b, n) => ({
-    kind: n ? "wide" : "front",
-    sha256: createHash("sha256").update(b).digest("hex"),
-    bytes: b.length,
-    capturedAt: new Date().toISOString(),
-    captureMode: "offline",
-    gps: {
-      status: "ok",
-      latitude: task.latitude,
-      longitude: task.longitude,
-      accuracy: 180,
-      observedAt: new Date().toISOString(),
-    },
-  }));
-  const post = async (path: string, data: unknown) =>
-    page.request.post(path, {
-      headers: { Origin: "http://localhost:3000" },
-      data,
+  async function upload(assigned: Assignment) {
+    const photos = bytes.map((b, n) => ({
+      kind: n ? "wide" : "front",
+      sha256: createHash("sha256").update(b).digest("hex"),
+      bytes: b.length,
+      capturedAt: new Date().toISOString(),
+      captureMode: "offline",
+      gps: {
+        status: "ok",
+        latitude: assigned.latitude,
+        longitude: assigned.longitude,
+        accuracy: 180,
+        observedAt: new Date().toISOString(),
+      },
+    }));
+    const post = async (path: string, data: unknown) =>
+      page.request.post(path, {
+        headers: { Origin: "http://localhost:3000" },
+        data,
+      });
+    const begun = await post("/api/inspections", {
+      operationId: randomUUID(),
+      assignmentId: assigned.assignment_id,
+      faceId: assigned.id,
+      faceCode: assigned.code,
+      assignmentVersion: assigned.version,
+      challengeId: null,
+      photos,
     });
-  const begun = await post("/api/inspections", {
-    operationId: randomUUID(),
-    assignmentId: task.assignment_id,
-    faceId: task.id,
-    faceCode: task.code,
-    assignmentVersion: task.version,
-    challengeId: null,
-    photos,
-  });
-  expect(begun.status()).toBe(201);
-  const { inspectionId: id } = await begun.json();
-  for (let n = 0; n < 2; n++) {
-    const kind = n ? "wide" : "front";
-    for (let offset = 0; offset < bytes[n].length; offset += 262144) {
-      const part = await page.request.put(
-        `/api/inspections/${id}/parts/${kind}/${offset / 262144}`,
-        {
-          headers: {
-            Origin: "http://localhost:3000",
-            "Content-Type": "application/octet-stream",
+    expect(begun.status()).toBe(201);
+    const { inspectionId: id } = await begun.json();
+    for (let n = 0; n < 2; n++) {
+      const kind = n ? "wide" : "front";
+      for (let offset = 0; offset < bytes[n].length; offset += 262144) {
+        const part = await page.request.put(
+          `/api/inspections/${id}/parts/${kind}/${offset / 262144}`,
+          {
+            headers: {
+              Origin: "http://localhost:3000",
+              "Content-Type": "application/octet-stream",
+            },
+            data: bytes[n].subarray(offset, offset + 262144),
           },
-          data: bytes[n].subarray(offset, offset + 262144),
-        },
-      );
-      expect(part.ok()).toBe(true);
+        );
+        expect(part.ok()).toBe(true);
+      }
+      expect(
+        (await post(`/api/inspections/${id}/complete/${kind}`, {})).ok(),
+      ).toBe(true);
     }
-    expect(
-      (await post(`/api/inspections/${id}/complete/${kind}`, {})).ok(),
-    ).toBe(true);
+    expect((await post(`/api/inspections/${id}/submit`, {})).ok()).toBe(true);
+    return id;
   }
-  expect((await post(`/api/inspections/${id}/submit`, {})).ok()).toBe(true);
+  const id = await upload(task!);
+  const otherTask = tasks.find((t) => t.code === "DEMO-BGD-003");
+  expect(otherTask).toBeTruthy();
+  // Two independent task-bound receipts make pagination testable in isolation.
+  // Reused fixture photos intentionally exercise duplicate evidence analysis.
+  await upload(otherTask!);
   const adminContext = await browser.newContext(),
     admin = await adminContext.newPage();
   await login(admin, "admin@demo.ibvs.test");
+  expect(
+    (
+      await admin.request.post(`/api/reviews/${id}/analyze`, {
+        headers: { Origin: "http://localhost:3000" },
+        data: {},
+      })
+    ).ok(),
+  ).toBe(true);
+  await admin.route(/\/api\/reviews\?/, async (route) => {
+    const url = new URL(route.request().url());
+    if (
+      route.request().method() === "GET" &&
+      url.searchParams.get("paged") === "true"
+    )
+      url.searchParams.set("pageSize", "1");
+    await route.continue({ url: url.toString() });
+  });
   await admin.getByRole("link", { name: "Review center", exact: true }).click();
   await expect(
     admin.getByRole("heading", { name: "Evidence, in perspective." }),
   ).toBeVisible();
+  await expect(admin.locator(".review-queue-item")).toHaveCount(1);
+  await admin
+    .getByRole("button", { name: "Load more inspections", exact: true })
+    .click();
+  await expect(admin.locator(".review-queue-item")).toHaveCount(2);
+  const loadedCodes = await admin
+    .locator(".review-queue-item strong")
+    .allTextContents();
+  expect(new Set(loadedCodes).size).toBe(2);
   await admin
     .locator(".review-queue-item")
     .filter({ hasText: "DEMO-BGD-002" })
@@ -145,10 +185,10 @@ test("supervisors review adjacent faces, explicitly version references and reque
   const d = await (await admin.request.get("/api/reviews/" + id)).json();
   const filters = new URLSearchParams({
     state: "pending",
-    worker: task.worker_id,
+    worker: task!.worker_id!,
     city: "Baghdad",
     date: new Date(d.inspection.received_at).toISOString().slice(0, 10),
-    billboard: task.code,
+    billboard: task!.code,
     risk: "high",
     evidence: "offline",
   });
@@ -191,10 +231,48 @@ test("supervisors review adjacent faces, explicitly version references and reque
   await admin
     .getByLabel("I reviewed the anomalies and supporting evidence.")
     .check();
-  await admin
-    .getByRole("button", { name: "Record decision", exact: true })
-    .click();
+  // Hold the real API request to exercise keyboard re-entry while a save is pending.
+  // Continue to the actual server afterwards; no synthetic success response.
+  let releaseDecision!: () => void;
+  let decisionPosts = 0;
+  const decisionGate = new Promise<void>((resolve) => {
+    releaseDecision = resolve;
+  });
+  await admin.route(`**/api/reviews/${id}/decision`, async (route) => {
+    decisionPosts++;
+    await decisionGate;
+    await route.continue();
+  });
+  try {
+    await admin.getByLabel("Decision reason (required)").press("Control+Enter");
+    await expect.poll(() => decisionPosts).toBe(1);
+    await expect(admin.getByLabel("Decision reason (required)")).toBeDisabled();
+    await expect(
+      admin.getByRole("button", { name: "Reject", exact: true }),
+    ).toBeDisabled();
+    await expect(admin.locator(".review-queue-item").first()).toBeDisabled();
+    await expect(admin.getByLabel("Status", { exact: true })).toBeDisabled();
+    await admin.keyboard.press("Control+Enter");
+    await admin.keyboard.press("j");
+    // requestSubmit bypasses a disabled submit button; the form handler must guard too.
+    await admin.locator(".review-decision").evaluate((form) => {
+      (form as HTMLFormElement).requestSubmit();
+      (form as HTMLFormElement).requestSubmit();
+    });
+    expect(decisionPosts).toBe(1);
+    await expect(admin.locator(".review-summary h2")).toContainText(task!.code);
+    await expect(admin.getByLabel("Decision reason (required)")).toHaveValue(
+      decision.reason,
+    );
+  } finally {
+    releaseDecision();
+  }
   await expect(admin.getByRole("status")).toContainText("Saved on server");
+  await admin.unroute(`**/api/reviews/${id}/decision`);
+  const savedDecision = await (
+    await admin.request.get("/api/reviews/" + id)
+  ).json();
+  expect(savedDecision.decisions).toHaveLength(1);
   await admin
     .getByLabel("Decision reason (required)")
     .fill("Attempt repeated independent approval");
@@ -311,6 +389,11 @@ test("supervisors review adjacent faces, explicitly version references and reque
   await second
     .getByRole("button", { name: "Toggle theme", exact: true })
     .click();
+  await second.getByRole("tab", { name: "المراجع", exact: true }).focus();
+  await second.keyboard.press("ArrowRight");
+  await expect(
+    second.getByRole("tab", { name: "التدقيق والمزامنة", exact: true }),
+  ).toBeFocused();
   await second.getByRole("tab", { name: "الأدلة", exact: true }).click();
   for (const width of [360, 390, 768, 1440]) {
     await second.setViewportSize({ width, height: 900 });

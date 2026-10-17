@@ -3,6 +3,7 @@ import { currentActor } from "@/server/access";
 import { ApiError, requireAdmin } from "@/server/service";
 import {
   reviewQueue,
+  reviewPage,
   reviewDetail,
   decide,
   enrollBaseline,
@@ -25,7 +26,11 @@ async function handle(request: Request) {
       segments = url.pathname.split("/").filter(Boolean).slice(2);
     if (request.method === "GET") {
       if (!segments.length)
-        return json(await reviewQueue(actor, url.searchParams));
+        return json(
+          url.searchParams.get("paged") === "true"
+            ? await reviewPage(actor, url.searchParams)
+            : await reviewQueue(actor, url.searchParams),
+        );
       if (segments.length === 1)
         return json(await reviewDetail(actor, z.uuid().parse(segments[0])));
       if (segments.length === 3 && segments[1] === "assessments")

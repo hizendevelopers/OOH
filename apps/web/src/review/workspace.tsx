@@ -51,6 +51,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
   const [locale, setLocale] = useState<"en" | "ar">("en"),
     [dark, setDark] = useState(false),
     [queue, setQueue] = useState<QueueItem[]>([]),
+    [nextCursor, setNextCursor] = useState<string | null>(null),
     [selected, setSelected] = useState<string | null>(null),
     [detail, setDetail] = useState<ReviewDetail | null>(null),
     [filters, setFilters] = useState({
@@ -82,6 +83,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
     decisionForm = useRef<HTMLFormElement>(null),
     request = useRef(0),
     queueRequest = useRef(0),
+    mutationLocked = useRef(false),
     operation = useRef<{ key: string; id: string } | null>(null);
   const ar = locale === "ar",
     t = (en: string, arabic: string) => (ar ? arabic : en),
@@ -95,23 +97,54 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
     document.documentElement.dir = ar ? "rtl" : "ltr";
     document.documentElement.dataset.theme = dark ? "dark" : "light";
   }, [locale, dark, ar]);
-  const loadQueue = useCallback(async () => {
-    const token = ++queueRequest.current;
-    setLoading(true);
-    try {
-      const rows = await api<QueueItem[]>("?" + new URLSearchParams(filters));
-      if (token === queueRequest.current) setQueue(rows);
-    } catch (e) {
-      if (token === queueRequest.current) setError((e as Error).message);
-    } finally {
-      if (token === queueRequest.current) setLoading(false);
-    }
-  }, [filters]);
+  const loadQueue = useCallback(
+    async (cursor?: string) => {
+      const token = ++queueRequest.current;
+      setLoading(true);
+      try {
+        const query = new URLSearchParams({
+          ...filters,
+          paged: "true",
+          pageSize: "50",
+        });
+        if (cursor) query.set("cursor", cursor);
+        const page = await api<{
+          items: QueueItem[];
+          nextCursor: string | null;
+        }>("?" + query);
+        if (token === queueRequest.current) {
+          setQueue((previous) =>
+            cursor
+              ? [
+                  ...previous,
+                  ...page.items.filter(
+                    (row) => !previous.some((old) => old.id === row.id),
+                  ),
+                ]
+              : page.items,
+          );
+          setNextCursor(page.nextCursor);
+        }
+      } catch (e) {
+        if (token === queueRequest.current) setError((e as Error).message);
+      } finally {
+        if (token === queueRequest.current) setLoading(false);
+      }
+    },
+    [filters],
+  );
   useEffect(() => {
+    // Invalidate an in-flight page immediately, before the filter debounce.
+    queueRequest.current++;
+    setNextCursor(null);
+    setLoading(true);
     const timer = setTimeout(() => void loadQueue(), 200);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+    };
   }, [loadQueue]);
   const open = useCallback(async (id: string) => {
+    if (mutationLocked.current) return;
     const token = ++request.current;
     setSelected(id);
     setDetail(null);
@@ -135,6 +168,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
   }, []);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
+      if (mutationLocked.current) return;
       if (
         e.target instanceof HTMLElement &&
         (e.target.closest("input,textarea,select,button,[contenteditable]") ||
@@ -176,6 +210,9 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
     return () => window.removeEventListener("keydown", key);
   }, [queue, selected, open]);
   async function mutate(path: string, payload: Record<string, unknown>) {
+    // React state updates are asynchronous: guard duplicate keyboard events now.
+    if (mutationLocked.current) return false;
+    mutationLocked.current = true;
     const selectedRequest = request.current;
     const key = JSON.stringify({ path, payload });
     if (operation.current?.key !== key)
@@ -191,6 +228,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
         if (selectedRequest === request.current) setDetail(d);
       }
       await loadQueue();
+      if (selectedRequest !== request.current) return false;
       setNotice(
         t(
           "Saved on server. Audit history preserved.",
@@ -199,9 +237,10 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
       );
       return true;
     } catch (e) {
-      setError((e as Error).message);
+      if (selectedRequest === request.current) setError((e as Error).message);
       return false;
     } finally {
+      mutationLocked.current = false;
       setBusy(false);
     }
   }
@@ -314,6 +353,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
               }
               {["state", "risk", "evidence"].includes(key) ? (
                 <select
+                  disabled={busy}
                   aria-label={filterLabels[key]}
                   value={value}
                   onChange={(e) =>
@@ -344,6 +384,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                 </select>
               ) : (
                 <input
+                  disabled={busy}
                   type={key === "date" ? "date" : "search"}
                   value={value}
                   onChange={(e) =>
@@ -355,6 +396,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
           ))}
           <button
             className="icon-button"
+            disabled={busy || loading}
             aria-label={t("Apply filters", "تطبيق المرشحات")}
           >
             <Search size={20} />
@@ -413,7 +455,11 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
             )}
           </div>
         )}
-        <div className="review-layout">
+        <fieldset
+          className="review-layout"
+          disabled={busy}
+          style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
+        >
           <aside
             className="review-queue panel"
             aria-label={t("Inspection queue", "قائمة المعاينات")}
@@ -422,7 +468,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
               <h2>{t("Inspection queue", "قائمة المعاينات")}</h2>
               <span className="badge">
                 {queue.length}
-                {queue.length === 500 ? "+" : ""}
+                {nextCursor ? "+" : ""}
               </span>
             </div>
             {loading && (
@@ -443,6 +489,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
               <button
                 className={`review-queue-item ${selected === q.id ? "selected" : ""}`}
                 key={q.id}
+                disabled={loading}
                 onClick={() => void open(q.id)}
                 aria-pressed={selected === q.id}
               >
@@ -463,6 +510,17 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                 </span>
               </button>
             ))}
+            {nextCursor && (
+              <button
+                className="secondary"
+                disabled={busy || loading}
+                onClick={() => void loadQueue(nextCursor)}
+              >
+                {loading
+                  ? t("Loading…", "جارٍ التحميل…")
+                  : t("Load more inspections", "تحميل المزيد من المعاينات")}
+              </button>
+            )}
             <p className="review-footnote">
               {t(
                 "J / K navigate · A / R / S / M select action",
@@ -553,7 +611,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                         : e.key === "End"
                           ? items.length - 1
                           : (n +
-                              (e.key === "ArrowRight" ? 1 : -1) +
+                              ((e.key === "ArrowRight") !== ar ? 1 : -1) +
                               items.length) %
                             items.length;
                     e.preventDefault();
@@ -1120,11 +1178,22 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                   onKeyDown={(e) => {
                     if (e.ctrlKey && e.key === "Enter") {
                       e.preventDefault();
-                      e.currentTarget.requestSubmit();
+                      if (
+                        !mutationLocked.current &&
+                        detail.report &&
+                        detail.review.state !== "resurvey_requested"
+                      )
+                        e.currentTarget.requestSubmit();
                     }
                   }}
                   onSubmit={async (e) => {
                     e.preventDefault();
+                    if (
+                      mutationLocked.current ||
+                      !detail.report ||
+                      detail.review.state === "resurvey_requested"
+                    )
+                      return;
                     if (
                       await mutate("/" + selected + "/decision", {
                         expectedVersion: detail.review.version,
@@ -1271,7 +1340,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
               </>
             )}
           </section>
-        </div>
+        </fieldset>
       </main>
       <dialog ref={dialog} className="review-zoom" aria-labelledby="zoom-title">
         <div>

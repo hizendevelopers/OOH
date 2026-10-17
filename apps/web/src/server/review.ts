@@ -19,40 +19,8 @@ type Case = {
   independent_required: boolean;
   assessment_id: string;
 };
-export type QueueItem = {
-  id: string;
-  code: string;
-  city: string;
-  worker_name: string;
-  worker_id: string;
-  received_at: string;
-  state: string;
-  version: number;
-  risk_level: string;
-  evidence_type: string;
-};
-export async function reviewQueue(
-  actor: Actor,
-  filters = new URLSearchParams(),
-) {
-  requireAdmin(actor);
-  const date = filters.get("date") || null;
-  if (date && !z.iso.date().safeParse(date).success)
-    throw new ApiError(422, "Invalid date");
-  return (await getDb()).query<QueueItem>(
-    `SELECT i.id,f.code,s.city,u.name worker_name,i.worker_id,i.received_at,r.state,r.version,r.risk_level,CASE WHEN i.metadata::text LIKE '%offline%' THEN 'offline' ELSE 'online' END evidence_type FROM review_cases r JOIN inspections i ON i.id=r.inspection_id JOIN billboard_faces f ON f.id=i.face_id JOIN billboard_structures s ON s.id=f.structure_id JOIN "user" u ON u.id=i.worker_id WHERE r.organization_id=$1 AND ($2::text IS NULL OR r.state=$2) AND ($3::text IS NULL OR i.worker_id=$3) AND ($4::text IS NULL OR s.city ILIKE '%'||$4||'%') AND ($5::text IS NULL OR f.code ILIKE '%'||$5||'%') AND ($6::text IS NULL OR r.risk_level=$6) AND ($7::date IS NULL OR i.received_at::date=$7::date) AND ($8::text IS NULL OR ($8='offline')=(i.metadata::text LIKE '%offline%')) ORDER BY i.received_at DESC,i.id LIMIT 500`,
-    [
-      actor.organizationId,
-      filters.get("state") || null,
-      filters.get("worker") || null,
-      filters.get("city") || null,
-      filters.get("billboard") || null,
-      filters.get("risk") || null,
-      date,
-      filters.get("evidence") || null,
-    ],
-  );
-}
+export { reviewQueue, reviewPage } from "./review-queue";
+export type { QueueItem, ReviewPage } from "./review-queue";
 export async function reviewDetail(actor: Actor, id: string) {
   requireAdmin(actor);
   const inspection = await inspectionRecord(actor.organizationId, id),
