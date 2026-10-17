@@ -230,6 +230,29 @@ export default function FieldWorkspace() {
     }
   }
   const draft = drafts.find((d) => d.id === opened);
+  const reviewLabel = (d: Draft) => {
+    const state = tasks.find(
+      (task) => task.assignment_id === d.id,
+    )?.review_state;
+    if (!state || state === "pending") return t.received;
+    return locale === "ar"
+      ? (
+          {
+            approved: "المعاينة معتمدة — لا يعني اعتماد مرجع",
+            rejected: "المعاينة مرفوضة",
+            resurvey_requested: "إعادة معاينة مطلوبة — افتح المهمة الجديدة",
+            ambiguous: "الهوية ملتبسة — قيد المراجعة",
+          } as Record<string, string>
+        )[state]
+      : (
+          {
+            approved: "Inspection approved — reference enrollment is separate",
+            rejected: "Inspection rejected",
+            resurvey_requested: "Resurvey requested — open the new task",
+            ambiguous: "Ambiguous identity — under review",
+          } as Record<string, string>
+        )[state];
+  };
   const stateText = (d: Draft) =>
     d.state === "local_draft"
       ? t.local
@@ -239,7 +262,7 @@ export default function FieldWorkspace() {
           ? t.uploading
           : d.state === "blocked"
             ? t.blocked
-            : t.received;
+            : reviewLabel(d);
   const status = (d: Draft) => (
     <div
       className={"field-sync-state " + (d.receipt ? "receipt-confirmed" : "")}
@@ -264,6 +287,16 @@ export default function FieldWorkspace() {
           {t.receipt}: <bdi>{d.receipt.receiptId}</bdi>
         </p>
       )}
+      {tasks.find((task) => task.assignment_id === d.id)?.review_state &&
+        tasks.find((task) => task.assignment_id === d.id)?.review_state !==
+          "pending" && (
+          <p>
+            {locale === "ar"
+              ? "آخر مراجعة محفوظة على الجهاز"
+              : "Latest review downloaded to this device"}
+            : {tasks.find((task) => task.assignment_id === d.id)?.review_reason}
+          </p>
+        )}
       {["session_expired", "account_mismatch"].includes(d.lastError || "") && (
         <Link href="/sign-in" className="text-button">
           {t.signin}
@@ -421,7 +454,25 @@ export default function FieldWorkspace() {
                               <MapPin size={21} />
                             </span>
                             <span className="badge">
-                              {task.status.replaceAll("_", " ")}
+                              {task.review_state === "pending" &&
+                              task.status === "approved"
+                                ? locale === "ar"
+                                  ? "أُعيد فتح المراجعة"
+                                  : "Review reopened"
+                                : locale === "ar"
+                                  ? (
+                                      {
+                                        assigned: "مكلّف",
+                                        resurvey_requested:
+                                          "إعادة معاينة مطلوبة",
+                                        rejected: "مرفوض",
+                                        superseded: "استُبدلت المهمة",
+                                        approved: "معتمدة",
+                                        ambiguous: "ملتبسة",
+                                        server_received: "استلمها الخادم",
+                                      } as Record<string, string>
+                                    )[task.status] || task.status
+                                  : task.status.replaceAll("_", " ")}
                             </span>
                           </div>
                           <h3>
@@ -440,6 +491,30 @@ export default function FieldWorkspace() {
                                 : t.downloadFirst}
                             </span>
                           </div>
+                          {task.instructions && (
+                            <div className="review-alert">
+                              <strong>
+                                {locale === "ar"
+                                  ? "تعليمات إعادة المعاينة"
+                                  : "Resurvey instructions"}
+                              </strong>
+                              <p>{task.instructions}</p>
+                              <small>
+                                {locale === "ar"
+                                  ? "مرتبطة بالمعاينة"
+                                  : "Linked inspection"}
+                                : <bdi>{task.parent_inspection_id}</bdi>
+                              </small>
+                            </div>
+                          )}
+                          {task.review_reason && (
+                            <p className="notice">
+                              {locale === "ar"
+                                ? "سبب قرار المشرف"
+                                : "Supervisor decision reason"}
+                              : {task.review_reason}
+                            </p>
+                          )}
                           {saved && status(saved)}
                           <button
                             className="secondary"
@@ -505,6 +580,17 @@ export default function FieldWorkspace() {
                   <p>
                     {draft.task.city} · {draft.task.zone}
                   </p>
+                  {draft.task.instructions && (
+                    <div className="notice warning">
+                      <strong>
+                        {locale === "ar"
+                          ? "تعليمات إعادة المعاينة"
+                          : "Resurvey instructions"}
+                      </strong>
+                      <p>{draft.task.instructions}</p>
+                      <bdi>{draft.task.parent_inspection_id}</bdi>
+                    </div>
+                  )}
                   <dl>
                     <div>
                       <dt>{t.structure}</dt>

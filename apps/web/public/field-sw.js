@@ -1,5 +1,5 @@
 /* Public shell only. Auth, API responses, evidence and task HTML are NEVER cached. */
-const CACHE='ibvs-public-field-v2-1';
+const CACHE='ibvs-public-field-v3-1';
 self.addEventListener('install',event=>event.waitUntil((async()=>{
  const cache=await caches.open(CACHE);
  const response=await fetch('/field',{credentials:'omit',cache:'reload'});

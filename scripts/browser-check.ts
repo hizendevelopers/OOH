@@ -30,4 +30,8 @@ await run(["--import", "tsx", "scripts/seed.ts"]);
 environment.IBVS_E2E_PRODUCTION = "true";
 environment.IBVS_ALLOW_LOCAL_DB = "true";
 environment.NODE_ENV = "production";
-await run(["node_modules/@playwright/test/cli.js", "test"]);
+await run([
+  "node_modules/@playwright/test/cli.js",
+  "test",
+  ...process.argv.slice(2),
+]);

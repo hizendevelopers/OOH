@@ -31,6 +31,13 @@ async function seed() {
     role: "admin",
     organizationId: "demo-iraq",
   });
+  await provision({
+    email: "reviewer2@demo.ibvs.test",
+    name: "DEMO Second Supervisor",
+    password,
+    role: "admin",
+    organizationId: "demo-iraq",
+  });
   const worker = await provision({
     email: "worker@demo.ibvs.test",
     name: "DEMO Ali Hassan",

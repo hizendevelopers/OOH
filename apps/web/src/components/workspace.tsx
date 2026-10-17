@@ -218,6 +218,10 @@ function Badge({
     baseline_verified: "موثّقة",
     rejected: "مرفوضة",
     resurvey_requested: "إعادة زيارة",
+    approved: "معاينة معتمدة",
+    ambiguous: "هوية ملتبسة",
+    superseded: "استُبدلت المهمة",
+    server_received: "استلمها الخادم",
   };
   return (
     <span className={"badge " + (status || "unassigned")}>
@@ -393,7 +397,9 @@ export default function Workspace({ actor }: { actor: Actor }) {
     },
     { id: "audit" as Tab, icon: ScrollText, label: t.audit },
   ].filter((n) => isAdmin || n.id === "assignments");
-  const openCount = tasks.filter((a) => a.status === "assigned").length;
+  const openCount = tasks.filter((a) =>
+    ["assigned", "resurvey_requested"].includes(a.status),
+  ).length;
   return (
     <div className="app-shell">
       <a href="#main" className="skip-link">
@@ -491,6 +497,11 @@ export default function Workspace({ actor }: { actor: Actor }) {
             <strong>{nav.find((n) => n.id === tab)?.label}</strong>
           </div>
           <div className="top-actions">
+            {actor.role === "admin" && (
+              <Link className="secondary" href="/review">
+                {locale === "ar" ? "مركز المراجعة" : "Review center"}
+              </Link>
+            )}
             <span className="connection">
               <span className={offline ? "offline-dot" : "online-dot"} />
               {offline ? "Offline" : "Connected"}
@@ -966,7 +977,15 @@ export default function Workspace({ actor }: { actor: Actor }) {
                             <span className="task-pin">
                               <MapPin size={19} />
                             </span>
-                            <Badge status={a.status} ar={locale === "ar"} />
+                            <Badge
+                              status={
+                                a.review_state === "pending" &&
+                                a.status === "approved"
+                                  ? "pending_review"
+                                  : a.status
+                              }
+                              ar={locale === "ar"}
+                            />
                           </div>
                           <h3>
                             <bdi>{a.code}</bdi>
