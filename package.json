@@ -23,7 +23,8 @@
     "db:seed": "tsx scripts/seed.ts",
     "user:create": "tsx scripts/provision.ts",
     "org:create": "tsx scripts/organization.ts",
-    "ops:lifecycle-plan": "tsx scripts/evidence-lifecycle.ts"
+    "ops:lifecycle-plan": "tsx scripts/evidence-lifecycle.ts",
+    "test:restart": "tsx scripts/restart-check.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.10",
