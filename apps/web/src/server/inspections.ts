@@ -314,6 +314,7 @@ export async function completePhoto(actor: Actor, id: string, kind: PhotoKind) {
   });
 }
 export async function submitInspection(actor: Actor, id: string) {
+  let newlyReceived = false;
   const result = await (
     await getDb()
   ).transaction(async (db) => {
@@ -416,6 +417,7 @@ export async function submitInspection(actor: Actor, id: string) {
       "INSERT INTO review_cases(inspection_id,organization_id) VALUES($1,$2) ON CONFLICT(inspection_id) DO NOTHING",
       [id, actor.organizationId],
     );
+    newlyReceived = true;
     return {
       inspectionId: id,
       receiptId,
@@ -425,7 +427,9 @@ export async function submitInspection(actor: Actor, id: string) {
     };
   });
   try {
-    await assessInspection(actor, id);
+    // Receipt replay is cheap and immutable. Explicit supervisor reanalysis
+    // remains available when new evidence or risk context needs reconsidering.
+    if (newlyReceived) await assessInspection(actor, id);
   } catch {
     console.error(
       JSON.stringify({ category: "risk_analysis_pending", inspectionId: id }),

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getDb } from "./db";
+import { getDb, type Database } from "./db";
 import { ApiError, audit } from "./service";
 import { readPrivate } from "./evidence-storage";
 import { imageAnalysis, IMAGE_ALGORITHM, sha256 } from "./image-analysis";
@@ -20,6 +20,7 @@ import {
   type SpatialObservation,
 } from "../../../../packages/domain/src/risk";
 import type { Actor } from "@ibvs/domain";
+import { admitAnalysis } from "./analysis-admission";
 
 export type ReviewInspection = {
   id: string;
@@ -65,6 +66,19 @@ export async function assessInspection(
     row = await inspectionRecord(actor.organizationId, id);
   if (actor.role !== "admin" && row.worker_id !== actor.id)
     throw new ApiError(404, "Inspection not found");
+  const release = await admitAnalysis(db, actor);
+  try {
+    return await analyzeReceivedInspection(db, actor, id, row);
+  } finally {
+    await release();
+  }
+}
+async function analyzeReceivedInspection(
+  db: Database,
+  actor: Actor,
+  id: string,
+  row: ReviewInspection,
+): Promise<RiskReport> {
   const signals: RiskSignal[] = [
     signal("human_review_required", "info", {
       reason:
@@ -104,7 +118,9 @@ export async function assessInspection(
       signal(
         "missing_evidence",
         "critical",
-        { receivedKinds: media.filter((m) => m.receipt_id).map((m) => m.kind) },
+        {
+          receivedKinds: media.filter((m) => m.receipt_id).map((m) => m.kind),
+        },
         { blocksApproval: true },
       ),
     );

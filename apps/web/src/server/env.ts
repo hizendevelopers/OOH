@@ -1,4 +1,5 @@
 import { z } from "zod";
+import path from "node:path";
 
 const schema = z.object({
   DATABASE_URL: z
@@ -41,6 +42,8 @@ export function environment() {
       throw new Error(
         "Production requires IBVS_EVIDENCE_DIR for private persistent evidence",
       );
+    if (!path.isAbsolute(env.IBVS_EVIDENCE_DIR))
+      throw new Error("Production requires an absolute IBVS_EVIDENCE_DIR");
   }
   return env;
 }
