@@ -1,6 +1,34 @@
 name: IBVS validation
 on: [push, pull_request]
 jobs:
+  spatial-contract:
+    runs-on: ubuntu-latest
+    services:
+      postgis:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: ibvs_ci_only
+          POSTGRES_USER: ibvs_ci
+          POSTGRES_PASSWORD: isolated-ci-not-a-production-secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ibvs_ci -d ibvs_ci_only"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://ibvs_ci:isolated-ci-not-a-production-secret@localhost:5432/ibvs_ci_only
+      IBVS_POSTGIS_TEST_URL: postgresql://ibvs_ci:isolated-ci-not-a-production-secret@localhost:5432/ibvs_ci_only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - name: Add production spatial schema to isolated CI service
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/spatial.sql
+      - run: npm run test:postgis
   validate:
     runs-on: ubuntu-latest
     steps:
