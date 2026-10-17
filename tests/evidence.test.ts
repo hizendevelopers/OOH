@@ -10,6 +10,7 @@ import {
   assign,
   inventory,
   assignments,
+  overview,
 } from "../apps/web/src/server/service";
 import {
   beginInspection,
@@ -31,6 +32,7 @@ import {
   decide,
   enrollBaseline,
   withdrawBaseline,
+  reviewAssessment,
 } from "../apps/web/src/server/review";
 import { assessInspection } from "../apps/web/src/server/risk-analysis";
 
@@ -364,6 +366,21 @@ it("authorizes reviews, preserves decisions, explicitly enrolls and withdraws re
   let detail = await reviewDetail(admin, id);
   expect(detail.baselines).toHaveLength(0);
   const report = await assessInspection(admin, id);
+  expect(report.signals.some((s) => s.code === "challenge_expired")).toBe(true);
+  const archived = await reviewDetail(admin, id);
+  expect(await reviewAssessment(admin, id, archived.assessments[0].id)).toEqual(
+    report,
+  );
+  await expect(
+    reviewAssessment(worker, id, archived.assessments[0].id),
+  ).rejects.toThrow("Administrator");
+  await expect(
+    reviewAssessment(
+      { ...admin, organizationId: "foreign" },
+      id,
+      archived.assessments[0].id,
+    ),
+  ).rejects.toThrow("not found");
   const approval = {
     operationId: randomUUID(),
     expectedVersion: detail.review.version,
@@ -374,6 +391,19 @@ it("authorizes reviews, preserves decisions, explicitly enrolls and withdraws re
     riskAcknowledged: true,
   };
   const result = await decide(admin, id, approval);
+  await expect(
+    decide({ ...admin, id: worker.id }, id, {
+      ...approval,
+      operationId: randomUUID(),
+    }),
+  ).rejects.toThrow("Independent supervisor");
+  await expect(
+    decide(admin, id, {
+      ...approval,
+      operationId: randomUUID(),
+      expectedVersion: 99,
+    }),
+  ).rejects.toThrow("Review changed");
   expect(await decide(admin, id, approval)).toEqual(result);
   await expect(
     decide(admin, id, { ...approval, reason: "Different content" }),
@@ -422,6 +452,18 @@ it("authorizes reviews, preserves decisions, explicitly enrolls and withdraws re
     enrollBaseline(admin, id, { ...enrollment, faceId: randomUUID() }),
   ).rejects.toThrow("exact-face");
   const baseline = await enrollBaseline(admin, id, enrollment);
+  await expect(
+    (await getDb()).query(
+      "UPDATE reference_baselines SET structure_details='{}' WHERE id=$1",
+      [baseline.id],
+    ),
+  ).rejects.toThrow();
+  await expect(
+    (await getDb()).query(
+      "UPDATE media_evidence SET server_hash=repeat('0',64) WHERE inspection_id=$1",
+      [id],
+    ),
+  ).rejects.toThrow();
   expect(await enrollBaseline(admin, id, enrollment)).toEqual(baseline);
   await expect(
     decide(admin, id, {
@@ -463,6 +505,17 @@ it("authorizes reviews, preserves decisions, explicitly enrolls and withdraws re
   expect(task.parent_inspection_id).toBe(id);
   expect(task.instructions).toContain("mounting");
   expect(task.status).toBe("resurvey_requested");
+  const newAttempt = await beginInspection(worker, {
+    ...input,
+    operationId: randomUUID(),
+    assignmentId: task.assignment_id,
+    assignmentVersion: task.version,
+    challengeId: null,
+  });
+  expect(newAttempt.inspectionId).not.toBe(id);
+  expect((await reviewDetail(admin, id)).review.state).toBe(
+    "resurvey_requested",
+  );
   await expect(
     (await getDb()).query(
       "UPDATE review_decisions SET reason='altered' WHERE inspection_id=$1",
@@ -470,4 +523,139 @@ it("authorizes reviews, preserves decisions, explicitly enrolls and withdraws re
     ),
   ).rejects.toThrow();
   expect((await inspectionStatus(worker, id)).receipt).toBeTruthy();
+});
+
+it("explains cross-worker duplicates, adjacent identity, uncertain mismatched GPS and offline time claims", async () => {
+  await importCsv(
+    admin,
+    "code,structure_code,city,latitude,longitude\nTST-NEIGHBOR,STR-NEIGHBOR,Baghdad,33.00005,44",
+    "neighbor.csv",
+  );
+  const face = (await inventory(admin)).find((f) => f.code === "TST-NEIGHBOR")!;
+  await assign(admin, {
+    faceIds: [face.id],
+    workerId: other.id,
+    dueDate: "2026-11-20",
+  });
+  const task = (await assignments(other)).find((t) => t.id === face.id)!;
+  const request: InspectionInput = {
+    ...input,
+    operationId: randomUUID(),
+    assignmentId: task.assignment_id,
+    assignmentVersion: task.version,
+    faceId: face.id,
+    faceCode: face.code,
+    challengeId: null,
+    photos: input.photos.map((p) => ({
+      ...p,
+      captureMode: "offline",
+      capturedAt: new Date(Date.now() - 172800000).toISOString(),
+      gps: {
+        status: "ok",
+        latitude: 34,
+        longitude: 45,
+        accuracy: 180,
+        observedAt: new Date(Date.now() - 172800000).toISOString(),
+      },
+    })),
+  };
+  const session = await beginInspection(other, request);
+  for (const [kind, bytes] of [
+    ["front", front],
+    ["wide", wide],
+  ] as const) {
+    await uploadPart(other, session.inspectionId, kind, 0, bytes);
+    await completePhoto(other, session.inspectionId, kind);
+  }
+  await submitInspection(other, session.inspectionId);
+  const report = await assessInspection(admin, session.inspectionId),
+    codes = report.signals.map((s) => s.code);
+  for (const code of [
+    "exact_duplicate",
+    "cross_worker_duplicate",
+    "neighboring_faces",
+    "gps_low_accuracy",
+    "gps_mismatch",
+    "offline_capture",
+    "capture_receipt_discrepancy",
+  ])
+    expect(codes).toContain(code);
+  expect(report.requiresIndependentReview).toBe(true);
+  expect(report.spatialEngine).toBe("haversine_development");
+  const d = await reviewDetail(admin, session.inspectionId);
+  const approval = {
+    operationId: randomUUID(),
+    expectedVersion: d.review.version,
+    assessmentHash: report.assessmentHash,
+    action: "approve",
+    reason: "Supervisor confirms the neighboring face",
+    identityConfirmed: true,
+    riskAcknowledged: true,
+  };
+  const [one, two] = await Promise.all([
+    decide(admin, session.inspectionId, approval),
+    decide(admin, session.inspectionId, approval),
+  ]);
+  expect(one).toEqual(two);
+  const reviewer: Actor = { ...admin, id: "additional-supervisor" };
+  await (
+    await getDb()
+  ).query(
+    `INSERT INTO "user"(id,name,email) VALUES($1,'Additional supervisor','additional@test.invalid')`,
+    [reviewer.id],
+  );
+  await (
+    await getDb()
+  ).query(
+    "INSERT INTO organization_members(organization_id,user_id,role) VALUES('org',$1,'admin')",
+    [reviewer.id],
+  );
+  const waiting = await reviewDetail(admin, session.inspectionId);
+  await decide(reviewer, session.inspectionId, {
+    ...approval,
+    operationId: randomUUID(),
+    expectedVersion: waiting.review.version,
+  });
+  const accepted = await reviewDetail(admin, session.inspectionId);
+  expect(accepted.review.state).toBe("approved");
+  await enrollBaseline(admin, session.inspectionId, {
+    operationId: randomUUID(),
+    expectedVersion: accepted.review.version,
+    assessmentHash: report.assessmentHash,
+    faceId: face.id,
+    identityConfirmed: true,
+    shape: "Rectangle",
+    mounting: "Steel frame",
+    numberOfFaces: 2,
+    facing: "S",
+    landmarks: "Neighboring board and junction",
+    reason: "Two supervisors confirmed exact face",
+  });
+  expect((await overview(admin)).verified).toBe(1);
+  const denied = vi
+    .spyOn(storage, "readPrivate")
+    .mockRejectedValue(new Error("Simulated missing private original"));
+  try {
+    const broken = await assessInspection(admin, session.inspectionId);
+    expect(broken.blocksApproval).toBe(true);
+    expect(broken.level).toBe("critical");
+    const current = await reviewDetail(admin, session.inspectionId);
+    expect(current.review.state).toBe("pending");
+    expect(current.review.version).toBe(accepted.review.version + 1);
+    expect(current.baselines[0].on_hold).toBe(true);
+    expect((await overview(admin)).verified).toBe(0);
+    await expect(
+      decide(admin, session.inspectionId, {
+        ...approval,
+        operationId: randomUUID(),
+        expectedVersion: current.review.version,
+        assessmentHash: broken.assessmentHash,
+      }),
+    ).rejects.toThrow("Integrity failure");
+  } finally {
+    denied.mockRestore();
+  }
+  expect(
+    (await inspectionStatus(other, session.inspectionId)).receipt,
+  ).toBeTruthy();
 });

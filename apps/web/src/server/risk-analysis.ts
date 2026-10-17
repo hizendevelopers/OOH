@@ -204,7 +204,7 @@ export async function assessInspection(
     verified_hash: string;
     phash: string;
   }>(
-    `SELECT m.inspection_id,i.worker_id,f.code,m.kind,a.verified_hash,a.phash FROM media_analysis a JOIN media_evidence m ON m.id=a.media_id JOIN inspections i ON i.id=m.inspection_id JOIN billboard_faces f ON f.id=i.face_id WHERE i.organization_id=$1 AND i.id<>$2 AND i.status='server_received' ORDER BY i.created_at DESC LIMIT 10001`,
+    `SELECT m.inspection_id,i.worker_id,f.code,m.kind,m.server_hash verified_hash,coalesce(a.phash,'') phash FROM media_evidence m LEFT JOIN media_analysis a ON a.media_id=m.id JOIN inspections i ON i.id=m.inspection_id JOIN billboard_faces f ON f.id=i.face_id WHERE i.organization_id=$1 AND i.id<>$2 AND i.status='server_received' ORDER BY i.created_at DESC,i.id,m.kind LIMIT 10001`,
     [actor.organizationId, id],
   );
   if (duplicates.length > 10000)
@@ -217,9 +217,8 @@ export async function assessInspection(
       ),
     );
   for (const p of photos.filter((p) => p.valid && p.integrity)) {
-    const exact = duplicates
-      .filter((d) => d.verified_hash === p.sha256)
-      .slice(0, 20);
+    const allExact = duplicates.filter((d) => d.verified_hash === p.sha256);
+    const exact = allExact.slice(0, 20);
     if (exact.length) {
       signals.push(
         signal(
@@ -236,15 +235,16 @@ export async function assessInspection(
           { independent: true },
         ),
       );
-      if (exact.some((d) => d.worker_id !== row.worker_id))
+      if (allExact.some((d) => d.worker_id !== row.worker_id))
         signals.push(
           signal(
             "cross_worker_duplicate",
             "high",
             {
               kind: p.kind,
-              inspectionIds: exact
+              inspectionIds: allExact
                 .filter((d) => d.worker_id !== row.worker_id)
+                .slice(0, 20)
                 .map((d) => d.inspection_id),
             },
             { independent: true },
@@ -299,6 +299,15 @@ export async function assessInspection(
       ),
     );
   const observations: SpatialObservation[] = [];
+  if (candidates.length >= 101)
+    signals.push(
+      signal(
+        "analysis_scope_limited",
+        "high",
+        { area: "neighboring_faces", limit: 101 },
+        { independent: true },
+      ),
+    );
   const captured = parsed.success ? parsed.data.photos : [];
   for (const photo of captured) {
     const time = Date.parse(photo.capturedAt),
@@ -394,7 +403,7 @@ export async function assessInspection(
       }),
     );
   const previous = await db.query<{ id: string; metadata: InspectionInput }>(
-    "SELECT id,metadata FROM inspections WHERE organization_id=$1 AND worker_id=$2 AND id<>$3 AND status='server_received' ORDER BY received_at DESC LIMIT 501",
+    "SELECT id,metadata FROM inspections WHERE organization_id=$1 AND worker_id=$2 AND id<>$3 AND status='server_received' ORDER BY received_at DESC,id LIMIT 501",
     [actor.organizationId, row.worker_id, id],
   );
   if (previous.length > 500)
@@ -450,8 +459,11 @@ export async function assessInspection(
       "INSERT INTO review_cases(inspection_id,organization_id) VALUES($1,$2) ON CONFLICT(inspection_id) DO NOTHING",
       [id, actor.organizationId],
     );
-    const [current] = await tx.query<{ assessment_id: string | null }>(
-      "SELECT assessment_id FROM review_cases WHERE inspection_id=$1 FOR UPDATE",
+    const [current] = await tx.query<{
+      assessment_id: string | null;
+      state: string;
+    }>(
+      "SELECT assessment_id,state FROM review_cases WHERE inspection_id=$1 FOR UPDATE",
       [id],
     );
     const [existing] = current.assessment_id
@@ -461,6 +473,17 @@ export async function assessInspection(
         )
       : [];
     if (existing?.assessment_hash === assessmentHash) return;
+    if (current.state === "approved") {
+      await tx.query(
+        "UPDATE review_cases SET state='pending',version=version+1,epoch=epoch+1,updated_at=now() WHERE inspection_id=$1",
+        [id],
+      );
+      await audit(tx, actor, "inspection.review_reopened", id, {
+        reason: "assessment_changed",
+        previousAssessmentHash: existing?.assessment_hash,
+        assessmentHash,
+      });
+    }
     const runId = randomUUID();
     await tx.query(
       "INSERT INTO verification_runs(id,organization_id,inspection_id,rule_version,assessment_hash,report) VALUES($1,$2,$3,$4,$5,$6)",

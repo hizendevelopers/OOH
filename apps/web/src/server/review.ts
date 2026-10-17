@@ -72,8 +72,10 @@ export async function reviewDetail(actor: Actor, id: string) {
     created_at: string;
     actor_name: string;
     version: number;
+    assessment_hash: string;
+    epoch: number;
   }>(
-    `SELECT d.id,d.action,d.reason,d.created_at,u.name actor_name,d.version FROM review_decisions d JOIN "user" u ON u.id=d.actor_id WHERE d.inspection_id=$1 ORDER BY d.version`,
+    `SELECT d.id,d.action,d.reason,d.created_at,u.name actor_name,d.version,d.assessment_hash,d.epoch FROM review_decisions d JOIN "user" u ON u.id=d.actor_id WHERE d.inspection_id=$1 ORDER BY d.version`,
     [id],
   );
   const baselines = await db.query<{
@@ -83,8 +85,10 @@ export async function reviewDetail(actor: Actor, id: string) {
     created_at: string;
     withdrawn_at: string | null;
     withdrawal_reason: string | null;
+    inspection_id: string;
+    on_hold: boolean;
   }>(
-    `SELECT b.id,b.version,b.structure_details,b.created_at,e.created_at withdrawn_at,e.reason withdrawal_reason FROM reference_baselines b LEFT JOIN baseline_events e ON e.baseline_id=b.id WHERE b.face_id=$1 ORDER BY b.version DESC`,
+    `SELECT b.id,b.version,b.inspection_id,b.structure_details,b.created_at,e.created_at withdrawn_at,e.reason withdrawal_reason,(coalesce(rc.state,'pending')<>'approved' OR b.assessment_hash<>coalesce(vr.assessment_hash,'')) on_hold FROM reference_baselines b LEFT JOIN baseline_events e ON e.baseline_id=b.id LEFT JOIN review_cases rc ON rc.inspection_id=b.inspection_id LEFT JOIN verification_runs vr ON vr.id=rc.assessment_id WHERE b.face_id=$1 ORDER BY b.version DESC`,
     [inspection.face_id],
   );
   const history = await db.query<{
@@ -95,6 +99,27 @@ export async function reviewDetail(actor: Actor, id: string) {
     "SELECT action,created_at,detail FROM audit_events WHERE organization_id=$1 AND entity_id=$2 ORDER BY created_at,id",
     [actor.organizationId, id],
   );
+  const media = await db.query<{
+    kind: string;
+    server_hash: string;
+    received_at: string;
+    width: number;
+    height: number;
+    receipt_id: string;
+    parts: number;
+  }>(
+    "SELECT m.kind,m.server_hash,m.received_at,m.width,m.height,m.receipt_id,(SELECT count(*)::integer FROM evidence_parts p WHERE p.media_id=m.id) parts FROM media_evidence m WHERE m.inspection_id=$1 ORDER BY kind",
+    [id],
+  );
+  const assessments = await db.query<{
+    id: string;
+    created_at: string;
+    rule_version: string;
+    assessment_hash: string;
+  }>(
+    "SELECT id,created_at,rule_version,assessment_hash FROM verification_runs WHERE inspection_id=$1 ORDER BY created_at DESC,id",
+    [id],
+  );
   return {
     inspection,
     review,
@@ -102,9 +127,29 @@ export async function reviewDetail(actor: Actor, id: string) {
     decisions,
     baselines,
     history,
+    media,
+    assessments,
   };
 }
 export type ReviewDetail = Awaited<ReturnType<typeof reviewDetail>>;
+export async function reviewAssessment(
+  actor: Actor,
+  inspectionId: string,
+  runId: string,
+) {
+  requireAdmin(actor);
+  await inspectionRecord(actor.organizationId, inspectionId);
+  const [run] = await (
+    await getDb()
+  ).query<{ report: RiskReport }>(
+    "SELECT report FROM verification_runs WHERE id=$1 AND inspection_id=$2 AND organization_id=$3",
+    [runId, inspectionId, actor.organizationId],
+  );
+  if (!run) throw new ApiError(404, "Assessment not found");
+  return run.report;
+}
+// Organization mutation locks use NO KEY UPDATE so concurrent audit/reference FK
+// KEY SHARE checks cannot create an organization -> case -> organization deadlock.
 async function replay(
   tx: Database,
   table: string,
@@ -145,6 +190,14 @@ async function assertNoBaseline(tx: Database, id: string) {
       "Withdraw the active reference before changing its review outcome",
     );
 }
+async function assertCurrentAssessment(tx: Database, c: Case, hash: string) {
+  const [run] = await tx.query<{ assessment_hash: string }>(
+    "SELECT assessment_hash FROM verification_runs WHERE id=$1",
+    [c.assessment_id],
+  );
+  if (!run || run.assessment_hash !== hash)
+    throw new ApiError(409, "Evidence assessment changed. Refresh review.");
+}
 export async function decide(actor: Actor, id: string, data: unknown) {
   requireAdmin(actor);
   const input = decisionInput.parse(data),
@@ -163,9 +216,10 @@ export async function decide(actor: Actor, id: string, data: unknown) {
   if (old) return old.result;
   const report = await assessInspection(actor, id);
   return db.transaction(async (tx) => {
-    await tx.query("SELECT id FROM organizations WHERE id=$1 FOR UPDATE", [
-      actor.organizationId,
-    ]);
+    await tx.query(
+      "SELECT id FROM organizations WHERE id=$1 FOR NO KEY UPDATE",
+      [actor.organizationId],
+    );
     const previous = await replay(
       tx,
       "review_decisions",
@@ -175,6 +229,7 @@ export async function decide(actor: Actor, id: string, data: unknown) {
     );
     if (previous) return previous.result;
     const c = await lockCase(tx, id, input.expectedVersion);
+    await assertCurrentAssessment(tx, c, input.assessmentHash);
     if (input.assessmentHash !== report.assessmentHash)
       throw new ApiError(409, "Evidence assessment changed. Refresh review.");
     if (c.state === "resurvey_requested")
@@ -310,9 +365,10 @@ export async function enrollBaseline(actor: Actor, id: string, data: unknown) {
   if (prior) return { id: prior.id };
   const report = await assessInspection(actor, id);
   return db.transaction(async (tx) => {
-    await tx.query("SELECT id FROM organizations WHERE id=$1 FOR UPDATE", [
-      actor.organizationId,
-    ]);
+    await tx.query(
+      "SELECT id FROM organizations WHERE id=$1 FOR NO KEY UPDATE",
+      [actor.organizationId],
+    );
     const old = await replay(
       tx,
       "reference_baselines",
@@ -322,6 +378,7 @@ export async function enrollBaseline(actor: Actor, id: string, data: unknown) {
     );
     if (old) return { id: old.id };
     const c = await lockCase(tx, id, input.expectedVersion);
+    await assertCurrentAssessment(tx, c, input.assessmentHash);
     if (
       c.state !== "approved" ||
       input.faceId !== inspection.face_id ||
@@ -408,9 +465,10 @@ export async function withdrawBaseline(
     hash = sha256(JSON.stringify({ id, ...input })),
     db = await getDb();
   return db.transaction(async (tx) => {
-    await tx.query("SELECT id FROM organizations WHERE id=$1 FOR UPDATE", [
-      actor.organizationId,
-    ]);
+    await tx.query(
+      "SELECT id FROM organizations WHERE id=$1 FOR NO KEY UPDATE",
+      [actor.organizationId],
+    );
     const old = await replay(
       tx,
       "baseline_events",

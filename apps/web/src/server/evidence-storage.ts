@@ -1,5 +1,5 @@
 import path from "node:path";
-import { mkdir, writeFile, readFile, link, unlink } from "node:fs/promises";
+import { mkdir, writeFile, open, link, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { root } from "./db";
 
@@ -55,4 +55,26 @@ export async function putPrivate(key: string, data: Buffer) {
     });
   }
 }
-export const readPrivate = (key: string) => readFile(filename(key));
+export async function readPrivate(key: string) {
+  const file = await open(filename(key), "r");
+  try {
+    const info = await file.stat();
+    if (!info.isFile() || info.size > 6 * 1024 * 1024)
+      throw new Error("Invalid private evidence size");
+    const data = Buffer.alloc(info.size);
+    let offset = 0;
+    while (offset < data.length) {
+      const { bytesRead } = await file.read(
+        data,
+        offset,
+        data.length - offset,
+        offset,
+      );
+      if (!bytesRead) throw new Error("Interrupted private evidence read");
+      offset += bytesRead;
+    }
+    return data;
+  } finally {
+    await file.close();
+  }
+}

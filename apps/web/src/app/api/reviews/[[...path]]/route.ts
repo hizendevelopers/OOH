@@ -7,6 +7,7 @@ import {
   decide,
   enrollBaseline,
   withdrawBaseline,
+  reviewAssessment,
 } from "@/server/review";
 import { assessInspection } from "@/server/risk-analysis";
 export const dynamic = "force-dynamic";
@@ -27,6 +28,14 @@ async function handle(request: Request) {
         return json(await reviewQueue(actor, url.searchParams));
       if (segments.length === 1)
         return json(await reviewDetail(actor, z.uuid().parse(segments[0])));
+      if (segments.length === 3 && segments[1] === "assessments")
+        return json(
+          await reviewAssessment(
+            actor,
+            z.uuid().parse(segments[0]),
+            z.uuid().parse(segments[2]),
+          ),
+        );
     }
     if (request.method === "POST" && segments.length === 2) {
       if (
