@@ -1,6 +1,6 @@
 # M4 pilot protocol and release gates
 
-This is an execution protocol, not a record of a completed field pilot. Local automated checks, generated-data restore tests and synthetic performance observations do not establish real-phone, staging or production readiness. The separate M4 attachment was not available in this session; the original master prompt defines M4 as pilot hardening for 50–100 faces, independent manual verification, audit/security checks and measured performance.
+This is an execution protocol, not a record of a completed field pilot. Local automated checks, generated-data restore tests and synthetic performance observations do not establish real-phone, staging or production readiness. The exact M4 text arrived after the first local pass; see M4_EXECUTION_PLAN.md and M4_TEST_REPORT.md for reconciliation. The original and exact prompts require pilot hardening for 50–100 faces, independent manual verification, audit/security checks and measured performance.
 
 ## Before a field pilot
 
