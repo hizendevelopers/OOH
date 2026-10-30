@@ -1,6 +1,14 @@
 import { z } from "zod";
 import path from "node:path";
 
+// Messages contain setting names and validation rules only, never their values.
+export class ConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ConfigurationError";
+  }
+}
+
 const schema = z.object({
   DATABASE_URL: z.preprocess(
     (value) => (value === "" ? undefined : value),
@@ -37,23 +45,27 @@ const schema = z.object({
 export function environment() {
   const result = schema.safeParse(process.env);
   if (!result.success)
-    throw new Error(
+    throw new ConfigurationError(
       `Invalid environment fields: ${result.error.issues.map((issue) => issue.path.join(".")).join(", ")}`,
     );
   const env = result.data;
   if (env.NODE_ENV === "production" && env.IBVS_ALLOW_LOCAL_DB !== "true") {
     if (!env.DATABASE_URL || !env.BETTER_AUTH_SECRET)
-      throw new Error(
+      throw new ConfigurationError(
         "Production requires DATABASE_URL and BETTER_AUTH_SECRET",
       );
     if (!env.BETTER_AUTH_URL.startsWith("https://"))
-      throw new Error("Production requires an HTTPS BETTER_AUTH_URL");
+      throw new ConfigurationError(
+        "Production requires an HTTPS BETTER_AUTH_URL",
+      );
     if (!env.IBVS_EVIDENCE_DIR)
-      throw new Error(
+      throw new ConfigurationError(
         "Production requires IBVS_EVIDENCE_DIR for private persistent evidence",
       );
     if (!path.isAbsolute(env.IBVS_EVIDENCE_DIR))
-      throw new Error("Production requires an absolute IBVS_EVIDENCE_DIR");
+      throw new ConfigurationError(
+        "Production requires an absolute IBVS_EVIDENCE_DIR",
+      );
   }
   return env;
 }

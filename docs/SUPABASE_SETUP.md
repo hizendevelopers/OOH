@@ -16,6 +16,25 @@ The direct endpoint requires IPv6, but this machine currently has no usable IPv6
 
 Photo originals remain in the existing private evidence directory specified by `IBVS_EVIDENCE_DIR`; switching the metadata database does not migrate files to Supabase Storage.
 
+## Vercel Docker runtime settings
+
+The ignored local environment file is not uploaded to GitHub or copied into the image. Configure these variables on the Vercel project for the deployed environment, then redeploy:
+
+| Variable | Value |
+| --- | --- |
+| `DATABASE_URL` | The restricted `ibvs_app.<project-ref>` Session pooler URL, with `sslmode=verify-full`. Keep the password server-only. Remove any Windows `sslrootcert` path. |
+| `DATABASE_SCHEMA` | `ibvs` |
+| `BETTER_AUTH_SECRET` | A private random value of at least 32 characters |
+| `BETTER_AUTH_URL` | The actual public HTTPS website origin, without a trailing slash or path |
+| `IBVS_WORKSPACE_ID` | `billboard-operations` |
+| `IBVS_REQUIRE_SIGN_IN` | `false` for the existing temporary no-login administrator workflow; enable real account sign-in before worker capture |
+
+The Docker image includes the public Supabase Root 2021 CA at `/app/db/certs/supabase-ca.crt` and loads it with `NODE_EXTRA_CA_CERTS`. It contains no private key. This keeps certificate and hostname verification enabled without depending on a certificate stored on the developer's Windows machine. The current CA expires on April 26, 2031; refresh it from Supabase's database SSL settings before expiry.
+
+Docker supplies `IBVS_EVIDENCE_DIR=/var/lib/ibvs/evidence`. This directory still needs persistent storage for production photo evidence; local container files are not a durable evidence archive across container replacement.
+
+`GET /api/health` must return HTTP 200, `database: postgresql`, and migration 006 before the deployed workspace is considered connected. A successful build alone does not verify these runtime settings. Configuration failures log setting names only, without values.
+
 ## Schema and permissions
 
 The full [schema reference](DATABASE_SCHEMA.md), [repeatable setup SQL](../db/schema.sql), and [ER diagrams](DATABASE_ERD.md) describe all 30 tables end-to-end. Run `db/schema.sql` in Supabase SQL Editor as `postgres` for a new or existing project: it skips completed migrations and preserves records. The separate `db/schema-fresh.sql` is a final-DDL snapshot for empty schemas only.
