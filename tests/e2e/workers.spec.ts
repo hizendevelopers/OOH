@@ -1,21 +1,45 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 const password = process.env.IBVS_DEMO_PASSWORD;
 test.skip(!password, "Requires isolated browser-check database");
+
+async function login(page: Page, url: string, email: string, password: string) {
+  await page.goto(`${url}/sign-in`);
+  await page.getByLabel("Email address").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const signedIn = page.waitForResponse((response) =>
+      response.url().endsWith("/api/auth/sign-in/email"),
+    );
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    const response = await signedIn;
+    if (response.status() === 429 && attempt < 2) {
+      const seconds = Math.min(
+        60,
+        Math.max(1, Number(response.headers()["retry-after"]) || 60),
+      );
+      await page.waitForTimeout((seconds + 1) * 1000);
+      continue;
+    }
+    expect(response.status()).toBe(200);
+    break;
+  }
+}
 
 test("admin creates worker, assigns billboard, and worker signs in with restricted access", async ({
   page,
   browser,
   baseURL,
 }) => {
+  test.setTimeout(240000);
   const suffix = Date.now();
   const email = `worker-${suffix}@example.test`;
   const workerName = `Field Worker ${suffix}`;
   const workerPassword = randomBytes(24).toString("base64url");
-  await page.goto("/sign-in");
-  await page.getByLabel("Email address").fill("admin@demo.ibvs.test");
-  await page.getByLabel("Password", { exact: true }).fill(password!);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await login(page, baseURL!, "admin@demo.ibvs.test", password!);
+  await expect(
+    page.getByText("Billboard faces", { exact: true }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Workers", exact: true })
     .first()
@@ -72,9 +96,7 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
   await page
     .getByRole("checkbox", { name: `Select ${code}`, exact: true })
     .check();
-  await page
-    .getByRole("button", { name: /^Assign visits/ })
-    .click();
+  await page.getByRole("button", { name: /^Assign visits/ }).click();
   await page
     .getByRole("combobox", { name: "Worker", exact: true })
     .selectOption({ label: workerName });
@@ -93,10 +115,7 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
     ).status(),
   ).toBe(401);
   const worker = await context.newPage();
-  await worker.goto(`${baseURL}/sign-in`);
-  await worker.getByLabel("Email address").fill(email);
-  await worker.getByLabel("Password", { exact: true }).fill(workerPassword);
-  await worker.getByRole("button", { name: "Sign in", exact: true }).click();
+  await login(worker, baseURL!, email, workerPassword);
   await expect(
     worker.getByRole("heading", { name: "My assignments", exact: true }),
   ).toBeVisible();
