@@ -26,6 +26,12 @@ import { fieldRequest, replayQueue, SyncError } from "./sync";
 import { fieldStrings, type FieldText } from "./strings";
 import Capture from "./capture";
 import { storageError } from "../../../../packages/domain/src/inspection";
+import { Nearby } from "./nearby";
+import {
+  assessPhotoLocation,
+  locationMessages,
+  locationMessagesAr,
+} from "./location-policy";
 
 type InstallEvent = Event & { prompt: () => Promise<void> };
 const ownerKey = "ibvs-field-owner-v2";
@@ -40,6 +46,8 @@ export default function FieldWorkspace() {
     [drafts, setDrafts] = useState<Draft[]>([]),
     [opened, setOpened] = useState<string | null>(null),
     [loading, setLoading] = useState(true),
+    [locationError, setLocationError] = useState<string | null>(null),
+    [clock, setClock] = useState(0),
     [error, setError] = useState<keyof FieldText | null>(null),
     [busy, setBusy] = useState(false),
     [shell, setShell] = useState(false),
@@ -50,6 +58,12 @@ export default function FieldWorkspace() {
       persistent: boolean;
     } | null>(null);
   const t = fieldStrings[locale];
+  const messages = locale === "ar" ? locationMessagesAr : locationMessages;
+  useEffect(() => {
+    setClock(Date.now());
+    const timer = setInterval(() => setClock(Date.now()), 5000);
+    return () => clearInterval(timer);
+  }, []);
   useEffect(() => {
     const language = localStorage.getItem("ibvs-locale");
     if (language === "ar") setLocale("ar");
@@ -213,6 +227,21 @@ export default function FieldWorkspace() {
     try {
       let challenge: Draft["challenge"] = null;
       const existing = await store.drafts.get(task.assignment_id);
+      if (online) {
+        const current = await fieldRequest<Assignment>(
+          `assignments/${task.assignment_id}`,
+        );
+        task = current;
+        await store.tasks.put({
+          ...current,
+          downloadedAt: new Date().toISOString(),
+        });
+        setCachedIds((ids) =>
+          ids.includes(current.assignment_id)
+            ? ids
+            : [...ids, current.assignment_id],
+        );
+      }
       if (!existing && online)
         try {
           challenge = await fieldRequest("inspections/challenge", {
@@ -223,6 +252,7 @@ export default function FieldWorkspace() {
         }
       await store.start(task, challenge);
       setOpened(task.assignment_id);
+      setLocationError(null);
     } catch (e) {
       setError(storageError(e));
     } finally {
@@ -424,6 +454,15 @@ export default function FieldWorkspace() {
           <>
             {!opened ? (
               <>
+                <Nearby
+                  arabic={locale === "ar"}
+                  tasks={tasks.filter(
+                    (task) => online || cachedIds.includes(task.assignment_id),
+                  )}
+                  online={online}
+                  busy={busy}
+                  onOpen={openTask}
+                />
                 <section className="field-list-heading">
                   <div>
                     <h2>{t.tasks}</h2>
@@ -618,6 +657,7 @@ export default function FieldWorkspace() {
                 </section>
                 {status(draft)}
                 <Capture
+                  arabic={locale === "ar"}
                   key={draft.id}
                   store={store}
                   draft={draft}
@@ -626,6 +666,40 @@ export default function FieldWorkspace() {
                 />
                 <section className="panel field-submit">
                   <p>{t.queueNote}</p>
+                  {draft.task.location_exception &&
+                    Date.parse(draft.task.location_exception.expires_at) >
+                      clock && (
+                      <p className="notice warning">
+                        {locale === "ar"
+                          ? "استثناء الموقع من المشرف:"
+                          : "Supervisor location exception:"}{" "}
+                        {draft.task.location_exception.reason}.{" "}
+                        {locale === "ar" ? "ينتهي" : "Expires"}{" "}
+                        {new Date(
+                          draft.task.location_exception.expires_at,
+                        ).toLocaleString()}
+                        .{" "}
+                        {locale === "ar"
+                          ? "لا تزال المراجعة البشرية مطلوبة."
+                          : "Human review is still required."}
+                      </p>
+                    )}
+                  {Object.values(draft.photos).map((photo) => {
+                    const result = assessPhotoLocation(photo, draft.task);
+                    return result.status !== "within_area" ? (
+                      <p key={photo.kind} className="notice warning">
+                        {photo.kind}: {messages[result.status]}{" "}
+                        {locale === "ar"
+                          ? "الصورة محفوظة كمسودة."
+                          : "Photo remains saved as a draft."}
+                      </p>
+                    ) : null;
+                  })}
+                  {locationError && (
+                    <p className="notice danger" role="alert">
+                      {locationError}
+                    </p>
+                  )}
                   {draft.state === "local_draft" ? (
                     <button
                       className="primary"
@@ -634,16 +708,38 @@ export default function FieldWorkspace() {
                       }
                       onClick={async () => {
                         setBusy(true);
+                        setLocationError(null);
                         try {
+                          if (online) {
+                            const current = await fieldRequest<Assignment>(
+                              `assignments/${draft.id}`,
+                            );
+                            if (
+                              current.version !== draft.task.version ||
+                              current.id !== draft.task.id ||
+                              current.code !== draft.task.code
+                            )
+                              throw new Error(
+                                locale === "ar"
+                                  ? "تغيرت المهمة. احتفظ بالصور واتصل بالمشرف."
+                                  : "Assignment changed. Keep the saved photos and contact your supervisor.",
+                              );
+                            await store.drafts.update(draft.id, {
+                              task: current,
+                            });
+                          }
                           await store.queue(draft.id);
                           setError(null);
                           if (online) await replayQueue(store);
                         } catch (e) {
-                          setError(
-                            e instanceof Error && e.message.includes("Front")
-                              ? "missing"
-                              : storageError(e),
-                          );
+                          const message =
+                            e instanceof Error
+                              ? e.message
+                              : "Unable to queue photos. Photos remain saved on this device.";
+                          const known = Object.entries(locationMessages).find(
+                            ([, text]) => text === message,
+                          )?.[0] as keyof typeof locationMessages | undefined;
+                          setLocationError(known ? messages[known] : message);
                         } finally {
                           setBusy(false);
                         }

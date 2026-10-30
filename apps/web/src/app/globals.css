@@ -2232,3 +2232,94 @@ td small {
     flex-wrap: wrap;
   }
 }
+.location-editor {
+  display: grid;
+  gap: 16px;
+}
+.location-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.location-editor label {
+  display: grid;
+  gap: 7px;
+}
+.location-editor input,
+.location-editor select,
+.location-editor textarea {
+  width: 100%;
+  min-width: 0;
+}
+.location-editor .location-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.location-editor .location-check input {
+  width: auto;
+}
+.location-map {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border, #d7e2dc);
+  border-radius: 12px;
+  background: #dde7e2;
+  direction: ltr;
+}
+.location-map svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 512 / 300;
+}
+.location-map > small {
+  display: block;
+  padding: 10px 12px;
+  background: var(--surface, #fff);
+  color: var(--muted, #5b6c63);
+}
+.location-map-controls {
+  position: absolute;
+  inset-block-start: 10px;
+  inset-inline-start: 10px;
+  display: grid;
+  gap: 4px;
+}
+.location-map-controls button {
+  min-width: 35px;
+  min-height: 35px;
+  padding: 4px 10px;
+  background: white;
+  color: #19392d;
+}
+.location-attribution {
+  position: absolute;
+  right: 0;
+  top: 0;
+  padding: 3px 5px;
+  background: #ffffffe8;
+  color: #254b3c;
+  font-size: 10px;
+}
+.location-history {
+  padding: 12px 0;
+  border-top: 1px solid var(--border, #d7e2dc);
+}
+.location-history p {
+  margin: 5px 0;
+}
+.location-test {
+  display: inline-block;
+  margin-inline-start: 8px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: #fff3d2;
+  color: #795d16;
+  font-size: 10px;
+}
+@media (max-width: 520px) {
+  .location-fields {
+    grid-template-columns: 1fr;
+  }
+}

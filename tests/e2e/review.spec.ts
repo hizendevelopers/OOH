@@ -44,6 +44,9 @@ test("supervisors review adjacent faces, explicitly version references and reque
   const task = tasks.find((t: { code: string }) => t.code === "DEMO-BGD-002");
   expect(task).toBeTruthy();
   expect(task?.worker_id).toBeTruthy();
+  const adminContext = await browser.newContext(),
+    admin = await adminContext.newPage();
+  await login(admin, "admin@demo.ibvs.test");
   const bytes = await Promise.all(
     [0, 1].map(async () =>
       sharp(randomBytes(800 * 800 * 3), {
@@ -54,6 +57,11 @@ test("supervisors review adjacent faces, explicitly version references and reque
     ),
   );
   async function upload(assigned: Assignment) {
+    const authorized = await admin.request.post("/api/locations/exceptions", {
+      headers: { Origin: "http://localhost:3000" },
+      data: { assignmentId: assigned.assignment_id, assignmentVersion: assigned.version, reason: "Supervisor approved poor GPS accuracy for review evidence test" },
+    });
+    expect(authorized.status()).toBe(201);
     const photos = bytes.map((b, n) => ({
       kind: n ? "wide" : "front",
       sha256: createHash("sha256").update(b).digest("hex"),
@@ -112,9 +120,6 @@ test("supervisors review adjacent faces, explicitly version references and reque
   // Two independent task-bound receipts make pagination testable in isolation.
   // Reused fixture photos intentionally exercise duplicate evidence analysis.
   await upload(otherTask!);
-  const adminContext = await browser.newContext(),
-    admin = await adminContext.newPage();
-  await login(admin, "admin@demo.ibvs.test");
   expect(
     (
       await admin.request.post(`/api/reviews/${id}/analyze`, {
@@ -421,7 +426,8 @@ test("supervisors review adjacent faces, explicitly version references and reque
   await resurvey
     .getByRole("button", { name: "Open inspection", exact: true })
     .click();
-  await page.context().grantPermissions(["camera"]);
+  await page.context().grantPermissions(["camera", "geolocation"]);
+  await page.context().setGeolocation({ latitude: task!.latitude, longitude: task!.longitude, accuracy: 10 });
   await page
     .getByRole("button", { name: "Start live camera", exact: true })
     .click();

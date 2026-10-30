@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { currentActor } from "@/server/access";
+import { currentActor, signInRequired } from "@/server/access";
 import { ApiError } from "@/server/service";
 import Workspace from "@/components/workspace";
 export const dynamic = "force-dynamic";
@@ -11,7 +11,8 @@ export default async function Page() {
     if (e instanceof ApiError && (e.status === 401 || e.status === 403))
       redirect("/sign-in");
   }
-  if (actor) return <Workspace actor={actor} />;
+  if (actor)
+    return <Workspace actor={actor} signInRequired={signInRequired()} />;
   return (
     <main className="service-error">
       <h1>IBVS needs database setup</h1>
@@ -19,7 +20,7 @@ export default async function Page() {
         Run the migration and provision an administrator. Check server
         configuration.
       </p>
-      <a href="/sign-in">Open sign in</a>
+      {signInRequired() && <a href="/sign-in">Open sign in</a>}
     </main>
   );
 }

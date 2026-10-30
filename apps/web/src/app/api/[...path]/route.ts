@@ -23,8 +23,20 @@ async function handle(request: Request) {
   try {
     const route = new URL(request.url).pathname.replace("/api/", "");
     if (route === "health") {
-      await (await getDb()).query("SELECT 1");
-      return json({ status: "ok", service: "ibvs", phase: "M2" });
+      const db = await getDb();
+      const migrations = await db.query(
+        "SELECT name FROM schema_migrations WHERE name=$1",
+        ["006_location_management.sql"],
+      );
+      if (!migrations.length)
+        throw new ApiError(503, "Database migrations are incomplete");
+      await db.query("SELECT id FROM organizations LIMIT 1");
+      return json({
+        status: "ok",
+        service: "ibvs",
+        database: process.env.DATABASE_URL ? "postgresql" : "local",
+        migrations: "006_location_management.sql",
+      });
     }
     const actor = await currentActor();
     if (request.method === "GET") {

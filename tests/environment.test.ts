@@ -2,6 +2,11 @@ import { afterEach, it, expect, vi } from "vitest";
 import { environment } from "../apps/web/src/server/env";
 import path from "node:path";
 const original = { ...process.env };
+it("allows an explicit empty test database URL to override dotenv without selecting a hosted database", () => {
+  vi.stubEnv("NODE_ENV", "test");
+  process.env.DATABASE_URL = "";
+  expect(environment().DATABASE_URL).toBeUndefined();
+});
 afterEach(() => {
   process.env = { ...original };
 });

@@ -2,27 +2,28 @@
 
 Phase 1 inventory/assignment, Phase 2 worker capture/offline synchronization and Phase 3 human verification are implemented locally. This is **not a deployed or pilot-approved evidence verification system**. See [PROJECT_HANDOVER.md](PROJECT_HANDOVER.md) for measured results and remaining gates.
 
-## Local setup (PowerShell, Node 24)
+## Connected Supabase workspace (PowerShell, Node 24)
+
+The local app uses Supabase project `utokgrudjgnvypzxufcx`, with runtime settings stored in ignored `apps/web/.env.local`. See [Supabase setup](docs/SUPABASE_SETUP.md) for schema, TLS, credentials, migrations and data cleanup.
 
 ```powershell
 npm ci
-npm run db:migrate
-# Choose a strong local demo password without printing it:
-$secure = Read-Host 'Local demo password (12+ characters)' -AsSecureString
-$env:IBVS_DEMO_PASSWORD = [System.Net.NetworkCredential]::new('', $secure).Password
-npm run db:seed
 npm run dev
 ```
 
-Open http://localhost:3000. Sign in as `admin@demo.ibvs.test`, `worker@demo.ibvs.test` or `worker2@demo.ibvs.test` using the password you supplied. Demo records are clearly labeled and contain no real evidence or approvals. Seed is explicit and refuses to overwrite an existing demo organization. The ignored `.local/` directory contains the local PostgreSQL engine data and generated development auth secret. Protect that directory using your OS account permissions. Never open two application instances against the same embedded database.
+Open http://localhost:3000. Login remains temporarily disabled. Visitors open the non-demo workspace selected by `IBVS_WORKSPACE_ID`; an internal operations actor provides ownership and audit attribution without creating a password account or an invented field worker. Inventory, workers and assignments start empty. To restore login, provision real accounts, set `IBVS_REQUIRE_SIGN_IN=true` and restart the server. Demo seeding is blocked on hosted databases.
 
-Existing installations: run `npm ci` and `npm run db:migrate` to apply all outstanding additive migrations through `005_review_queue_index.sql`; do not reseed or reset the database. Workers open **Open field workspace** or http://localhost:3000/field. While online, tap **Download assignments** and wait for **Offline shell ready**. Open a task, request a GPS observation, start the live camera, and capture separate front/wide-context photographs. Both are saved as original JPEG Blobs before queuing. Offline drafts survive reload after successful local saving; browser eviction/private mode/storage clearing can still erase them.
+Existing installations: run `npm ci` and `npm run db:migrate` to apply all outstanding additive migrations through `006_location_management.sql`; do not reseed or reset the database. Workers open **Open field workspace** or http://localhost:3000/field. While online, tap **Download assignments** and wait for **Offline shell ready**. Open a task, request a GPS observation, start the live camera, and capture separate front/wide-context photographs. Both are saved as original JPEG Blobs before queuing. Offline drafts survive reload after successful local saving; browser eviction/private mode/storage clearing can still erase them.
 
 Synchronization retries in the foreground with backoff and resumes persisted server parts. **Saved locally / queued / uploading are not server receipts.** A received inspection has a backend receipt ID and server-received timestamp after both files pass byte/hash/image checks. This is not human approval or proof of genuine capture. GPS denial is retained as a review flag, not hidden. Device-claimed timestamps and offline/online challenge labels remain separate from receipt time.
 
 Local private evidence defaults to ignored `.local/evidence/`, outside public assets. Production requires absolute `IBVS_EVIDENCE_DIR` on a persistent private volume. Original JPEGs and intermediate chunks must be backed up alongside PostgreSQL. No R2/S3 service is configured; the chosen backend supports one persistent application host. See [Phase 2 API](docs/PHASE2_API.md), [offline behavior](docs/OFFLINE_SYNC.md) and [deployment](docs/DEPLOYMENT.md).
 
-No `.env` is automatically loaded by root scripts. Set shell environment variables or invoke `node --env-file=.env --import tsx scripts/migrate.ts`. Next.js uses its normal app-local environment loading; prefer consistent shell environment values for all commands. `.env.example` describes production variables and is not a working credential file.
+Database lifecycle commands load the same `apps/web/.env*` files as Next.js; shell environment values take precedence. Automated unit tests use isolated embedded databases, and browser checks explicitly override the hosted URL. `.env.example` documents settings and contains no working credentials. Apply new hosted migrations with administrative credentials; the runtime role deliberately lacks schema creation permissions.
+
+## Database schema
+
+The [complete database schema](docs/DATABASE_SCHEMA.md), [runnable SQL](db/schema.sql), and [relationship diagrams](docs/DATABASE_ERD.md) cover all 30 application tables. Regenerate them from the connected database with `npm run db:schema:export`. See [location setup and photo GPS](docs/LOCATIONS.md) for manual test locations, CSV fields, nearby discovery, coordinate corrections and supervisor exceptions.
 
 ## Human verification
 

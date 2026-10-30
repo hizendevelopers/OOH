@@ -2,14 +2,22 @@ import { z } from "zod";
 import path from "node:path";
 
 const schema = z.object({
-  DATABASE_URL: z
-    .url()
-    .refine(
-      (value) =>
-        value.startsWith("postgres://") || value.startsWith("postgresql://"),
-      "PostgreSQL URL required",
-    )
-    .optional(),
+  DATABASE_URL: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z
+      .url()
+      .refine(
+        (value) =>
+          value.startsWith("postgres://") || value.startsWith("postgresql://"),
+        "PostgreSQL URL required",
+      )
+      .optional(),
+  ),
+  DATABASE_SCHEMA: z
+    .string()
+    .regex(/^[a-z_][a-z0-9_]*$/)
+    .default("public"),
+  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(20).default(5),
   BETTER_AUTH_URL: z
     .url()
     .refine(
@@ -22,6 +30,8 @@ const schema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   IBVS_ALLOW_LOCAL_DB: z.enum(["true", "false"]).default("false"),
+  IBVS_REQUIRE_SIGN_IN: z.enum(["true", "false"]).default("false"),
+  IBVS_WORKSPACE_ID: z.string().min(1).optional(),
   IBVS_EVIDENCE_DIR: z.string().min(1).optional(),
 });
 export function environment() {

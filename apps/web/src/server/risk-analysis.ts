@@ -38,9 +38,13 @@ export type ReviewInspection = {
   city: string;
   zone: string;
   orientation: string;
+  is_test: boolean;
   latitude: number;
   longitude: number;
   uncertainty_m: number;
+  original_latitude: number;
+  original_longitude: number;
+  original_uncertainty_m: number;
   worker_name: string;
   assigned_face_id: string;
   parent_inspection_id: string | null;
@@ -52,7 +56,7 @@ export async function inspectionRecord(
   const [row] = await (
     await getDb()
   ).query<ReviewInspection>(
-    `SELECT i.*,a.face_id assigned_face_id,a.parent_inspection_id,f.code,s.code structure_code,s.city,s.zone,f.orientation,c.latitude,c.longitude,c.uncertainty_m,u.name worker_name FROM inspections i JOIN assignments a ON a.id=i.assignment_id JOIN billboard_faces f ON f.id=i.face_id JOIN billboard_structures s ON s.id=f.structure_id JOIN source_coordinates c ON c.face_id=f.id JOIN "user" u ON u.id=i.worker_id WHERE i.id=$1 AND i.organization_id=$2 AND i.status='server_received'`,
+    `SELECT i.*,a.face_id assigned_face_id,a.parent_inspection_id,f.code,s.code structure_code,s.city,s.zone,f.orientation,f.is_test,c.latitude,c.longitude,c.uncertainty_m,c.original_latitude,c.original_longitude,c.original_uncertainty_m,u.name worker_name FROM inspections i JOIN assignments a ON a.id=i.assignment_id JOIN billboard_faces f ON f.id=i.face_id JOIN billboard_structures s ON s.id=f.structure_id JOIN effective_source_coordinates c ON c.face_id=f.id JOIN "user" u ON u.id=i.worker_id WHERE i.id=$1 AND i.organization_id=$2 AND i.status='server_received'`,
     [id, organizationId],
   );
   if (!row) throw new ApiError(404, "Received inspection not found");

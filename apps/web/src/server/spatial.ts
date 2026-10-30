@@ -36,11 +36,11 @@ export async function nearbyFaces(
   const select = `SELECT f.id,f.code,s.code structure_code,f.orientation,c.latitude,c.longitude,c.uncertainty_m`;
   if (engine === "postgis")
     return db.query<Candidate>(
-      `${select},ST_Distance(c.location,origin.location) "distanceM" FROM billboard_faces f JOIN billboard_structures s ON s.id=f.structure_id JOIN source_coordinates c ON c.face_id=f.id JOIN source_coordinates origin ON origin.face_id=$2 WHERE f.organization_id=$1 AND f.id<>$2 AND ST_DWithin(c.location,origin.location,150+origin.uncertainty_m+c.uncertainty_m) ORDER BY "distanceM",f.code LIMIT 101`,
+      `${select},ST_Distance(ST_SetSRID(ST_MakePoint(c.longitude,c.latitude),4326)::geography,ST_SetSRID(ST_MakePoint(origin.longitude,origin.latitude),4326)::geography) "distanceM" FROM billboard_faces f JOIN billboard_structures s ON s.id=f.structure_id JOIN effective_source_coordinates c ON c.face_id=f.id JOIN effective_source_coordinates origin ON origin.face_id=$2 WHERE f.organization_id=$1 AND f.id<>$2 AND ST_DWithin(ST_SetSRID(ST_MakePoint(c.longitude,c.latitude),4326)::geography,ST_SetSRID(ST_MakePoint(origin.longitude,origin.latitude),4326)::geography,150+origin.uncertainty_m+c.uncertainty_m) ORDER BY "distanceM",f.code LIMIT 101`,
       [organizationId, faceId],
     );
   const rows = await db.query<Omit<Candidate, "distanceM">>(
-    `${select} FROM billboard_faces f JOIN billboard_structures s ON s.id=f.structure_id JOIN source_coordinates c ON c.face_id=f.id WHERE f.organization_id=$1 AND f.id<>$2`,
+    `${select} FROM billboard_faces f JOIN billboard_structures s ON s.id=f.structure_id JOIN effective_source_coordinates c ON c.face_id=f.id WHERE f.organization_id=$1 AND f.id<>$2`,
     [organizationId, faceId],
   );
   return rows

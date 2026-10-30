@@ -5,7 +5,21 @@ async function field(page: Page, code: string) {
   await page.goto("/sign-in");
   await page.getByLabel("Email address").fill("worker@demo.ibvs.test");
   await page.getByLabel("Password", { exact: true }).fill(password!);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const outcome = Promise.race([
+      page.waitForResponse(r => r.url().endsWith("/api/auth/sign-in/email")).then(r => ({ status: r.status(), retry: r.headers()["retry-after"] })),
+      page.waitForEvent("requestfailed", { predicate: r => r.url().endsWith("/api/auth/sign-in/email") }).then(() => ({ status: 0, retry: undefined })),
+    ]);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    const result = await outcome;
+    if (attempt === 0 && (result.status === 0 || result.status >= 500 || result.status === 429)) {
+      await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeEnabled();
+      if (result.status === 429) await page.waitForTimeout((Math.min(60, Math.max(1, Number(result.retry) || 60)) + 1) * 1000);
+      continue;
+    }
+    expect(result.status).toBe(200);
+    break;
+  }
   await page.getByRole("link", { name: "Open field workspace" }).click();
   await expect(
     page.getByRole("heading", { name: "Field workspace", exact: true }),
@@ -44,6 +58,7 @@ test("offline camera evidence survives reload and interrupted upload; server rec
   context,
   browser,
 }) => {
+  test.setTimeout(240000);
   await page.setViewportSize({ width: 390, height: 844 });
   await context.grantPermissions(["camera"]);
   await field(page, "DEMO-BGD-001");
@@ -81,6 +96,8 @@ test("offline camera evidence survives reload and interrupted upload; server rec
   await expect(
     page.getByText("Location permission denied.", { exact: false }),
   ).toBeVisible();
+  await context.grantPermissions(["camera", "geolocation"]);
+  await context.setGeolocation({ latitude: 33.3102, longitude: 44.4351, accuracy: 10 });
   await camera(page);
   await context.setOffline(true);
   await page.getByRole("button", { name: "Capture", exact: true }).click();
@@ -153,7 +170,6 @@ test("offline camera evidence survives reload and interrupted upload; server rec
   expect(await repeated.json()).toEqual(receipt.receipt);
   expect(receipt.receipt.flags).toEqual(
     expect.arrayContaining([
-      "gps_denied",
       "offline_capture_device_claim",
       "human_review_required",
     ]),

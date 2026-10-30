@@ -14,6 +14,11 @@ import { getDb, type Database } from "./db";
 import { ApiError, audit } from "./service";
 import { putPrivate, readPrivate } from "./evidence-storage";
 import { assessInspection } from "./risk-analysis";
+import {
+  assessPhotoLocation,
+  locationMessages,
+} from "../field/location-policy";
+import { activeLocationException } from "./location-exceptions";
 
 const hash = (bytes: Buffer | string) =>
   createHash("sha256").update(bytes).digest("hex");
@@ -52,11 +57,39 @@ async function task(db: Database, actor: Actor, id: string) {
     longitude: number;
     uncertainty_m: number;
   }>(
-    `SELECT a.*,f.code,c.latitude,c.longitude,c.uncertainty_m FROM assignments a JOIN billboard_faces f ON f.id=a.face_id JOIN source_coordinates c ON c.face_id=f.id JOIN worker_profiles w ON w.user_id=a.worker_id WHERE a.id=$1 AND a.organization_id=$2 AND a.worker_id=$3 AND w.active=true FOR UPDATE OF a`,
+    `SELECT a.*,f.code,c.latitude,c.longitude,c.uncertainty_m FROM assignments a JOIN billboard_faces f ON f.id=a.face_id JOIN effective_source_coordinates c ON c.face_id=f.id JOIN worker_profiles w ON w.user_id=a.worker_id WHERE a.id=$1 AND a.organization_id=$2 AND a.worker_id=$3 AND w.active=true FOR UPDATE OF a`,
     [id, actor.organizationId, actor.id],
   );
   if (!row) throw new ApiError(404, "Assignment not found");
   return row;
+}
+async function enforcePhotoLocations(
+  db: Database,
+  actor: Actor,
+  bound: Awaited<ReturnType<typeof task>>,
+  photos: InspectionInput["photos"],
+) {
+  const failures = photos
+    .map((photo) => ({
+      kind: photo.kind,
+      ...assessPhotoLocation(photo, bound),
+    }))
+    .filter((result) => result.status !== "within_area");
+  if (!failures.length) return { failures, exception: null };
+  const exception = await activeLocationException(
+    db,
+    actor,
+    bound.id,
+    bound.version,
+  );
+  if (!exception)
+    throw new ApiError(
+      422,
+      failures
+        .map((result) => `${result.kind}: ${locationMessages[result.status]}`)
+        .join(" "),
+    );
+  return { failures, exception };
 }
 async function owned(db: Database, actor: Actor, id: string, lock = false) {
   const [row] = await db.query<Inspection>(
@@ -165,6 +198,7 @@ export async function beginInspection(actor: Actor, input: InspectionInput) {
       );
       if (!c) throw new ApiError(422, "Challenge does not belong to this task");
     }
+    await enforcePhotoLocations(db, actor, bound, payload.photos);
     const id = randomUUID();
     await db.query(
       "INSERT INTO inspections(id,organization_id,assignment_id,face_id,worker_id,operation_id,payload_hash,metadata,challenge_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)",
@@ -329,6 +363,12 @@ export async function submitInspection(actor: Actor, id: string) {
         409,
         "Assignment changed; submission retained for investigation",
       );
+    const locationAssessment = await enforcePhotoLocations(
+      db,
+      actor,
+      bound,
+      row.metadata.photos,
+    );
     const media = await db.query<Media>(
       "SELECT * FROM media_evidence WHERE inspection_id=$1",
       [id],
@@ -347,6 +387,12 @@ export async function submitInspection(actor: Actor, id: string) {
       "browser_signals_untrusted",
       "human_review_required",
     ]);
+    if (locationAssessment.exception) {
+      flags.add("location_supervisor_exception");
+      flags.add(`location_exception:${locationAssessment.exception.id}`);
+      for (const failure of locationAssessment.failures)
+        flags.add(`location_${failure.kind}_${failure.status}`);
+    }
     for (const p of row.metadata.photos) {
       if (p.captureMode === "offline")
         flags.add("offline_capture_device_claim");

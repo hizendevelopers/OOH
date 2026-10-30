@@ -1,5 +1,6 @@
 import { beforeAll, afterAll, it, expect, vi } from "vitest";
 import * as storage from "../apps/web/src/server/evidence-storage";
+import { authorizeLocationException } from "../apps/web/src/server/location-exceptions";
 import { testDirectory } from "../scripts/test-directory";
 import { randomUUID, createHash, randomBytes } from "node:crypto";
 import sharp from "sharp";
@@ -87,6 +88,7 @@ beforeAll(async () => {
     dueDate: "2026-11-01",
   });
   const [task] = await assignments(worker);
+  await authorizeLocationException(admin, { assignmentId: task.assignment_id, assignmentVersion: task.version, reason: "QA exception to exercise denied GPS evidence review" });
   front = await sharp({
     create: { width: 640, height: 480, channels: 3, background: "#225599" },
   })
@@ -217,6 +219,7 @@ it("resumes inside a multi-part JPEG after reopening the database", async () => 
     dueDate: "2026-11-01",
   });
   const task = (await assignments(worker)).find((t) => t.id === face.id)!;
+  await authorizeLocationException(admin, { assignmentId: task.assignment_id, assignmentVersion: task.version, reason: "QA exception for multipart evidence validation" });
   const image = await sharp(randomBytes(640 * 480 * 3), {
     raw: { width: 640, height: 480, channels: 3 },
   })
@@ -291,6 +294,8 @@ it("validates JPEGs and returns stable photo and inspection receipts on replay",
   expect(received.flags).toEqual(
     expect.arrayContaining([
       "gps_denied",
+      "location_supervisor_exception",
+      "location_front_missing",
       "offline_capture_device_claim",
       "challenge_expired_at_receipt",
       "human_review_required",
@@ -334,6 +339,7 @@ it("rejects malformed media without issuing a receipt", async () => {
     dueDate: "2026-11-01",
   });
   const task = (await assignments(worker)).find((t) => t.id === face.id)!;
+  await authorizeLocationException(admin, { assignmentId: task.assignment_id, assignmentVersion: task.version, reason: "QA exception for malformed image validation" });
   const invalid = Buffer.from("This is not a JPEG");
   const request: InspectionInput = {
     ...input,
@@ -505,6 +511,7 @@ it("authorizes reviews, preserves decisions, explicitly enrolls and withdraws re
   expect(task.parent_inspection_id).toBe(id);
   expect(task.instructions).toContain("mounting");
   expect(task.status).toBe("resurvey_requested");
+  await authorizeLocationException(admin, { assignmentId: task.assignment_id, assignmentVersion: task.version, reason: "QA exception to exercise followup evidence preservation" });
   const newAttempt = await beginInspection(worker, {
     ...input,
     operationId: randomUUID(),
@@ -538,6 +545,7 @@ it("explains cross-worker duplicates, adjacent identity, uncertain mismatched GP
     dueDate: "2026-11-20",
   });
   const task = (await assignments(other)).find((t) => t.id === face.id)!;
+  await authorizeLocationException(admin, { assignmentId: task.assignment_id, assignmentVersion: task.version, reason: "QA exception to assess inaccurate distant GPS signals" });
   const request: InspectionInput = {
     ...input,
     operationId: randomUUID(),

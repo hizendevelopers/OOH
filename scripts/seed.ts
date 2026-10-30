@@ -4,6 +4,10 @@ import { provision } from "./provision";
 import { importCsv, assign, inventory } from "../apps/web/src/server/service";
 import type { Actor } from "../packages/domain/src";
 async function seed() {
+  if (process.env.DATABASE_URL)
+    throw new Error(
+      "DEMO seeding is restricted to isolated local databases; hosted database seeding is disabled",
+    );
   if (process.env.NODE_ENV === "production")
     throw new Error("DEMO seeding is prohibited in production");
   const password = process.env.IBVS_DEMO_PASSWORD;

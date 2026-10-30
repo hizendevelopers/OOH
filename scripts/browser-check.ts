@@ -13,7 +13,10 @@ const environment: {
   BETTER_AUTH_URL: "http://localhost:3000",
 };
 environment.TEMP = environment.TMP;
-delete environment.DATABASE_URL;
+// An explicit empty override prevents Next from loading the hosted DATABASE_URL
+// from apps/web/.env.local into this disposable browser-test server.
+environment.DATABASE_URL = "";
+environment.DATABASE_SCHEMA = "public";
 async function run(args: string[]) {
   return new Promise<void>((resolve, reject) => {
     const child = spawn(process.execPath, args, {

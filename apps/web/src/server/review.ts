@@ -88,6 +88,18 @@ export async function reviewDetail(actor: Actor, id: string) {
     "SELECT id,created_at,rule_version,assessment_hash FROM verification_runs WHERE inspection_id=$1 ORDER BY created_at DESC,id",
     [id],
   );
+  const locationExceptions = await db.query<{
+    id: string;
+    reason: string;
+    authorized_by: string;
+    created_at: string;
+    expires_at: string;
+  }>(
+    `SELECT id,reason,authorized_by,created_at,expires_at FROM location_exceptions
+     WHERE organization_id=$1 AND assignment_id=$2
+       AND ('location_exception:' || id)=ANY($3::text[]) ORDER BY created_at,id`,
+    [actor.organizationId, inspection.assignment_id, inspection.flags],
+  );
   return {
     inspection,
     review,
@@ -97,6 +109,7 @@ export async function reviewDetail(actor: Actor, id: string) {
     history,
     media,
     assessments,
+    locationExceptions,
   };
 }
 export type ReviewDetail = Awaited<ReturnType<typeof reviewDetail>>;

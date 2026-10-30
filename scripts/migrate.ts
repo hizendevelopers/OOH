@@ -3,9 +3,13 @@ import path from "node:path";
 import { getDb, closeDb, root } from "../apps/web/src/server/db";
 export async function migrate() {
   const db = await getDb();
-  await db.query(
-    "CREATE TABLE IF NOT EXISTS schema_migrations(name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())",
+  const [existing] = await db.query<{ name: string | null }>(
+    "SELECT to_regclass('schema_migrations')::text AS name",
   );
+  if (!existing.name)
+    await db.query(
+      "CREATE TABLE schema_migrations(name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())",
+    );
   for (const file of (await readdir(path.join(root(), "db", "migrations")))
     .filter((x) => x.endsWith(".sql"))
     .sort()) {

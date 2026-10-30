@@ -37,11 +37,16 @@ export async function audit(
 export async function inventory(actor: Actor) {
   requireAdmin(actor);
   return (await getDb()).query<Face>(
-    `SELECT f.id,f.code,f.orientation,s.code structure_code,s.city,s.zone,c.latitude,c.longitude,c.uncertainty_m, a.status, a.worker_id FROM billboard_faces f JOIN billboard_structures s ON s.id=f.structure_id JOIN source_coordinates c ON c.face_id=f.id LEFT JOIN assignments a ON a.face_id=f.id AND a.status IN ('assigned','server_received','pending_review','resurvey_requested','ambiguous') WHERE f.organization_id=$1 ORDER BY f.created_at DESC,f.code LIMIT 10001`,
+    `SELECT f.id,f.code,f.orientation,f.description,f.is_test,s.code structure_code,s.city,s.zone,c.latitude,c.longitude,c.uncertainty_m,c.original_latitude,c.original_longitude,c.original_uncertainty_m, a.status, a.worker_id FROM billboard_faces f JOIN billboard_structures s ON s.id=f.structure_id JOIN effective_source_coordinates c ON c.face_id=f.id LEFT JOIN assignments a ON a.face_id=f.id AND a.status IN ('assigned','server_received','pending_review','resurvey_requested','ambiguous') WHERE f.organization_id=$1 ORDER BY f.created_at DESC,f.code LIMIT 10001`,
     [actor.organizationId],
   );
 }
 export type Face = {
+  description: string;
+  is_test: boolean;
+  original_latitude: number;
+  original_longitude: number;
+  original_uncertainty_m: number;
   id: string;
   code: string;
   orientation: string;
@@ -55,6 +60,7 @@ export type Face = {
   worker_id: string | null;
 };
 export type Assignment = Face & {
+  location_exception?: import("./location-exceptions").LocationException | null;
   assignment_id: string;
   worker_name: string;
   due_date: string;
@@ -67,7 +73,7 @@ export type Assignment = Face & {
 };
 export async function assignments(actor: Actor, id?: string) {
   return (await getDb()).query<Assignment>(
-    `SELECT f.id,f.code,f.orientation,s.code structure_code,s.city,s.zone,c.latitude,c.longitude,c.uncertainty_m,a.id assignment_id,a.parent_inspection_id,a.instructions,(SELECT r.state FROM review_cases r JOIN inspections i ON i.id=r.inspection_id WHERE i.assignment_id=a.id) review_state,(SELECT d.reason FROM review_decisions d JOIN inspections i ON i.id=d.inspection_id WHERE i.assignment_id=a.id ORDER BY d.version DESC LIMIT 1) review_reason,a.status,a.worker_id,a.due_date::text,a.version,u.name worker_name FROM assignments a JOIN billboard_faces f ON f.id=a.face_id JOIN billboard_structures s ON s.id=f.structure_id JOIN source_coordinates c ON c.face_id=f.id JOIN "user" u ON u.id=a.worker_id WHERE a.organization_id=$1 AND ($2::text='admin' OR a.worker_id=$3) AND ($4::text IS NULL OR a.id=$4) ORDER BY a.due_date,a.created_at DESC LIMIT 10000`,
+    `SELECT f.id,f.code,f.orientation,f.description,f.is_test,s.code structure_code,s.city,s.zone,c.latitude,c.longitude,c.uncertainty_m,c.original_latitude,c.original_longitude,c.original_uncertainty_m,a.id assignment_id,a.parent_inspection_id,a.instructions,(SELECT r.state FROM review_cases r JOIN inspections i ON i.id=r.inspection_id WHERE i.assignment_id=a.id) review_state,(SELECT d.reason FROM review_decisions d JOIN inspections i ON i.id=d.inspection_id WHERE i.assignment_id=a.id ORDER BY d.version DESC LIMIT 1) review_reason,a.status,a.worker_id,a.due_date::text,a.version,u.name worker_name,(SELECT jsonb_build_object('id',e.id,'reason',e.reason,'authorized_by',e.authorized_by,'expires_at',e.expires_at,'assignment_version',e.assignment_version) FROM location_exceptions e WHERE e.assignment_id=a.id AND e.organization_id=a.organization_id AND e.assignment_version=a.version AND e.expires_at>now() ORDER BY e.created_at DESC,e.id DESC LIMIT 1) location_exception FROM assignments a JOIN billboard_faces f ON f.id=a.face_id JOIN billboard_structures s ON s.id=f.structure_id JOIN effective_source_coordinates c ON c.face_id=f.id JOIN "user" u ON u.id=a.worker_id WHERE a.organization_id=$1 AND ($2::text='admin' OR a.worker_id=$3) AND ($4::text IS NULL OR a.id=$4) ORDER BY a.due_date,a.created_at DESC LIMIT 10000`,
     [actor.organizationId, actor.role, actor.id, id ?? null],
   );
 }
@@ -149,8 +155,16 @@ async function insertFace(
     );
   const id = randomUUID();
   await tx.query(
-    "INSERT INTO billboard_faces(id,organization_id,structure_id,code,orientation) VALUES($1,$2,$3,$4,$5)",
-    [id, actor.organizationId, structures[0].id, row.code, row.orientation],
+    "INSERT INTO billboard_faces(id,organization_id,structure_id,code,orientation,description,is_test) VALUES($1,$2,$3,$4,$5,$6,$7)",
+    [
+      id,
+      actor.organizationId,
+      structures[0].id,
+      row.code,
+      row.orientation,
+      row.description,
+      row.is_test,
+    ],
   );
   await tx.query(
     "INSERT INTO source_coordinates(id,face_id,latitude,longitude,uncertainty_m,source_name,imported_by) VALUES($1,$2,$3,$4,$5,$6,$7)",
@@ -236,7 +250,7 @@ export async function overview(actor: Actor) {
     verified: number;
     rejected: number;
   }>(
-    `SELECT (SELECT count(*)::int FROM billboard_faces WHERE organization_id=$1) faces,(SELECT count(*)::int FROM billboard_structures WHERE organization_id=$1) structures,(SELECT count(*)::int FROM organization_members WHERE organization_id=$1 AND role='worker') workers,(SELECT count(*)::int FROM assignments WHERE organization_id=$1 AND status='assigned') assigned,(SELECT count(*)::int FROM review_cases WHERE organization_id=$1 AND state IN ('pending','ambiguous')) pending,(SELECT count(*)::int FROM reference_baselines b JOIN review_cases rc ON rc.inspection_id=b.inspection_id JOIN verification_runs vr ON vr.id=rc.assessment_id LEFT JOIN baseline_events e ON e.baseline_id=b.id WHERE b.organization_id=$1 AND e.id IS NULL AND rc.state='approved' AND vr.assessment_hash=b.assessment_hash) verified,(SELECT count(*)::int FROM assignments WHERE organization_id=$1 AND status='rejected') rejected`,
+    `SELECT (SELECT count(*)::int FROM billboard_faces WHERE organization_id=$1 AND is_test=false) faces,(SELECT count(*)::int FROM billboard_structures s WHERE organization_id=$1 AND EXISTS (SELECT 1 FROM billboard_faces f WHERE f.structure_id=s.id AND f.is_test=false)) structures,(SELECT count(*)::int FROM organization_members WHERE organization_id=$1 AND role='worker') workers,(SELECT count(*)::int FROM assignments a JOIN billboard_faces f ON f.id=a.face_id WHERE a.organization_id=$1 AND f.is_test=false AND a.status='assigned') assigned,(SELECT count(*)::int FROM review_cases r JOIN inspections i ON i.id=r.inspection_id JOIN billboard_faces f ON f.id=i.face_id WHERE r.organization_id=$1 AND f.is_test=false AND r.state IN ('pending','ambiguous')) pending,(SELECT count(*)::int FROM reference_baselines b JOIN review_cases rc ON rc.inspection_id=b.inspection_id JOIN verification_runs vr ON vr.id=rc.assessment_id LEFT JOIN baseline_events e ON e.baseline_id=b.id WHERE b.organization_id=$1 AND EXISTS (SELECT 1 FROM billboard_faces f WHERE f.id=b.face_id AND f.is_test=false) AND e.id IS NULL AND rc.state='approved' AND vr.assessment_hash=b.assessment_hash) verified,(SELECT count(*)::int FROM assignments a JOIN billboard_faces f ON f.id=a.face_id WHERE a.organization_id=$1 AND f.is_test=false AND a.status='rejected') rejected`,
     [actor.organizationId],
   );
   const cities = await db.query<{
@@ -244,7 +258,7 @@ export async function overview(actor: Actor) {
     faces: number;
     assigned: number;
   }>(
-    `SELECT s.city,count(f.id)::int faces,count(a.id)::int assigned FROM billboard_structures s JOIN billboard_faces f ON f.structure_id=s.id LEFT JOIN assignments a ON a.face_id=f.id AND a.status IN ('assigned','pending_review','server_received','resurvey_requested','ambiguous') WHERE s.organization_id=$1 GROUP BY s.city ORDER BY faces DESC`,
+    `SELECT s.city,count(f.id)::int faces,count(a.id)::int assigned FROM billboard_structures s JOIN billboard_faces f ON f.structure_id=s.id LEFT JOIN assignments a ON a.face_id=f.id AND a.status IN ('assigned','pending_review','server_received','resurvey_requested','ambiguous') WHERE s.organization_id=$1 AND f.is_test=false GROUP BY s.city ORDER BY faces DESC`,
     [actor.organizationId],
   );
   return { ...totals[0], cities };

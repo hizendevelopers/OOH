@@ -19,6 +19,16 @@ export const faceInput = z.object({
   orientation: z
     .enum(["N", "NE", "E", "SE", "S", "SW", "W", "NW", "unknown"])
     .default("unknown"),
+  description: z.string().trim().max(1000).default(""),
+  is_test: z.preprocess(
+    (value) =>
+      value === "true"
+        ? true
+        : value === "false" || value === ""
+          ? false
+          : value,
+    z.boolean().default(false),
+  ),
 });
 export type FaceInput = z.infer<typeof faceInput>;
 export type Role = "admin" | "worker";

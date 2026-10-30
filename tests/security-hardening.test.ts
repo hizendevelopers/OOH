@@ -151,7 +151,7 @@ it("preserves receipt after analysis admission failure and replays without priva
       sha256: sha256(b),
       capturedAt: now,
       captureMode: "offline",
-      gps: { status: "denied", observedAt: now },
+      gps: { status: "ok", latitude: face.latitude, longitude: face.longitude, accuracy: 10, observedAt: now },
     })),
   };
   const session = await beginInspection(worker, input);

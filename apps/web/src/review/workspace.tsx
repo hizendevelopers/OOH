@@ -557,6 +557,11 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                     </span>
                     <h2>
                       <bdi>{detail.inspection.code}</bdi>{" "}
+                      {detail.inspection.is_test && (
+                        <span className="badge">
+                          {t("Test location", "موقع تجريبي")}
+                        </span>
+                      )}
                       <span className="badge">
                         {label(detail.review.state)}
                       </span>
@@ -736,6 +741,24 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                                   <bdi>{photo?.captureMode}</bdi> · GPS:{" "}
                                   <bdi>{photo?.gps.status}</bdi>
                                 </p>
+                                {photo?.gps.status === "ok" && (
+                                  <p>
+                                    <bdi>
+                                      {photo.gps.latitude.toFixed(6)},{" "}
+                                      {photo.gps.longitude.toFixed(6)} · ±{" "}
+                                      {Math.round(photo.gps.accuracy)} m
+                                    </bdi>
+                                    <br />
+                                    {t(
+                                      "Location observed",
+                                      "وقت رصد الموقع",
+                                    )}: {time(photo.gps.observedAt)}
+                                  </p>
+                                )}
+                                <p>
+                                  {t("Server received", "استلم الخادم")}:{" "}
+                                  {time(String(detail.inspection.received_at))}
+                                </p>
                               </figcaption>
                             </figure>
                           );
@@ -747,6 +770,47 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                           <h3>
                             {t("Location observations", "ملاحظات الموقع")}
                           </h3>
+                          <p>
+                            {t("Registered coordinates", "الإحداثيات المسجلة")}:{" "}
+                            <bdi>
+                              {detail.inspection.latitude},{" "}
+                              {detail.inspection.longitude} ±{" "}
+                              {detail.inspection.uncertainty_m} m
+                            </bdi>
+                          </p>
+                          {(detail.inspection.original_latitude !==
+                            detail.inspection.latitude ||
+                            detail.inspection.original_longitude !==
+                              detail.inspection.longitude) && (
+                            <p>
+                              {t(
+                                "Original coordinates preserved",
+                                "الإحداثيات الأصلية محفوظة",
+                              )}
+                              :{" "}
+                              <bdi>
+                                {detail.inspection.original_latitude},{" "}
+                                {detail.inspection.original_longitude}
+                              </bdi>
+                            </p>
+                          )}
+                          {detail.locationExceptions?.map((exception) => (
+                            <div key={exception.id} role="note">
+                              <strong>
+                                {t(
+                                  "Supervisor location exception",
+                                  "استثناء الموقع من المشرف",
+                                )}
+                              </strong>
+                              <p>{exception.reason}</p>
+                              <p>
+                                {t("Authorized", "تم التصريح")}:{" "}
+                                {time(exception.created_at)} ·{" "}
+                                {t("Expires", "تنتهي الصلاحية")}:{" "}
+                                {time(exception.expires_at)}
+                              </p>
+                            </div>
+                          ))}
                           <p>
                             {t(
                               "Browser GPS and device timestamps are untrusted. Circles show reported uncertainty, not proof of presence.",

@@ -28,6 +28,9 @@ const task = {
   id: "22222222-2222-4222-8222-222222222222",
   code: "TST-001",
   version: 1,
+  latitude: 33,
+  longitude: 44,
+  uncertainty_m: 10,
 } as Assignment;
 async function prepared() {
   const store = create();
@@ -41,7 +44,7 @@ async function prepared() {
       sha256: await digestBlob(blob),
       capturedAt: new Date().toISOString(),
       captureMode: "offline",
-      gps: { status: "denied", observedAt: new Date().toISOString() },
+      gps: { status: "ok", latitude: 33, longitude: 44, accuracy: 10, observedAt: new Date().toISOString() },
     });
   }
   await store.queue(task.assignment_id);
@@ -77,6 +80,19 @@ it("refuses to queue without both locally saved photos", async () => {
     "local_draft",
   );
 });
+it("keeps denied-location photos as editable drafts instead of queueing them", async () => {
+  const store = create();
+  await store.start(task);
+  for (const kind of ["front", "wide"] as const) {
+    const blob = new Blob([kind], { type: "image/jpeg" });
+    await store.savePhoto(task.assignment_id, { kind, blob, bytes: blob.size, sha256: await digestBlob(blob), capturedAt: new Date().toISOString(), captureMode: "offline", gps: { status: "denied", observedAt: new Date().toISOString() } });
+  }
+  await expect(store.queue(task.assignment_id)).rejects.toThrow("Location is missing");
+  const draft = (await store.drafts.get(task.assignment_id))!;
+  expect(draft.state).toBe("local_draft");
+  expect(draft.photos.front!.blob.size).toBeGreaterThan(0);
+  await expect(store.savePhoto(task.assignment_id, draft.photos.front!)).resolves.toBeUndefined();
+});
 it("storage exhaustion never marks a photo as saved", async () => {
   const store = create();
   await store.start(task);
@@ -92,7 +108,7 @@ it("storage exhaustion never marks a photo as saved", async () => {
       sha256: "a".repeat(64),
       capturedAt: new Date().toISOString(),
       captureMode: "offline",
-      gps: { status: "denied", observedAt: new Date().toISOString() },
+      gps: { status: "ok", latitude: 33, longitude: 44, accuracy: 10, observedAt: new Date().toISOString() },
     }),
   ).rejects.toHaveProperty("name", "QuotaExceededError");
   fail.mockRestore();
@@ -209,7 +225,7 @@ it("skips acknowledged pieces when resuming within a photograph", async () => {
       sha256: await digestBlob(blob),
       capturedAt: new Date().toISOString(),
       captureMode: "offline",
-      gps: { status: "denied", observedAt: new Date().toISOString() },
+      gps: { status: "ok", latitude: 33, longitude: 44, accuracy: 10, observedAt: new Date().toISOString() },
     });
   }
   await store.queue(task.assignment_id);

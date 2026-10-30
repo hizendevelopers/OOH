@@ -20,7 +20,7 @@ export const fieldStrings = {
     open: "Open inspection",
     back: "Back to visits",
     locked: "Locked face identity",
-    original: "Original imported location",
+    original: "Registered billboard location",
     unverified: "Unverified coordinates",
     uncertainty: "uncertainty",
     structure: "Structure / face",
@@ -51,12 +51,13 @@ export const fieldStrings = {
     gps: "Record location fix",
     gpsBusy: "Getting a fresh GPS observation…",
     gpsNone:
-      "No location fix recorded. Missing GPS will be flagged for review.",
+      "Location is requested automatically for each photo. Missing GPS keeps the photo as a draft until retaken or a supervisor exception is authorized.",
     gpsDenied:
-      "Location permission denied. You can save photos; the submission will be flagged.",
+      "Location permission denied. Photos stay saved as drafts. Enable location permission and retake, or ask a supervisor for an exception.",
     gpsFailed: "Location unavailable or timed out. Retry when safe.",
     gpsOk: "GPS observation (untrusted)",
-    gpsAge: "GPS observations older than 30 seconds at capture are flagged.",
+    gpsAge:
+      "Each capture collects a fresh GPS reading. Stale or inaccurate readings require a retake or supervisor exception.",
     gpsWarning:
       "GPS and browser camera cannot prove physical presence or billboard identity.",
     challenge: "Online challenge",
@@ -169,12 +170,15 @@ export const fieldStrings = {
     cameraReady: "انتظر ظهور الصورة المباشرة قبل الالتقاط.",
     gps: "تسجيل الموقع",
     gpsBusy: "جارٍ الحصول على قراءة GPS حديثة…",
-    gpsNone: "لم تُسجّل قراءة موقع. سيُشار إلى غياب GPS للمراجعة.",
-    gpsDenied: "إذن الموقع مرفوض. يمكنك حفظ الصور مع تسجيل هذا التنبيه.",
+    gpsNone:
+      "يُطلب الموقع تلقائياً لكل صورة. عند غيابه تبقى الصورة كمسودة حتى إعادة التقاطها أو موافقة المشرف على استثناء.",
+    gpsDenied:
+      "إذن الموقع مرفوض. الصور محفوظة كمسودات. اسمح بالموقع وأعد الالتقاط، أو اطلب استثناء من المشرف.",
     gpsFailed:
       "الموقع غير متاح أو انتهت المهلة. أعد المحاولة عندما يكون ذلك آمناً.",
     gpsOk: "قراءة GPS (غير موثوقة)",
-    gpsAge: "تُعلّم القراءات الأقدم من ٣٠ ثانية وقت الالتقاط.",
+    gpsAge:
+      "تُجمع قراءة موقع حديثة لكل صورة. القراءة القديمة أو غير الدقيقة تتطلب إعادة الالتقاط أو استثناء المشرف.",
     gpsWarning:
       "الكاميرا وGPS في المتصفح لا يثبتان الحضور الفعلي أو هوية الواجهة.",
     challenge: "تحدٍ عبر الخادم",

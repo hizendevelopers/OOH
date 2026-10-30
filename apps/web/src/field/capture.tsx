@@ -19,6 +19,12 @@ import {
   type PhotoKind,
 } from "../../../../packages/domain/src/inspection";
 import type { FieldText } from "./strings";
+import {
+  assessPhotoLocation,
+  locationMessages,
+  locationMessagesAr,
+} from "./location-policy";
+import { LocationMap } from "./location-map";
 
 function Photo({ photo, label }: { photo: LocalPhoto; label: string }) {
   const [url, setUrl] = useState("");
@@ -43,12 +49,15 @@ export default function Capture({
   draft,
   t,
   online,
+  arabic = false,
 }: {
   store: FieldStore;
   draft: Draft;
   t: FieldText;
   online: boolean;
+  arabic?: boolean;
 }) {
+  const messages = arabic ? locationMessagesAr : locationMessages;
   const video = useRef<HTMLVideoElement>(null),
     stream = useRef<MediaStream | null>(null),
     mounted = useRef(true),
@@ -107,6 +116,13 @@ export default function Capture({
     setError(null);
     setBusy(true);
     const version = ++requestVersion.current;
+    setLocating(true);
+    void getLocation().then((fix) => {
+      if (mounted.current) {
+        setGps(fix);
+        setLocating(false);
+      }
+    });
     try {
       if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia)
         throw new Error("unsupported");
@@ -159,6 +175,17 @@ export default function Capture({
     setBusy(true);
     setError(null);
     try {
+      setLocating(true);
+      const freshGps = await getLocation();
+      setGps(freshGps);
+      setLocating(false);
+      if (
+        !mounted.current ||
+        !allowed.current ||
+        document.hidden ||
+        !stream.current
+      )
+        return;
       const capturedAt = new Date().toISOString();
       const blob = await photograph(video.current);
       if (blob.size > PHOTO_LIMIT) throw new Error("large");
@@ -175,7 +202,7 @@ export default function Capture({
           : activeChallenge
             ? "online_challenged"
             : "online_unchallenged",
-        gps: gps ?? { status: "unavailable", observedAt: capturedAt },
+        gps: freshGps,
       };
       await save(photo);
     } catch (e) {
@@ -184,6 +211,7 @@ export default function Capture({
       );
     } finally {
       setBusy(false);
+      setLocating(false);
     }
   }
   const locked = draft.state !== "local_draft";
@@ -252,6 +280,38 @@ export default function Capture({
         <small>
           {t.gpsAge} {t.privacy}
         </small>
+        {shownGps?.status === "ok" && (
+          <>
+            <p>
+              {
+                messages[
+                  assessPhotoLocation(
+                    {
+                      gps: shownGps,
+                      capturedAt: new Date(now).toISOString(),
+                    },
+                    draft.task,
+                  ).status
+                ]
+              }{" "}
+              ·{" "}
+              {Math.round(
+                assessPhotoLocation(
+                  { gps: shownGps, capturedAt: shownGps.observedAt },
+                  draft.task,
+                ).distanceM || 0,
+              )}{" "}
+              {arabic
+                ? "م من موقع اللوحة المسجل"
+                : "m from registered billboard"}
+            </p>
+            <LocationMap
+              gps={shownGps}
+              locations={[draft.task]}
+              arabic={arabic}
+            />
+          </>
+        )}
       </section>
       <div className="field-photo-grid">
         {photoKinds.map((k) => (
@@ -283,6 +343,30 @@ export default function Capture({
                   <small>
                     {t.deviceTime}: <bdi>{draft.photos[k]!.capturedAt}</bdi>
                   </small>
+                  <p>
+                    {
+                      messages[
+                        assessPhotoLocation(draft.photos[k]!, draft.task).status
+                      ]
+                    }
+                  </p>
+                  {draft.photos[k]!.gps.status === "ok" && (
+                    <small>
+                      {arabic
+                        ? "الموقع عند الالتقاط: ±"
+                        : "Location at capture: ±"}
+                      {Math.round(
+                        (
+                          draft.photos[k]!.gps as Extract<
+                            GpsObservation,
+                            { status: "ok" }
+                          >
+                        ).accuracy,
+                      )}{" "}
+                      {arabic ? "م · وقت الرصد " : "m · observed "}
+                      {draft.photos[k]!.gps.observedAt}
+                    </small>
+                  )}
                 </div>
               </>
             ) : (

@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from "dexie";
 import type { Actor } from "@ibvs/domain";
 import type { Assignment } from "../server/service";
+import { assessPhotoLocation, locationMessages } from "./location-policy";
 import {
   inspectionInput,
   photoKinds,
@@ -85,6 +86,17 @@ export class FieldStore extends Dexie {
       if (!draft || draft.state !== "local_draft")
         throw new Error("Draft is locked");
       metadata(draft);
+      const exception = draft.task.location_exception;
+      const hasException =
+        exception &&
+        exception.assignment_version === draft.task.version &&
+        Date.parse(exception.expires_at) > Date.now();
+      if (!hasException)
+        for (const photo of Object.values(draft.photos)) {
+          const result = assessPhotoLocation(photo, draft.task);
+          if (result.status !== "within_area")
+            throw new Error(locationMessages[result.status]);
+        }
       await this.drafts.update(id, {
         state: "queued",
         nextAttemptAt: 0,

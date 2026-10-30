@@ -5,6 +5,7 @@ import { Pool, type PoolClient } from "pg";
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
 import { environment } from "./env";
+import { databaseOptions } from "./database-options";
 
 export interface Database {
   query<T = Record<string, unknown>>(
@@ -50,11 +51,11 @@ function pgDatabase(client: Pool | PoolClient): Database {
 export async function getDb(): Promise<Database> {
   if (!globalDb.ibvsDb)
     globalDb.ibvsDb = (async () => {
-      environment();
-      if (process.env.DATABASE_URL) {
-        globalDb.ibvsPool = new Pool({
-          connectionString: process.env.DATABASE_URL,
-          max: 10,
+      const env = environment();
+      if (env.DATABASE_URL) {
+        globalDb.ibvsPool = new Pool(databaseOptions(env));
+        globalDb.ibvsPool.on("error", () => {
+          console.error(JSON.stringify({ category: "database_pool_error" }));
         });
         return pgDatabase(globalDb.ibvsPool);
       }

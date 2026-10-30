@@ -34,6 +34,8 @@ import {
 import type { Actor, Preview } from "@ibvs/domain";
 import { matchesFilter, localeDirection } from "@ibvs/domain";
 import type { Face, Assignment } from "@/server/service";
+import { LocationEditor } from "./location-editor";
+import { LocationMap } from "./location-map";
 type Tab = "overview" | "inventory" | "assignments" | "audit";
 type Summary = {
   faces: number;
@@ -75,13 +77,13 @@ const words = {
     all: "All cities",
     search: "Search face ID, city or zone…",
     empty: "No records yet",
-    emptySub: "Import your coordinate inventory to begin.",
+    emptySub: "Add a location or import your coordinate inventory to begin.",
     newAssignment: "Assign visits",
     worker: "Worker",
     due: "Due date",
     face: "Face ID",
     city: "City / zone",
-    coordinates: "Original coordinates",
+    coordinates: "Registered coordinates",
     status: "Status",
     orientation: "Face",
     unassigned: "Unassigned",
@@ -140,13 +142,13 @@ const words = {
     all: "كل المدن",
     search: "ابحث بالرمز أو المدينة أو المنطقة…",
     empty: "لا توجد سجلات بعد",
-    emptySub: "استورد مخزون الإحداثيات للبدء.",
+    emptySub: "أضف موقعاً أو استورد مخزون الإحداثيات للبدء.",
     newAssignment: "تكليف بزيارات",
     worker: "الموظف",
     due: "تاريخ الاستحقاق",
     face: "رمز الواجهة",
     city: "المدينة / المنطقة",
-    coordinates: "الإحداثيات الأصلية",
+    coordinates: "الإحداثيات المسجلة",
     status: "الحالة",
     orientation: "الاتجاه",
     unassigned: "غير مكلّفة",
@@ -232,7 +234,13 @@ function Badge({
     </span>
   );
 }
-export default function Workspace({ actor }: { actor: Actor }) {
+export default function Workspace({
+  actor,
+  signInRequired = true,
+}: {
+  actor: Actor;
+  signInRequired?: boolean;
+}) {
   const [tab, setTab] = useState<Tab>(
       actor.role === "admin" ? "overview" : "assignments",
     ),
@@ -245,6 +253,12 @@ export default function Workspace({ actor }: { actor: Actor }) {
     [summary, setSummary] = useState<Summary | null>(null),
     [events, setEvents] = useState<Event[]>([]),
     [workers, setWorkers] = useState<{ id: string; name: string }[]>([]);
+  const [locationEditor, setLocationEditor] = useState<"new" | Face | null>(
+    null,
+  );
+  const [locationKind, setLocationKind] = useState("all");
+  const [exceptionTask, setExceptionTask] = useState<Assignment | null>(null);
+  const [exceptionReason, setExceptionReason] = useState("");
   const [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [toast, setToast] = useState(""),
@@ -379,6 +393,8 @@ export default function Workspace({ actor }: { actor: Actor }) {
   const isAdmin = actor.role === "admin";
   const filteredFaces = faces.filter(
     (f) =>
+      (locationKind === "all" ||
+        (locationKind === "test" ? f.is_test : !f.is_test)) &&
       (!city || f.city === city) &&
       matchesFilter(`${f.code} ${f.city} ${f.zone}`, search),
   );
@@ -460,25 +476,27 @@ export default function Workspace({ actor }: { actor: Actor }) {
               {actor.name}
               <small>{isAdmin ? "Administrator" : "Field worker"}</small>
             </span>
-            <button
-              aria-label={t.signout}
-              title={t.signout}
-              className="icon-button"
-              onClick={async () => {
-                const response = await fetch("/api/auth/sign-out", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: "{}",
-                });
-                if (response.ok) {
-                  localStorage.removeItem("ibvs-field-owner-v2");
-                  localStorage.setItem("ibvs-field-locked", "1");
-                  location.assign("/sign-in");
-                } else setToast("Sign out failed. Please retry.");
-              }}
-            >
-              <LogOut size={17} />
-            </button>
+            {signInRequired && (
+              <button
+                aria-label={t.signout}
+                title={t.signout}
+                className="icon-button"
+                onClick={async () => {
+                  const response = await fetch("/api/auth/sign-out", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: "{}",
+                  });
+                  if (response.ok) {
+                    localStorage.removeItem("ibvs-field-owner-v2");
+                    localStorage.setItem("ibvs-field-locked", "1");
+                    location.assign("/sign-in");
+                  } else setToast("Sign out failed. Please retry.");
+                }}
+              >
+                <LogOut size={17} />
+              </button>
+            )}
           </div>
         </div>
       </aside>
@@ -575,10 +593,22 @@ export default function Workspace({ actor }: { actor: Actor }) {
                 </Link>
               )}
               {isAdmin && (tab === "overview" || tab === "inventory") && (
-                <button className="primary" onClick={() => openModal("import")}>
-                  <Plus size={17} />
-                  {t.import}
-                </button>
+                <>
+                  <button
+                    className="primary"
+                    onClick={() => setLocationEditor("new")}
+                  >
+                    <MapPin size={17} />
+                    {locale === "ar" ? "إضافة موقع" : "Add location"}
+                  </button>
+                  <button
+                    className="secondary"
+                    onClick={() => openModal("import")}
+                  >
+                    <Plus size={17} />
+                    {t.import}
+                  </button>
+                </>
               )}
               {isAdmin && tab === "assignments" && (
                 <a className="secondary" href="/api/export" download>
@@ -605,6 +635,11 @@ export default function Workspace({ actor }: { actor: Actor }) {
             <>
               {tab === "overview" && summary && (
                 <>
+                  <p className="muted">
+                    {locale === "ar"
+                      ? "الإجماليات التشغيلية لا تشمل المواقع التجريبية."
+                      : "Operational totals exclude test locations."}
+                  </p>
                   <section className="metric-grid">
                     {[
                       {
@@ -840,6 +875,30 @@ export default function Workspace({ actor }: { actor: Actor }) {
                         ))}
                     </select>
                     {tab === "inventory" && (
+                      <select
+                        aria-label={
+                          locale === "ar" ? "نوع الموقع" : "Location type"
+                        }
+                        value={locationKind}
+                        onChange={(e) => {
+                          setLocationKind(e.target.value);
+                          setSelected([]);
+                        }}
+                      >
+                        <option value="all">
+                          {locale === "ar" ? "كل المواقع" : "All locations"}
+                        </option>
+                        <option value="real">
+                          {locale === "ar"
+                            ? "مواقع تشغيلية"
+                            : "Operational locations"}
+                        </option>
+                        <option value="test">
+                          {locale === "ar" ? "مواقع تجريبية" : "Test locations"}
+                        </option>
+                      </select>
+                    )}
+                    {tab === "inventory" && (
                       <button
                         disabled={!selected.length}
                         className="primary"
@@ -918,6 +977,11 @@ export default function Workspace({ actor }: { actor: Actor }) {
                                 </td>
                                 <td>
                                   <bdi className="face-code">{f.code}</bdi>
+                                  {f.is_test && (
+                                    <span className="status-pill location-test">
+                                      {locale === "ar" ? "تجريبي" : "Test"}
+                                    </span>
+                                  )}
                                   <small>
                                     <bdi>{f.structure_code}</bdi>
                                   </small>
@@ -937,6 +1001,27 @@ export default function Workspace({ actor }: { actor: Actor }) {
                                       ? "غير موثّقة"
                                       : "unverified"}
                                   </small>
+                                  <button
+                                    className="text-button"
+                                    onClick={() => setLocationEditor(f)}
+                                  >
+                                    {locale === "ar"
+                                      ? "الخريطة / تصحيح"
+                                      : "Map / correct"}
+                                  </button>
+                                  {(f.original_latitude !== f.latitude ||
+                                    f.original_longitude !== f.longitude) && (
+                                    <small>
+                                      {locale === "ar" ? "الأصلي" : "Original"}:{" "}
+                                      <bdi>
+                                        {f.original_latitude},{" "}
+                                        {f.original_longitude}
+                                      </bdi>
+                                    </small>
+                                  )}
+                                  {f.description && (
+                                    <small>{f.description}</small>
+                                  )}
                                 </td>
                                 <td>
                                   <bdi>{f.orientation}</bdi>
@@ -1074,6 +1159,40 @@ export default function Workspace({ actor }: { actor: Actor }) {
                       </dd>
                     </div>
                   </dl>
+                  <LocationMap
+                    latitude={detail.latitude}
+                    longitude={detail.longitude}
+                    uncertainty={detail.uncertainty_m}
+                    ar={locale === "ar"}
+                  />
+                  {detail.location_exception && (
+                    <div className="notice warning">
+                      {locale === "ar"
+                        ? "استثناء موقع نشط حتى"
+                        : "Location exception active until"}{" "}
+                      {new Date(
+                        detail.location_exception.expires_at,
+                      ).toLocaleString()}{" "}
+                      · {detail.location_exception.reason}
+                    </div>
+                  )}
+                  {isAdmin &&
+                    ["assigned", "resurvey_requested"].includes(
+                      detail.status,
+                    ) && (
+                      <button
+                        className="secondary"
+                        onClick={() => {
+                          setExceptionTask(detail);
+                          setExceptionReason("");
+                          setFormError("");
+                        }}
+                      >
+                        {locale === "ar"
+                          ? "السماح باستثناء الموقع"
+                          : "Authorize location exception"}
+                      </button>
+                    )}
                   <div className="notice warning">
                     <TriangleAlert size={18} />
                     {locale === "ar"
@@ -1170,6 +1289,120 @@ export default function Workspace({ actor }: { actor: Actor }) {
             <X size={15} />
           </button>
         </div>
+      )}
+      {locationEditor && (
+        <Modal
+          title={
+            locationEditor === "new"
+              ? locale === "ar"
+                ? "إضافة موقع"
+                : "Add location"
+              : locale === "ar"
+                ? "خريطة الموقع وتصحيحه"
+                : "Location map & correction"
+          }
+          close={() => {
+            if (!busy) setLocationEditor(null);
+          }}
+          closeLabel={t.close}
+        >
+          <LocationEditor
+            onBusyChange={setBusy}
+            face={locationEditor === "new" ? undefined : locationEditor}
+            ar={locale === "ar"}
+            onCancel={() => setLocationEditor(null)}
+            onSaved={() => {
+              setLocationEditor(null);
+              setToast(
+                locale === "ar"
+                  ? "تم حفظ الموقع. حدّث المهام الميدانية بعد التصحيح."
+                  : "Location saved. Refresh downloaded field tasks after a correction.",
+              );
+              void load();
+            }}
+          />
+        </Modal>
+      )}
+      {exceptionTask && (
+        <Modal
+          title={
+            locale === "ar"
+              ? "استثناء موقع بإذن المشرف"
+              : "Supervisor location exception"
+          }
+          close={() => {
+            if (!busy) setExceptionTask(null);
+          }}
+          closeLabel={t.close}
+        >
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setBusy(true);
+              setFormError("");
+              try {
+                await api("locations/exceptions", {
+                  assignmentId: exceptionTask.assignment_id,
+                  assignmentVersion: exceptionTask.version,
+                  reason: exceptionReason,
+                });
+                setExceptionTask(null);
+                setDetail(null);
+                setToast(
+                  locale === "ar"
+                    ? "تم تسجيل استثناء الموقع."
+                    : "Location exception recorded.",
+                );
+                await load();
+              } catch (error) {
+                setFormError((error as Error).message);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <p className="muted">
+              {locale === "ar"
+                ? "يسمح هذا باستثناء فحوص الموقع لهذه النسخة من المهمة لمدة ٢٤ ساعة. تبقى مراجعة الصور والتحقق البشري إلزاميين."
+                : "This authorizes a location exception for this assignment version for 24 hours. Photo checks and human review remain required."}
+            </p>
+            <p>
+              <bdi>{exceptionTask.code}</bdi> · {exceptionTask.worker_name}
+            </p>
+            <label>
+              {locale === "ar"
+                ? "السبب (١٠ أحرف على الأقل)"
+                : "Reason (at least 10 characters)"}
+              <textarea
+                value={exceptionReason}
+                onChange={(e) => setExceptionReason(e.target.value)}
+                minLength={10}
+                maxLength={1000}
+                required
+                disabled={busy}
+              />
+            </label>
+            {formError && (
+              <div className="notice danger" role="alert">
+                {formError}
+              </div>
+            )}
+            <div className="modal-actions">
+              <button
+                className="secondary"
+                type="button"
+                disabled={busy}
+                onClick={() => setExceptionTask(null)}
+              >
+                {t.cancel}
+              </button>
+              <button className="primary" type="submit" disabled={busy}>
+                {busy ? <LoaderCircle className="spin" size={16} /> : null}
+                {locale === "ar" ? "تسجيل الاستثناء" : "Record exception"}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
       {modal && (
         <Modal

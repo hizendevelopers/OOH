@@ -17,11 +17,13 @@ export default defineConfig({
     },
   },
   webServer: {
+    env: { IBVS_REQUIRE_SIGN_IN: "true" },
     command:
       process.env.IBVS_E2E_PRODUCTION === "true"
         ? "node node_modules/next/dist/bin/next start apps/web --hostname 127.0.0.1"
         : "npm run dev",
-    url: "http://localhost:3000/sign-in",
+    // Wait for the database as well as HTTP before attempting the first login.
+    url: "http://localhost:3000/api/health",
     reuseExistingServer: false,
     timeout: 120000,
   },
