@@ -46,6 +46,18 @@ it("restores the session requirement when login is enabled", async () => {
   expect(query).not.toHaveBeenCalled();
 });
 
+it("requires sign-in on a hosted installation even when the old bypass setting is false", async () => {
+  vi.stubEnv("NODE_ENV", "production");
+  vi.stubEnv("DATABASE_URL", "postgresql://example.invalid/postgres");
+  vi.stubEnv("BETTER_AUTH_SECRET", "a".repeat(48));
+  vi.stubEnv("BETTER_AUTH_URL", "https://ooh.example.com");
+  vi.stubEnv("IBVS_EVIDENCE_DIR", process.cwd());
+  vi.stubEnv("IBVS_ALLOW_LOCAL_DB", "false");
+  getSession.mockResolvedValue(null);
+  await expect(currentActor()).rejects.toMatchObject({ status: 401 });
+  expect(query).not.toHaveBeenCalled();
+});
+
 it("preserves the signed-in user's role and organization when login is enabled", async () => {
   vi.stubEnv("IBVS_REQUIRE_SIGN_IN", "true");
   getSession.mockResolvedValue({

@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { currentActor } from "@/server/access";
+import { currentActor, signInRequired } from "@/server/access";
+import { createWorker } from "@/server/worker-management";
 import { getDb } from "@/server/db";
 import { ConfigurationError } from "@/server/env";
 import {
@@ -40,6 +41,11 @@ async function handle(request: Request) {
       });
     }
     const actor = await currentActor();
+    if (route === "workers" && request.method === "POST") {
+      if (!signInRequired())
+        throw new ApiError(403, "Enable sign-in before creating worker accounts");
+      requireAdmin(actor);
+    }
     if (request.method === "GET") {
       if (route === "me") return json(actor);
       if (route === "overview") return json(await overview(actor));
@@ -128,6 +134,8 @@ async function handle(request: Request) {
       }
       if (route === "assignments")
         return json(await assign(actor, assignmentInput.parse(body)), 201);
+      if (route === "workers")
+        return json(await createWorker(actor, body), 201);
     }
     throw new ApiError(404, "Endpoint not found");
   } catch (error) {

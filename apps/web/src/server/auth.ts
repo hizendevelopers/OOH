@@ -4,7 +4,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { root } from "./db";
-import { environment } from './env';
+import { environment } from "./env";
 
 async function secret() {
   if (process.env.BETTER_AUTH_SECRET) {
@@ -32,7 +32,7 @@ async function secret() {
   }
 }
 export async function createAuth(provision = false) {
-  const env=environment();
+  const env = environment();
   return betterAuth({
     database: await authDatabase(),
     secret: await secret(),
@@ -41,6 +41,7 @@ export async function createAuth(provision = false) {
       enabled: true,
       disableSignUp: !provision,
       minPasswordLength: 12,
+      autoSignIn: false,
     },
     session: { expiresIn: 60 * 60 * 12, updateAge: 60 * 30 },
     rateLimit: {

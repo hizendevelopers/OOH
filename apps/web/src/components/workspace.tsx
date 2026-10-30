@@ -36,7 +36,8 @@ import { matchesFilter, localeDirection } from "@ibvs/domain";
 import type { Face, Assignment } from "@/server/service";
 import { LocationEditor } from "./location-editor";
 import { LocationMap } from "./location-map";
-type Tab = "overview" | "inventory" | "assignments" | "audit";
+import { WorkerManagement } from "./worker-management";
+type Tab = "overview" | "inventory" | "assignments" | "workers" | "audit";
 type Summary = {
   faces: number;
   structures: number;
@@ -252,7 +253,9 @@ export default function Workspace({
     [tasks, setTasks] = useState<Assignment[]>([]),
     [summary, setSummary] = useState<Summary | null>(null),
     [events, setEvents] = useState<Event[]>([]),
-    [workers, setWorkers] = useState<{ id: string; name: string }[]>([]);
+    [workers, setWorkers] = useState<
+      { id: string; name: string; email: string }[]
+    >([]);
   const [locationEditor, setLocationEditor] = useState<"new" | Face | null>(
     null,
   );
@@ -301,7 +304,7 @@ export default function Workspace({
           api<Assignment[]>("assignments"),
           api<Summary>("overview"),
           api<Event[]>("audit"),
-          api<{ id: string; name: string }[]>("workers"),
+          api<{ id: string; name: string; email: string }[]>("workers"),
         ]);
         setFaces(f);
         setTasks(a);
@@ -406,6 +409,11 @@ export default function Workspace({
   const nav = [
     { id: "overview" as Tab, icon: LayoutDashboard, label: t.overview },
     { id: "inventory" as Tab, icon: PanelsTopLeft, label: t.inventory },
+    {
+      id: "workers" as Tab,
+      icon: Users,
+      label: locale === "ar" ? "الموظفون" : "Workers",
+    },
     {
       id: "assignments" as Tab,
       icon: ClipboardList,
@@ -633,6 +641,25 @@ export default function Workspace({
             </div>
           ) : (
             <>
+              {tab === "workers" && isAdmin && (
+                <WorkerManagement
+                  workers={workers}
+                  locale={locale}
+                  enabled={signInRequired}
+                  onCreated={(worker) => {
+                    setWorkers((current) =>
+                      [...current, worker].sort((a, b) =>
+                        a.name.localeCompare(b.name),
+                      ),
+                    );
+                    setSummary((current) =>
+                      current
+                        ? { ...current, workers: current.workers + 1 }
+                        : current,
+                    );
+                  }}
+                />
+              )}
               {tab === "overview" && summary && (
                 <>
                   <p className="muted">

@@ -6,7 +6,12 @@ import type { Actor } from "@ibvs/domain";
 import { environment } from "./env";
 
 export function signInRequired() {
-  return environment().IBVS_REQUIRE_SIGN_IN === "true";
+  const env = environment();
+  // A hosted installation must never expose an administrator without a session.
+  return (
+    (env.NODE_ENV === "production" && env.IBVS_ALLOW_LOCAL_DB !== "true") ||
+    env.IBVS_REQUIRE_SIGN_IN === "true"
+  );
 }
 
 export async function currentActor(): Promise<Actor> {

@@ -11,7 +11,7 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:3000. Login remains temporarily disabled. Visitors open the non-demo workspace selected by `IBVS_WORKSPACE_ID`; an internal operations actor provides ownership and audit attribution without creating a password account or an invented field worker. Inventory, workers and assignments start empty. To restore login, provision real accounts, set `IBVS_REQUIRE_SIGN_IN=true` and restart the server. Demo seeding is blocked on hosted databases.
+Open http://localhost:3000. Hosted installations always require sign-in. Provision the first real administrator with `npm run user:create`, then use **Workers ? Add worker** to create password accounts and **Inventory ? Assign visits** to assign billboards. Set `IBVS_REQUIRE_SIGN_IN=true` locally to use the same login flow. The internal operations actor has no login password. See [worker account setup](docs/WORKERS.md). Demo seeding is blocked on hosted databases.
 
 Existing installations: run `npm ci` and `npm run db:migrate` to apply all outstanding additive migrations through `006_location_management.sql`; do not reseed or reset the database. Workers open **Open field workspace** or http://localhost:3000/field. While online, tap **Download assignments** and wait for **Offline shell ready**. Open a task, request a GPS observation, start the live camera, and capture separate front/wide-context photographs. Both are saved as original JPEG Blobs before queuing. Offline drafts survive reload after successful local saving; browser eviction/private mode/storage clearing can still erase them.
 
