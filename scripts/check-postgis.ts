@@ -32,6 +32,11 @@ try {
   await client.query(
     `CREATE TEMP TABLE billboard_structures(id text,code text); CREATE TEMP TABLE billboard_faces(id text,organization_id text,structure_id text,code text,orientation text); CREATE TEMP TABLE source_coordinates(face_id text,latitude double precision,longitude double precision,uncertainty_m double precision,location geography(Point,4326) GENERATED ALWAYS AS (ST_SetSRID(ST_MakePoint(longitude,latitude),4326)::geography) STORED)`,
   );
+  // The runtime reads the effective-coordinate view. Shadow it as well as the
+  // underlying tables so this fixture never reads the installed inventory view.
+  await client.query(
+    "CREATE TEMP VIEW effective_source_coordinates AS SELECT face_id,latitude,longitude,uncertainty_m FROM source_coordinates",
+  );
   await client.query(
     `INSERT INTO billboard_structures VALUES('s','structure'); INSERT INTO billboard_faces VALUES('a','org','s','NORTH','N'),('b','org','s','SOUTH','S'),('c','foreign','s','PRIVATE','E'); INSERT INTO source_coordinates(face_id,latitude,longitude,uncertainty_m) VALUES('a',33,44,50),('b',33.00005,44,50),('c',33,44,50)`,
   );
