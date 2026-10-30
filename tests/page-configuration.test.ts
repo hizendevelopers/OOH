@@ -36,3 +36,35 @@ it("renders the setup fallback for invalid production settings without throwing 
   ]);
   expect(output).not.toContain("private-invalid-value");
 });
+
+it("health diagnostics expose only invalid setting names, never their values", () => {
+  const output = execFileSync(
+    process.execPath,
+    ["--import", "tsx", "--input-type=module"],
+    {
+      cwd: path.resolve("apps/web"),
+      env: {
+        ...process.env,
+        TSX_TSCONFIG_PATH: path.resolve("apps/web/tsconfig.json"),
+        NODE_ENV: "production",
+        DATABASE_URL: "",
+        BETTER_AUTH_SECRET: "private-invalid-value",
+        IBVS_ALLOW_LOCAL_DB: "false",
+      },
+      input: `
+      console.error=()=>{};
+      const {GET}=await import('./src/app/api/[...path]/route.ts');
+      const response=await GET(new Request('https://example.test/api/health'));
+      console.log(JSON.stringify({status:response.status,body:await response.json()}));
+    `,
+      encoding: "utf8",
+    },
+  );
+  const { status, body } = JSON.parse(output);
+  expect(status).toBe(503);
+  expect(body).toMatchObject({
+    code: "CONFIGURATION_ERROR",
+    settings: ["BETTER_AUTH_SECRET"],
+  });
+  expect(output).not.toContain("private-invalid-value");
+});

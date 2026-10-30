@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { currentActor } from "@/server/access";
 import { getDb } from "@/server/db";
+import { ConfigurationError } from "@/server/env";
 import {
   ApiError,
   inventory,
@@ -20,8 +21,8 @@ const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 async function handle(request: Request) {
   const requestId = crypto.randomUUID();
+  const route = new URL(request.url).pathname.replace("/api/", "");
   try {
-    const route = new URL(request.url).pathname.replace("/api/", "");
     if (route === "health") {
       const db = await getDb();
       const migrations = await db.query(
@@ -130,6 +131,24 @@ async function handle(request: Request) {
     }
     throw new ApiError(404, "Endpoint not found");
   } catch (error) {
+    if (error instanceof ConfigurationError) {
+      console.error(
+        JSON.stringify({
+          requestId,
+          category: "configuration_error",
+          settings: error.fields,
+        }),
+      );
+      return json(
+        {
+          error: "Server configuration is incomplete.",
+          code: "CONFIGURATION_ERROR",
+          ...(route === "health" ? { settings: error.fields } : {}),
+          requestId,
+        },
+        503,
+      );
+    }
     if (error instanceof ApiError)
       return json({ error: error.message, requestId }, error.status);
     if (error instanceof z.ZodError)
@@ -142,6 +161,15 @@ async function handle(request: Request) {
       {
         error:
           "Service unavailable. Check server configuration and migrations.",
+        ...(route === "health"
+          ? {
+              code:
+                typeof (error as { code?: unknown })?.code === "string" &&
+                /^[A-Z0-9_]{2,40}$/.test((error as { code: string }).code)
+                  ? (error as { code: string }).code
+                  : "SERVICE_UNAVAILABLE",
+            }
+          : {}),
         requestId,
       },
       503,

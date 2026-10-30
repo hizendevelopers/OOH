@@ -3,7 +3,10 @@ import path from "node:path";
 
 // Messages contain setting names and validation rules only, never their values.
 export class ConfigurationError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly fields: string[] = [],
+  ) {
     super(message);
     this.name = "ConfigurationError";
   }
@@ -47,24 +50,32 @@ export function environment() {
   if (!result.success)
     throw new ConfigurationError(
       `Invalid environment fields: ${result.error.issues.map((issue) => issue.path.join(".")).join(", ")}`,
+      [...new Set(result.error.issues.map((issue) => issue.path.join(".")))],
     );
   const env = result.data;
   if (env.NODE_ENV === "production" && env.IBVS_ALLOW_LOCAL_DB !== "true") {
     if (!env.DATABASE_URL || !env.BETTER_AUTH_SECRET)
       throw new ConfigurationError(
         "Production requires DATABASE_URL and BETTER_AUTH_SECRET",
+        [
+          !env.DATABASE_URL && "DATABASE_URL",
+          !env.BETTER_AUTH_SECRET && "BETTER_AUTH_SECRET",
+        ].filter((field): field is string => Boolean(field)),
       );
     if (!env.BETTER_AUTH_URL.startsWith("https://"))
       throw new ConfigurationError(
         "Production requires an HTTPS BETTER_AUTH_URL",
+        ["BETTER_AUTH_URL"],
       );
     if (!env.IBVS_EVIDENCE_DIR)
       throw new ConfigurationError(
         "Production requires IBVS_EVIDENCE_DIR for private persistent evidence",
+        ["IBVS_EVIDENCE_DIR"],
       );
     if (!path.isAbsolute(env.IBVS_EVIDENCE_DIR))
       throw new ConfigurationError(
         "Production requires an absolute IBVS_EVIDENCE_DIR",
+        ["IBVS_EVIDENCE_DIR"],
       );
   }
   return env;
