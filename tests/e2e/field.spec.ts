@@ -27,12 +27,15 @@ async function field(page: Page, code: string) {
   await expect(
     page.getByText("Offline shell ready", { exact: true }),
   ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Download assignments", exact: true })
-    .click();
   const card = page
     .locator("article.field-visit")
     .filter({ has: page.getByRole("heading", { name: code, exact: true }) });
+  await expect(
+    card.getByRole("button", { name: "Open inspection", exact: true }),
+  ).toBeEnabled();
+  await page
+    .getByRole("button", { name: "Download assignments", exact: true })
+    .click();
   await expect(
     card.getByText("Downloaded for this device", { exact: true }),
   ).toBeVisible();

@@ -14,7 +14,7 @@ export const fieldStrings = {
     download: "Download assignments",
     downloaded: "Downloaded for this device",
     downloadFirst:
-      "Download assignments while online before starting fieldwork.",
+      "Open a visit to capture live photos. Download assignments for offline work.",
     tasks: "My visits",
     empty: "No assignments available.",
     open: "Open inspection",
@@ -136,7 +136,7 @@ export const fieldStrings = {
     workerOnly: "يلزم حساب موظف ميداني للالتقاط.",
     download: "تنزيل المهام",
     downloaded: "محفوظة على هذا الجهاز",
-    downloadFirst: "نزّل المهام أثناء الاتصال قبل بدء العمل الميداني.",
+    downloadFirst: "افتح زيارة لالتقاط صور مباشرة. نزّل المهام للعمل دون اتصال.",
     tasks: "زياراتي",
     empty: "لا توجد مهام متاحة.",
     open: "فتح المعاينة",

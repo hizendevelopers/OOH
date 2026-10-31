@@ -239,6 +239,65 @@ export default function Capture({
       ) : (
         <p className="field-caption">{t.noChallenge}</p>
       )}
+      {!locked && (
+        <section className="panel field-live">
+          <div className="panel-heading">
+            <div>
+              <h2>{kind === "front" ? t.front : t.wide}</h2>
+              <p>{kind === "front" ? t.frontGuide : t.wideGuide}</p>
+            </div>
+            <Camera size={23} />
+          </div>
+          <div className={"field-viewfinder " + (!camera ? "camera-off" : "")}>
+            <video
+              ref={video}
+              muted
+              playsInline
+              autoPlay
+              onLoadedData={() => setReady(true)}
+              aria-label={t.camera}
+            />
+            {!camera && (
+              <span>
+                <VideoOff size={35} />
+                {t.camera}
+              </span>
+            )}
+          </div>
+          <div className="field-camera-actions">
+            {camera ? (
+              <>
+                <button
+                  className="primary"
+                  disabled={busy || !ready || !!pending}
+                  onClick={() => void capture()}
+                >
+                  <Camera size={18} />
+                  {busy ? "…" : t.capture}
+                </button>
+                <button className="secondary" onClick={stop}>
+                  {t.stop}
+                </button>
+              </>
+            ) : (
+              <button
+                className="primary"
+                disabled={busy}
+                onClick={() => void start()}
+              >
+                <Camera size={18} />
+                {t.camera}
+              </button>
+            )}
+          </div>
+          <p className="field-caption">{t.gpsWarning}</p>
+        </section>
+      )}
+      {error && (
+        <div className="notice danger" role="alert">
+          {t[error]}
+        </div>
+      )}
       <section className="panel field-gps">
         <div className="panel-heading">
           <h2>
@@ -384,65 +443,6 @@ export default function Capture({
           </section>
         ))}
       </div>
-      {!locked && (
-        <section className="panel field-live">
-          <div className="panel-heading">
-            <div>
-              <h2>{kind === "front" ? t.front : t.wide}</h2>
-              <p>{kind === "front" ? t.frontGuide : t.wideGuide}</p>
-            </div>
-            <Camera size={23} />
-          </div>
-          <div className={"field-viewfinder " + (!camera ? "camera-off" : "")}>
-            <video
-              ref={video}
-              muted
-              playsInline
-              autoPlay
-              onLoadedData={() => setReady(true)}
-              aria-label={t.camera}
-            />
-            {!camera && (
-              <span>
-                <VideoOff size={35} />
-                {t.camera}
-              </span>
-            )}
-          </div>
-          <div className="field-camera-actions">
-            {camera ? (
-              <>
-                <button
-                  className="primary"
-                  disabled={busy || !ready || !!pending}
-                  onClick={() => void capture()}
-                >
-                  <Camera size={18} />
-                  {busy ? "…" : t.capture}
-                </button>
-                <button className="secondary" onClick={stop}>
-                  {t.stop}
-                </button>
-              </>
-            ) : (
-              <button
-                className="primary"
-                disabled={busy}
-                onClick={() => void start()}
-              >
-                <Camera size={18} />
-                {t.camera}
-              </button>
-            )}
-          </div>
-          <p className="field-caption">{t.gpsWarning}</p>
-        </section>
-      )}
-      {error && (
-        <div className="notice danger" role="alert">
-          {t[error]}
-        </div>
-      )}
       {pending && (
         <div className="notice danger" role="alert">
           <strong>{t.notSaved}</strong>

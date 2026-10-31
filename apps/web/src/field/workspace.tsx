@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { liveQuery } from "dexie";
 import Link from "next/link";
 import {
@@ -36,6 +36,7 @@ import {
 type InstallEvent = Event & { prompt: () => Promise<void> };
 const ownerKey = "ibvs-field-owner-v2";
 export default function FieldWorkspace() {
+  const requestedVisitHandled = useRef(false);
   const [locale, setLocale] = useState<"en" | "ar">("en"),
     [dark, setDark] = useState(false),
     [online, setOnline] = useState(true),
@@ -220,46 +221,83 @@ export default function FieldWorkspace() {
       setBusy(false);
     }
   }
-  async function openTask(task: Assignment) {
-    if (!store) return;
-    setBusy(true);
-    setError(null);
-    try {
-      let challenge: Draft["challenge"] = null;
-      const existing = await store.drafts.get(task.assignment_id);
-      if (online) {
-        const current = await fieldRequest<Assignment>(
-          `assignments/${task.assignment_id}`,
-        );
-        task = current;
-        await store.tasks.put({
-          ...current,
-          downloadedAt: new Date().toISOString(),
-        });
-        setCachedIds((ids) =>
-          ids.includes(current.assignment_id)
-            ? ids
-            : [...ids, current.assignment_id],
-        );
-      }
-      if (!existing && online)
-        try {
-          challenge = await fieldRequest("inspections/challenge", {
-            assignmentId: task.assignment_id,
+  const openTask = useCallback(
+    async (task: Assignment) => {
+      if (!store) return;
+      setBusy(true);
+      setError(null);
+      try {
+        let challenge: Draft["challenge"] = null;
+        const existing = await store.drafts.get(task.assignment_id);
+        if (online) {
+          const current = await fieldRequest<Assignment>(
+            `assignments/${task.assignment_id}`,
+          );
+          task = current;
+          await store.tasks.put({
+            ...current,
+            downloadedAt: new Date().toISOString(),
           });
-        } catch {
-          /* Unchallenged evidence is explicitly labeled. */
+          setCachedIds((ids) =>
+            ids.includes(current.assignment_id)
+              ? ids
+              : [...ids, current.assignment_id],
+          );
         }
-      await store.start(task, challenge);
-      setOpened(task.assignment_id);
-      setLocationError(null);
-    } catch (e) {
-      setError(storageError(e));
-    } finally {
-      setBusy(false);
+        if (
+          !existing &&
+          !["assigned", "resurvey_requested"].includes(task.status)
+        )
+          throw new SyncError(409, "Assignment no longer accepts capture");
+        if (!existing && online)
+          try {
+            challenge = await fieldRequest("inspections/challenge", {
+              assignmentId: task.assignment_id,
+            });
+          } catch {
+            /* Unchallenged evidence is explicitly labeled. */
+          }
+        await store.start(task, challenge);
+        setOpened(task.assignment_id);
+        setLocationError(null);
+      } catch (e) {
+        setError(
+          e instanceof SyncError
+            ? e.status === 401
+              ? "session_expired"
+              : e.status === 403
+                ? "account_mismatch"
+                : "task_conflict"
+            : storageError(e),
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [store, online],
+  );
+  useEffect(() => {
+    if (loading || !store || requestedVisitHandled.current) return;
+    requestedVisitHandled.current = true;
+    const assignmentId = new URLSearchParams(window.location.search).get(
+      "assignment",
+    );
+    if (!assignmentId) return;
+    const task = tasks.find((task) => task.assignment_id === assignmentId);
+    if (!task) {
+      setError("task_conflict");
+      return;
     }
-  }
+    void openTask(task);
+  }, [loading, store, tasks, openTask]);
   const draft = drafts.find((d) => d.id === opened);
+  useEffect(() => {
+    if (!opened || !draft?.id || draft.state !== "local_draft") return;
+    if (
+      new URLSearchParams(window.location.search).get("assignment") === opened
+    )
+      document.querySelector(".field-live")?.scrollIntoView({ block: "start" });
+  }, [opened, draft?.id, draft?.state]);
   const reviewLabel = (d: Draft) => {
     const state = tasks.find(
       (task) => task.assignment_id === d.id,
@@ -563,7 +601,8 @@ export default function FieldWorkspace() {
                                 !["assigned", "resurvey_requested"].includes(
                                   task.status,
                                 )) ||
-                              (!cachedIds.includes(task.assignment_id) &&
+                              (!online &&
+                                !cachedIds.includes(task.assignment_id) &&
                                 !saved)
                             }
                             onClick={() => void openTask(task)}

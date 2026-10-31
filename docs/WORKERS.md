@@ -32,6 +32,6 @@ New accounts are always workers in the signed-in administrator's organization. T
 
 ## Worker dashboard
 
-The worker signs in with their own account, sees **My assignments**, and opens **Open field workspace** (`/field`) for location-aware photo capture. Use separate browser profiles or an incognito window to test administrator and worker accounts simultaneously.
+The worker signs in with their own account, sees **My assignments**, and selects **Capture live photos** on an active billboard visit. This opens that inspection directly. Select **Start live camera**, allow camera and location access, capture the front and wide-context photographs, then select **Queue for upload** and check for the server receipt. Online visits do not require a separate download first; download assignments before going offline. **Open field workspace** (`/field`) also lists all visits. Use separate browser profiles or an incognito window to test administrator and worker accounts simultaneously.
 
 The Workers screen currently creates and lists accounts. Password reset, invitations, and account deactivation are separate features.

@@ -105,7 +105,10 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
     .getByRole("button", { name: "Create assignments", exact: true })
     .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  const context = await browser.newContext();
+  const context = await browser.newContext({
+    permissions: ["camera", "geolocation"],
+    geolocation: { latitude: 33.3, longitude: 44.4, accuracy: 10 },
+  });
   expect(
     (
       await context.request.post(`${baseURL}/api/workers`, {
@@ -115,6 +118,7 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
     ).status(),
   ).toBe(401);
   const worker = await context.newPage();
+  await worker.setViewportSize({ width: 390, height: 844 });
   await login(worker, baseURL!, email, workerPassword);
   await expect(
     worker.getByRole("heading", { name: "My assignments", exact: true }),
@@ -138,10 +142,52 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
   await expect(
     worker.getByRole("button", { name: "Workers", exact: true }),
   ).toHaveCount(0);
+  await worker.screenshot({
+    path: "test-results/worker-capture-action.png",
+    fullPage: true,
+  });
   await worker
-    .getByRole("link", { name: "Open field workspace", exact: true })
+    .locator(".task-card-group")
+    .filter({ hasText: code })
+    .getByRole("link", { name: "Capture live photos", exact: true })
     .click();
-  await expect(worker).toHaveURL(/\/field$/);
-  await expect(worker.getByText(code, { exact: true }).first()).toBeVisible();
+  await expect(worker).toHaveURL(/\/field\?assignment=/);
+  await expect(
+    worker.getByRole("button", { name: "Start live camera", exact: true }),
+  ).toBeVisible();
+  await expect(
+    worker.getByRole("button", { name: "Start live camera", exact: true }),
+  ).toBeInViewport();
+  await expect(worker.locator('input[type="file"]')).toHaveCount(0);
+  await worker
+    .getByRole("button", { name: "Start live camera", exact: true })
+    .click();
+  await expect
+    .poll(() =>
+      worker
+        .locator("video")
+        .evaluate((video) => (video as HTMLVideoElement).readyState),
+    )
+    .toBeGreaterThanOrEqual(2);
+  await worker.screenshot({
+    path: "test-results/worker-live-camera.png",
+    fullPage: true,
+  });
+  await worker.getByRole("button", { name: "Capture", exact: true }).click();
+  await expect(
+    worker.getByText("Photo saved locally", { exact: true }),
+  ).toHaveCount(1);
+  await worker.getByRole("button", { name: "Capture", exact: true }).click();
+  await expect(
+    worker.getByText("Photo saved locally", { exact: true }),
+  ).toHaveCount(2);
+  await worker
+    .getByRole("button", { name: "Queue for upload", exact: true })
+    .click();
+  await expect(
+    worker
+      .getByText("Server received — awaiting human review", { exact: true })
+      .first(),
+  ).toBeVisible();
   await context.close();
 });

@@ -30,6 +30,7 @@ import {
   LockKeyhole,
   ArrowLeft,
   Radio,
+  Camera,
 } from "lucide-react";
 import type { Actor, Preview } from "@ibvs/domain";
 import { matchesFilter, localeDirection } from "@ibvs/domain";
@@ -1070,50 +1071,65 @@ export default function Workspace({
                   ) : filteredTasks.length ? (
                     <div className="task-grid">
                       {filteredTasks.map((a) => (
-                        <button
-                          className="task-card"
-                          key={a.assignment_id}
-                          onClick={async () => {
-                            try {
-                              setDetail(
-                                await api<Assignment>(
-                                  "assignments/" + a.assignment_id,
-                                ),
-                              );
-                            } catch (e) {
-                              setToast((e as Error).message);
-                            }
-                          }}
-                        >
-                          <div>
-                            <span className="task-pin">
-                              <MapPin size={19} />
-                            </span>
-                            <Badge
-                              status={
-                                a.review_state === "pending" &&
-                                a.status === "approved"
-                                  ? "pending_review"
-                                  : a.status
+                        <div className="task-card-group" key={a.assignment_id}>
+                          <button
+                            className="task-card"
+                            onClick={async () => {
+                              try {
+                                setDetail(
+                                  await api<Assignment>(
+                                    "assignments/" + a.assignment_id,
+                                  ),
+                                );
+                              } catch (e) {
+                                setToast((e as Error).message);
                               }
-                              ar={locale === "ar"}
-                            />
-                          </div>
-                          <h3>
-                            <bdi>{a.code}</bdi>
-                          </h3>
-                          <p>
-                            {a.city} · {a.zone}
-                          </p>
-                          <div className="task-bottom">
-                            <span>
-                              <Clock size={14} />
-                              <bdi>{a.due_date}</bdi>
-                            </span>
-                            <ChevronRight size={17} />
-                          </div>
-                          {isAdmin && <small>{a.worker_name}</small>}
-                        </button>
+                            }}
+                          >
+                            <div>
+                              <span className="task-pin">
+                                <MapPin size={19} />
+                              </span>
+                              <Badge
+                                status={
+                                  a.review_state === "pending" &&
+                                  a.status === "approved"
+                                    ? "pending_review"
+                                    : a.status
+                                }
+                                ar={locale === "ar"}
+                              />
+                            </div>
+                            <h3>
+                              <bdi>{a.code}</bdi>
+                            </h3>
+                            <p>
+                              {a.city} · {a.zone}
+                            </p>
+                            <div className="task-bottom">
+                              <span>
+                                <Clock size={14} />
+                                <bdi>{a.due_date}</bdi>
+                              </span>
+                              <ChevronRight size={17} />
+                            </div>
+                            {isAdmin && <small>{a.worker_name}</small>}
+                          </button>
+                          {!isAdmin &&
+                            ["assigned", "resurvey_requested"].includes(
+                              a.status,
+                            ) && (
+                              <Link
+                                className="primary"
+                                href={`/field?assignment=${encodeURIComponent(a.assignment_id)}`}
+                              >
+                                <Camera size={17} />
+                                {locale === "ar"
+                                  ? "التقاط صور مباشرة"
+                                  : "Capture live photos"}
+                              </Link>
+                            )}
+                        </div>
                       ))}
                     </div>
                   ) : (
@@ -1235,6 +1251,20 @@ export default function Workspace({
                     <Navigation size={17} />
                     {t.navigation}
                   </a>
+                  {!isAdmin &&
+                    ["assigned", "resurvey_requested"].includes(
+                      detail.status,
+                    ) && (
+                      <Link
+                        className="primary"
+                        href={`/field?assignment=${encodeURIComponent(detail.assignment_id)}`}
+                      >
+                        <Camera size={17} />
+                        {locale === "ar"
+                          ? "التقاط صور مباشرة"
+                          : "Capture live photos"}
+                      </Link>
+                    )}
                   <p className="muted">{t.notCapture}</p>
                 </section>
               )}

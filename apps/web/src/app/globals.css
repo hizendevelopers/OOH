@@ -875,6 +875,18 @@ td:first-child:has(input) {
     transform 0.15s,
     border-color 0.15s;
 }
+.task-card-group {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-width: 0;
+}
+.task-card-group > .task-card {
+  width: 100%;
+}
+.task-card-group > .primary {
+  justify-content: center;
+}
 .task-card:hover {
   border-color: #6ea7f2;
   transform: translateY(-2px);
