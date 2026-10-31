@@ -173,10 +173,21 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
     path: "test-results/worker-live-camera.png",
     fullPage: true,
   });
+  // Refresh the emulated sensor timestamp after any shared-IP login throttle.
+  await context.setGeolocation({
+    latitude: 33.3,
+    longitude: 44.4,
+    accuracy: 10,
+  });
   await worker.getByRole("button", { name: "Capture", exact: true }).click();
   await expect(
     worker.getByText("Photo saved locally", { exact: true }),
   ).toHaveCount(1);
+  await context.setGeolocation({
+    latitude: 33.3,
+    longitude: 44.4,
+    accuracy: 10,
+  });
   await worker.getByRole("button", { name: "Capture", exact: true }).click();
   await expect(
     worker.getByText("Photo saved locally", { exact: true }),
