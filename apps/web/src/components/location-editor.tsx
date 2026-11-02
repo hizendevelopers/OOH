@@ -43,6 +43,10 @@ export function LocationEditor({
     longitude: face ? String(face.longitude) : "",
     uncertainty_m: face ? String(face.uncertainty_m) : "50",
     reason: "",
+    width_m: "",
+    height_m: "",
+    dimension_status: "",
+    dimension_source: "",
   });
   useEffect(() => {
     if (!face) return;
@@ -105,6 +109,10 @@ export function LocationEditor({
             orientation: form.orientation,
             description: form.description,
             is_test: form.is_test,
+            width_m: form.width_m,
+            height_m: form.height_m,
+            dimension_status: form.dimension_status,
+            dimension_source: form.dimension_source,
             ...coordinates,
           };
       const r = await fetch("/api/locations", {
@@ -224,6 +232,8 @@ export function LocationEditor({
     </label>
   );
   return (
+    <>
+    {face && <DimensionRecord faceId={face.id} ar={ar} />}
     <form className="location-editor" onSubmit={save}>
       <p className="muted">
         {face
@@ -357,6 +367,57 @@ export function LocationEditor({
         </>
       ) : (
         <>
+          <fieldset className="location-fields">
+            <legend>
+              {text("Registered size (optional)", "المقاس المسجل (اختياري)")}
+            </legend>
+            <label>
+              {text("Width (m)", "العرض (م)")}
+              <input
+                name="width_m"
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                max="100"
+                dir="ltr"
+                value={form.width_m}
+                disabled={busy}
+                onChange={(e) => update("width_m", e.target.value)}
+              />
+            </label>
+            <label>
+              {text("Height (m)", "الارتفاع (م)")}
+              <input
+                name="height_m"
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                max="100"
+                dir="ltr"
+                value={form.height_m}
+                disabled={busy}
+                onChange={(e) => update("height_m", e.target.value)}
+              />
+            </label>
+            <DimensionStatusSelect
+              ar={ar}
+              value={form.dimension_status}
+              disabled={busy}
+              onChange={(value) => update("dimension_status", value)}
+            />
+            <label>
+              {text("Source of size", "مصدر المقاس")}
+              <input
+                name="dimension_source"
+                maxLength={1000}
+                value={form.dimension_source}
+                disabled={busy}
+                onChange={(e) => update("dimension_source", e.target.value)}
+              />
+            </label>
+          </fieldset>
           <label>
             {text("Description (optional)", "الوصف (اختياري)")}
             <textarea
@@ -404,5 +465,204 @@ export function LocationEditor({
         </button>
       </div>
     </form>
+    </>
+  );
+}
+
+const dimensionStatuses = [
+  ["unverified", "Unverified", "غير مُتحقَّق منه"],
+  ["owner_supplied", "Owner-supplied", "مقدَّم من المالك"],
+  ["surveyed", "Surveyed", "مُقاس ميدانياً"],
+  ["remeasure_required", "Remeasure required", "يتطلب إعادة قياس"],
+] as const;
+
+function DimensionStatusSelect({
+  ar,
+  value,
+  disabled,
+  onChange,
+}: {
+  ar: boolean;
+  value: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label>
+      {ar ? "حالة المقاس" : "Size status"}
+      <select
+        name="dimension_status"
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="">{ar ? "غير مسجّل" : "Not recorded"}</option>
+        {dimensionStatuses.map(([key, en, arabic]) => (
+          <option key={key} value={key}>
+            {ar ? arabic : en}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+type Dimension = {
+  id: string;
+  width_m: number;
+  height_m: number;
+  status: string;
+  source_note: string;
+  recorded_at: string;
+};
+
+// Administrator-only history of registered sizes. Newest entry is the current size.
+function DimensionRecord({ faceId, ar }: { faceId: string; ar: boolean }) {
+  const text = (en: string, arabic: string) => (ar ? arabic : en);
+  const [history, setHistory] = useState<Dimension[]>([]),
+    [loadError, setLoadError] = useState(""),
+    [saveError, setSaveError] = useState(""),
+    [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState({
+    width_m: "",
+    height_m: "",
+    status: "",
+    source: "",
+  });
+  const load = () =>
+    fetch(`/api/locations/dimensions?faceId=${encodeURIComponent(faceId)}`, {
+      cache: "no-store",
+    })
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error);
+        setHistory(data);
+        setLoadError("");
+      })
+      .catch((e) => setLoadError((e as Error).message));
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/locations/dimensions?faceId=${encodeURIComponent(faceId)}`, {
+      cache: "no-store",
+    })
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error);
+        if (active) setHistory(data);
+      })
+      .catch((e) => {
+        if (active) setLoadError((e as Error).message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [faceId]);
+  const current = history[0];
+  async function record(e: React.FormEvent) {
+    e.preventDefault();
+    setSaveError("");
+    setBusy(true);
+    try {
+      const r = await fetch("/api/locations/dimensions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          faceId,
+          widthM: Number(draft.width_m),
+          heightM: Number(draft.height_m),
+          status: draft.status,
+          sourceNote: draft.source,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error);
+      setDraft({ width_m: "", height_m: "", status: "", source: "" });
+      await load();
+    } catch (err) {
+      setSaveError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="location-dimensions" aria-live="polite">
+      <h3>{text("Registered size", "المقاس المسجل")}</h3>
+      {loadError ? (
+        <p role="alert">{loadError}</p>
+      ) : current ? (
+        <p>
+          <bdi>
+            {current.width_m} × {current.height_m} m
+          </bdi>{" "}
+          · {text(
+            dimensionStatuses.find(([k]) => k === current.status)?.[1] ?? current.status,
+            dimensionStatuses.find(([k]) => k === current.status)?.[2] ?? current.status,
+          )}
+          {current.source_note && <small> · {current.source_note}</small>}
+        </p>
+      ) : (
+        <p className="muted">
+          {text("Not recorded", "غير مسجّل")}
+        </p>
+      )}
+      <details>
+        <summary>{text("Record a size", "تسجيل مقاس")}</summary>
+        <form className="location-fields" onSubmit={record}>
+          <label>
+            {text("Width (m)", "العرض (م)")}
+            <input
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              min="0"
+              max="100"
+              dir="ltr"
+              required
+              value={draft.width_m}
+              disabled={busy}
+              onChange={(e) => setDraft((d) => ({ ...d, width_m: e.target.value }))}
+            />
+          </label>
+          <label>
+            {text("Height (m)", "الارتفاع (م)")}
+            <input
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              min="0"
+              max="100"
+              dir="ltr"
+              required
+              value={draft.height_m}
+              disabled={busy}
+              onChange={(e) => setDraft((d) => ({ ...d, height_m: e.target.value }))}
+            />
+          </label>
+          <DimensionStatusSelect
+            ar={ar}
+            value={draft.status}
+            disabled={busy}
+            onChange={(status) => setDraft((d) => ({ ...d, status }))}
+          />
+          <label>
+            {text("Source of size", "مصدر المقاس")}
+            <input
+              maxLength={1000}
+              value={draft.source}
+              disabled={busy}
+              onChange={(e) => setDraft((d) => ({ ...d, source: e.target.value }))}
+            />
+          </label>
+          {saveError && (
+            <div className="notice danger" role="alert">
+              {saveError}
+            </div>
+          )}
+          <button className="secondary" type="submit" disabled={busy}>
+            {text("Save size", "حفظ المقاس")}
+          </button>
+        </form>
+      </details>
+    </section>
   );
 }

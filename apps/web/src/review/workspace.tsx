@@ -629,6 +629,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                     ["risk", "Risk analysis", "تحليل المخاطر"],
                     ["history", "Audit & sync", "التدقيق والمزامنة"],
                     ["references", "References", "المراجع"],
+                    ["brand", "Advertiser", "المعلن"],
                   ].map(([id, en, arabic]) => (
                     <button
                       id={"tab-" + id}
@@ -1033,6 +1034,16 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                       ))}
                     </div>
                   )}
+                  {tab === "brand" && detail.brand && (
+                    <BrandReview
+                      brand={detail.brand}
+                      t={t}
+                      busy={busy}
+                      onConfirm={(payload) => {
+                        if (selected) void mutate("/" + selected + "/brand", payload);
+                      }}
+                    />
+                  )}
                   {tab === "references" && (
                     <div className="panel review-section">
                       <h3>
@@ -1436,6 +1447,131 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
           />
         )}
       </dialog>
+    </div>
+  );
+}
+
+// Supervisor confirmation of the brand a worker recorded. Confirmation changes
+// occupancy history only; it never changes identity or approval.
+function BrandReview({
+  brand,
+  t,
+  busy,
+  onConfirm,
+}: {
+  brand: ReviewDetail["brand"];
+  t: (en: string, arabic: string) => string;
+  busy: boolean;
+  onConfirm: (payload: Record<string, unknown>) => void;
+}) {
+  const [outcome, setOutcome] = useState<"advertiser" | "blank" | "unreadable">("advertiser"),
+    [advertiserId, setAdvertiserId] = useState(""),
+    [newName, setNewName] = useState(""),
+    [reason, setReason] = useState("");
+  const observed = brand.observation;
+  const observedLabel = !observed
+    ? t("Not recorded for this visit", "غير مسجل لهذه الزيارة")
+    : observed.kind === "advertiser"
+      ? observed.observed_text
+      : observed.kind === "blank"
+        ? t("Blank face", "وجه فارغ")
+        : t("Unreadable", "غير مقروء");
+  const current = brand.current;
+  const valid =
+    outcome !== "advertiser" || advertiserId !== "" || newName.trim().length >= 2;
+  return (
+    <div className="panel review-section">
+      <h3>{t("Advertised brand", "العلامة التجارية المعلنة")}</h3>
+      <p>
+        {t("Worker entry", "إدخال العامل")}: <bdi>{observedLabel}</bdi>
+      </p>
+      <p>
+        {t("Confirmed occupancy", "الإشغال المؤكد")}:{" "}
+        {current ? (
+          <>
+            <bdi>
+              {current.outcome === "advertiser"
+                ? current.advertiser_name
+                : current.outcome === "blank"
+                  ? t("Blank face", "وجه فارغ")
+                  : t("Unreadable", "غير مقروء")}
+            </bdi>{" "}
+            · <small>{current.confirmed_by_name} · {new Date(current.confirmed_at).toLocaleString()}</small>
+          </>
+        ) : (
+          t("Not confirmed", "غير مؤكد")
+        )}
+      </p>
+      <form
+        className="review-fields"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!valid) return;
+          onConfirm(
+            outcome === "advertiser"
+              ? {
+                  outcome,
+                  ...(advertiserId ? { advertiserId } : { newName: newName.trim() }),
+                  reason,
+                }
+              : { outcome, reason },
+          );
+        }}
+      >
+        <label>
+          {t("Outcome", "النتيجة")}
+          <select
+            aria-label={t("Outcome", "النتيجة")}
+            value={outcome}
+            disabled={busy}
+            onChange={(e) => setOutcome(e.target.value as typeof outcome)}
+          >
+            <option value="advertiser">{t("Advertiser visible", "علامة مرئية")}</option>
+            <option value="blank">{t("Blank face", "وجه فارغ")}</option>
+            <option value="unreadable">{t("Unreadable", "غير مقروء")}</option>
+          </select>
+        </label>
+        {outcome === "advertiser" && (
+          <>
+            <label>
+              {t("Existing advertiser", "معلن موجود")}
+              <select
+                value={advertiserId}
+                disabled={busy}
+                onChange={(e) => setAdvertiserId(e.target.value)}
+              >
+                <option value="">{t("Choose…", "اختر…")}</option>
+                {brand.advertisers.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {t("Or new advertiser name", "أو اسم معلن جديد")}
+              <input
+                value={newName}
+                maxLength={120}
+                disabled={busy || advertiserId !== ""}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+            </label>
+          </>
+        )}
+        <label>
+          {t("Reason (optional)", "السبب (اختياري)")}
+          <input
+            value={reason}
+            maxLength={1000}
+            disabled={busy}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </label>
+        <button className="primary" type="submit" disabled={busy || !valid}>
+          {t("Confirm occupancy", "تأكيد الإشغال")}
+        </button>
+      </form>
     </div>
   );
 }

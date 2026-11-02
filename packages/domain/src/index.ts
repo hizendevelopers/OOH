@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { parse } from "csv-parse/sync";
 
+import { dimensionFields, type DimensionData } from "./dimensions";
+
+export * from "./dimensions";
+export * from "./brand";
+
 export const code = z
   .string()
   .trim()
@@ -96,7 +101,7 @@ export function csvCell(value: unknown) {
   return '"' + s.replaceAll('"', '""') + '"';
 }
 export type Preview = {
-  rows: FaceInput[];
+  rows: (FaceInput & DimensionData)[];
   errors: { row: number; message: string }[];
 };
 export function previewCsv(
@@ -138,6 +143,16 @@ export function previewCsv(
         });
         continue;
       }
+      const dimensions = dimensionFields.safeParse(record);
+      if (!dimensions.success) {
+        errors.push({
+          row: i + 2,
+          message: dimensions.error.issues
+            .map((e) => `${e.path.join(".")}: ${e.message}`)
+            .join("; "),
+        });
+        continue;
+      }
       if (seen.has(result.data.code)) {
         errors.push({
           row: i + 2,
@@ -146,7 +161,7 @@ export function previewCsv(
         continue;
       }
       seen.add(result.data.code);
-      rows.push(result.data);
+      rows.push({ ...result.data, ...dimensions.data });
     }
   } catch {
     errors.push({

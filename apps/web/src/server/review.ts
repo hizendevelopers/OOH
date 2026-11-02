@@ -5,6 +5,7 @@ import { getDb, type Database } from "./db";
 import { ApiError, audit, requireAdmin } from "./service";
 import { assessInspection, inspectionRecord } from "./risk-analysis";
 import { sha256 } from "./image-analysis";
+import { brandForInspection } from "./advertisers";
 import {
   decisionInput,
   baselineInput,
@@ -100,9 +101,11 @@ export async function reviewDetail(actor: Actor, id: string) {
        AND ('location_exception:' || id)=ANY($3::text[]) ORDER BY created_at,id`,
     [actor.organizationId, inspection.assignment_id, inspection.flags],
   );
+  const brand = await brandForInspection(db, actor.organizationId, id);
   return {
     inspection,
     review,
+    brand,
     report: run?.report || null,
     decisions,
     baselines,

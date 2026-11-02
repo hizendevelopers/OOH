@@ -35,6 +35,7 @@ const task = {
 async function prepared() {
   const store = create();
   await store.start(task);
+  await store.setBrand(task.assignment_id, { kind: "blank", text: "" });
   for (const kind of ["front", "wide"] as const) {
     const blob = new Blob([kind], { type: "image/jpeg" });
     await store.savePhoto(task.assignment_id, {
@@ -73,6 +74,7 @@ it("atomically stores original blobs and frozen task binding through close/reope
 it("refuses to queue without both locally saved photos", async () => {
   const store = create();
   await store.start(task);
+  await store.setBrand(task.assignment_id, { kind: "blank", text: "" });
   await expect(store.queue(task.assignment_id)).rejects.toThrow(
     "Front and wide",
   );
@@ -83,6 +85,7 @@ it("refuses to queue without both locally saved photos", async () => {
 it("keeps denied-location photos as editable drafts instead of queueing them", async () => {
   const store = create();
   await store.start(task);
+  await store.setBrand(task.assignment_id, { kind: "blank", text: "" });
   for (const kind of ["front", "wide"] as const) {
     const blob = new Blob([kind], { type: "image/jpeg" });
     await store.savePhoto(task.assignment_id, { kind, blob, bytes: blob.size, sha256: await digestBlob(blob), capturedAt: new Date().toISOString(), captureMode: "offline", gps: { status: "denied", observedAt: new Date().toISOString() } });
@@ -96,6 +99,7 @@ it("keeps denied-location photos as editable drafts instead of queueing them", a
 it("storage exhaustion never marks a photo as saved", async () => {
   const store = create();
   await store.start(task);
+  await store.setBrand(task.assignment_id, { kind: "blank", text: "" });
   const fail = vi
     .spyOn(store.drafts, "update")
     .mockRejectedValueOnce(new DOMException("Full", "QuotaExceededError"));
@@ -213,6 +217,7 @@ it("session expiry and task conflicts pause retry without losing originals", asy
 it("skips acknowledged pieces when resuming within a photograph", async () => {
   const store = create();
   await store.start(task);
+  await store.setBrand(task.assignment_id, { kind: "blank", text: "" });
   for (const kind of ["front", "wide"] as const) {
     const blob = new Blob(
       [new Uint8Array(kind === "front" ? 256 * 1024 + 41 : 50)],

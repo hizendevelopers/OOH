@@ -61,6 +61,15 @@ export const fieldStrings = {
     gpsWarning:
       "GPS and browser camera cannot prove physical presence or billboard identity.",
     challenge: "Online challenge",
+    brandTitle: "Advertised brand",
+    brandHelp: "Read the brand shown on the advertising face. Required before sending.",
+    brandAdvertiser: "Brand visible",
+    brandBlank: "Blank face",
+    brandUnreadable: "Unreadable",
+    brandName: "Brand name as shown",
+    brandSaved: "Recorded on this device",
+    brandNeeded: "Enter the advertised brand, or mark the face blank or unreadable, before sending.",
+    brandLocked: "Brand recorded for this visit",
     challengeInfo:
       "Server-issued cue. Include the requested structure context. This does not attest genuine capture.",
     noChallenge:
@@ -182,6 +191,15 @@ export const fieldStrings = {
     gpsWarning:
       "الكاميرا وGPS في المتصفح لا يثبتان الحضور الفعلي أو هوية الواجهة.",
     challenge: "تحدٍ عبر الخادم",
+    brandTitle: "العلامة التجارية المعلنة",
+    brandHelp: "اقرأ العلامة التجارية الظاهرة على وجه الإعلان. مطلوبة قبل الإرسال.",
+    brandAdvertiser: "علامة مرئية",
+    brandBlank: "وجه فارغ",
+    brandUnreadable: "غير مقروء",
+    brandName: "اسم العلامة كما يظهر",
+    brandSaved: "مسجّل على هذا الجهاز",
+    brandNeeded: "أدخل العلامة التجارية المعلنة، أو حدّد أن الوجه فارغ أو غير مقروء، قبل الإرسال.",
+    brandLocked: "تم تسجيل العلامة لهذه الزيارة",
     challengeInfo:
       "رمز صادر من الخادم. أظهر سياق الهيكل المطلوب. لا يثبت أصالة الالتقاط.",
     noChallenge:

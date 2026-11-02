@@ -19,6 +19,7 @@ import {
   type PhotoKind,
 } from "../../../../packages/domain/src/inspection";
 import type { FieldText } from "./strings";
+import type { BrandEntry } from "../../../../packages/domain/src/brand";
 import {
   assessPhotoLocation,
   locationMessages,
@@ -223,6 +224,7 @@ export default function Capture({
         <AlertTriangle size={18} />
         {t.safe}
       </div>
+      <BrandPanel store={store} draft={draft} t={t} locked={locked} />
       {draft.challenge ? (
         <div className="field-challenge">
           <strong>
@@ -459,6 +461,96 @@ export default function Capture({
             <RefreshCw size={17} />
             {t.saveAgain}
           </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// Worker records what the advertising face shows. Brand text is an occupancy
+// claim for supervisor confirmation, not part of identity evidence.
+function BrandPanel({
+  store,
+  draft,
+  t,
+  locked,
+}: {
+  store: FieldStore;
+  draft: Draft;
+  t: FieldText;
+  locked: boolean;
+}) {
+  const saved = draft.brand ?? null;
+  const [text, setText] = useState(saved?.kind === "advertiser" ? saved.text : ""),
+    [error, setError] = useState("");
+  async function choose(brand: BrandEntry) {
+    setError("");
+    try {
+      await store.setBrand(draft.id, brand);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  const label = (brand: BrandEntry) =>
+    brand.kind === "advertiser"
+      ? brand.text
+      : brand.kind === "blank"
+        ? t.brandBlank
+        : t.brandUnreadable;
+  if (locked)
+    return (
+      <section className="panel">
+        <h3>{t.brandTitle}</h3>
+        <p>
+          {t.brandLocked}
+          {saved && <>: <bdi>{label(saved)}</bdi></>}
+        </p>
+      </section>
+    );
+  return (
+    <section className="panel">
+      <h3>{t.brandTitle}</h3>
+      <p className="muted">{t.brandHelp}</p>
+      <div className="brand-choices">
+        <button
+          type="button"
+          aria-pressed={saved?.kind === "advertiser"}
+          onClick={() => document.getElementById("brand-name")?.focus()}
+        >
+          {t.brandAdvertiser}
+        </button>
+        <button
+          type="button"
+          aria-pressed={saved?.kind === "blank"}
+          onClick={() => void choose({ kind: "blank", text: "" })}
+        >
+          {t.brandBlank}
+        </button>
+        <button
+          type="button"
+          aria-pressed={saved?.kind === "unreadable"}
+          onClick={() => void choose({ kind: "unreadable", text: "" })}
+        >
+          {t.brandUnreadable}
+        </button>
+      </div>
+      <label>
+        {t.brandName}
+        <input
+          id="brand-name"
+          value={text}
+          maxLength={120}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={() => {
+            if (text.trim().length >= 2)
+              void choose({ kind: "advertiser", text: text.trim() });
+          }}
+        />
+      </label>
+      {saved && <p className="muted">{t.brandSaved}: <bdi>{label(saved)}</bdi></p>}
+      {error && (
+        <div className="notice danger" role="alert">
+          {error}
         </div>
       )}
     </section>

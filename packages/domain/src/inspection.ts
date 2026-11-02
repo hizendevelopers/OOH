@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { brandEntry } from "./brand";
 
 export const PHOTO_LIMIT = 6 * 1024 * 1024;
 export const CHUNK_SIZE = 256 * 1024;
@@ -33,6 +34,8 @@ export const inspectionInput = z.object({
   faceCode: z.string().min(3).max(48),
   assignmentVersion: z.number().int().positive(),
   challengeId: z.uuid().nullable(),
+  // Optional so drafts queued before brand entry existed still synchronize.
+  brand: brandEntry.nullable().optional(),
   photos: z
     .array(photoMetadata)
     .length(2)

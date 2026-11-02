@@ -1,7 +1,7 @@
 import { createHash, randomUUID, randomBytes } from "node:crypto";
 import sharp from "sharp";
 import type { Actor } from "@ibvs/domain";
-import { distanceM, locationFlag } from "@ibvs/domain";
+import { distanceM, locationFlag, normalizeBrandKey } from "@ibvs/domain";
 import {
   inspectionInput,
   CHUNK_SIZE,
@@ -218,6 +218,22 @@ export async function beginInspection(actor: Actor, input: InspectionInput) {
       await db.query(
         "INSERT INTO media_evidence(id,inspection_id,kind,expected_bytes,expected_hash) VALUES($1,$2,$3,$4,$5)",
         [randomUUID(), id, photo.kind, photo.bytes, photo.sha256],
+      );
+    if (payload.brand)
+      await db.query(
+        "INSERT INTO brand_observations(id,organization_id,face_id,inspection_id,kind,observed_text,normalized_key,recorded_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+        [
+          randomUUID(),
+          actor.organizationId,
+          bound.face_id,
+          id,
+          payload.brand.kind,
+          payload.brand.text,
+          payload.brand.kind === "advertiser"
+            ? normalizeBrandKey(payload.brand.text)
+            : "",
+          actor.id,
+        ],
       );
     await audit(db, actor, "inspection.initiated", id, {
       assignmentId: bound.id,

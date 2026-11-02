@@ -11,6 +11,7 @@ import {
   reviewAssessment,
 } from "@/server/review";
 import { assessInspection } from "@/server/risk-analysis";
+import { confirmBrand } from "@/server/advertisers";
 export const dynamic = "force-dynamic";
 const json = (data: unknown, status = 200) =>
   Response.json(data, {
@@ -77,6 +78,8 @@ async function handle(request: Request) {
         return json(await decide(actor, id, data));
       if (segments[1] === "baseline")
         return json(await enrollBaseline(actor, id, data));
+      if (segments[1] === "brand")
+        return json(await confirmBrand(actor, id, data));
       if (segments[1] === "withdraw")
         return json(await withdrawBaseline(actor, id, data));
     }
