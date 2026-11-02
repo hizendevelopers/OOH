@@ -102,7 +102,7 @@ it("enforces photo GPS before persistence and accepts original offline capture c
   const capturedAt = new Date(Date.now() - 3600000).toISOString();
   const make = (): InspectionInput => ({
     operationId: randomUUID(), assignmentId: task.assignment_id, assignmentVersion: task.version, faceId: task.id, faceCode: task.code, challengeId: null,
-    photos: (["front", "wide"] as const).map(kind => ({ kind, bytes: 10, sha256: (kind === "front" ? "a" : "b").repeat(64), capturedAt, captureMode: "offline", gps: { status: "ok", latitude: task.latitude, longitude: task.longitude, accuracy: 10, observedAt: capturedAt } })),
+    photos: (["front", "wide", "angle_1"] as const).map(kind => ({ kind, bytes: 10, sha256: (kind === "front" ? "a" : kind === "wide" ? "b" : "c").repeat(64), capturedAt, captureMode: "offline", gps: { status: "ok", latitude: task.latitude, longitude: task.longitude, accuracy: 10, observedAt: capturedAt } })),
   });
   for (const gps of [
     { status: "denied", observedAt: capturedAt },

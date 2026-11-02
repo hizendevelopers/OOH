@@ -14,6 +14,7 @@ import {
 import {
   inspectionInput,
   CHUNK_SIZE,
+  allPhotoKinds,
 } from "../../../../../../../packages/domain/src/inspection";
 
 export const dynamic = "force-dynamic";
@@ -54,7 +55,7 @@ async function handle(request: Request) {
       const id = z.uuid().parse(segments[0]);
       if (segments.length === 1) return json(await inspectionStatus(actor, id));
       if (segments.length === 3 && segments[1] === "media") {
-        const kind = z.enum(["front", "wide"]).parse(segments[2]);
+        const kind = z.enum(allPhotoKinds).parse(segments[2]);
         const bytes = await evidenceAccess(actor, id, kind);
         return new Response(new Uint8Array(bytes), {
           headers: {
@@ -79,7 +80,7 @@ async function handle(request: Request) {
         segments[1] === "parts"
       ) {
         const id = z.uuid().parse(segments[0]),
-          kind = z.enum(["front", "wide"]).parse(segments[2]);
+          kind = z.enum(allPhotoKinds).parse(segments[2]);
         const part = z.coerce.number().int().min(0).max(23).parse(segments[3]);
         return json(
           await uploadPart(
@@ -118,7 +119,7 @@ async function handle(request: Request) {
             await completePhoto(
               actor,
               id,
-              z.enum(["front", "wide"]).parse(segments[2]),
+              z.enum(allPhotoKinds).parse(segments[2]),
             ),
           );
         if (segments.length === 2 && segments[1] === "submit")

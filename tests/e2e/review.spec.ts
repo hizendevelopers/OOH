@@ -47,8 +47,9 @@ test("supervisors review adjacent faces, explicitly version references and reque
   const adminContext = await browser.newContext(),
     admin = await adminContext.newPage();
   await login(admin, "admin@demo.ibvs.test");
+  const kinds = ["front", "wide", "angle_1"] as const;
   const bytes = await Promise.all(
-    [0, 1].map(async () =>
+    [0, 1, 2].map(async () =>
       sharp(randomBytes(800 * 800 * 3), {
         raw: { width: 800, height: 800, channels: 3 },
       })
@@ -63,7 +64,7 @@ test("supervisors review adjacent faces, explicitly version references and reque
     });
     expect(authorized.status()).toBe(201);
     const photos = bytes.map((b, n) => ({
-      kind: n ? "wide" : "front",
+      kind: kinds[n],
       sha256: createHash("sha256").update(b).digest("hex"),
       bytes: b.length,
       capturedAt: new Date().toISOString(),
@@ -92,8 +93,8 @@ test("supervisors review adjacent faces, explicitly version references and reque
     });
     expect(begun.status()).toBe(201);
     const { inspectionId: id } = await begun.json();
-    for (let n = 0; n < 2; n++) {
-      const kind = n ? "wide" : "front";
+    for (let n = 0; n < 3; n++) {
+      const kind = kinds[n];
       for (let offset = 0; offset < bytes[n].length; offset += 262144) {
         const part = await page.request.put(
           `/api/inspections/${id}/parts/${kind}/${offset / 262144}`,
@@ -454,9 +455,11 @@ test("supervisors review adjacent faces, explicitly version references and reque
     )
     .toBeGreaterThan(frame + 0.1);
   await page.getByRole("button", { name: "Capture", exact: true }).click();
+  await page.getByRole("button", { name: "Add an angle photo", exact: true }).click();
+  await page.getByRole("button", { name: "Capture", exact: true }).click();
   await expect(
     page.getByText("Photo saved locally", { exact: true }),
-  ).toHaveCount(2);
+  ).toHaveCount(3);
   await page.getByRole("button", { name: "Blank face", exact: true }).click();
   await page
     .getByRole("button", { name: "Queue for upload", exact: true })

@@ -15,7 +15,7 @@ const worker: Actor = { ...admin, id: "brand-worker", role: "worker" };
 const foreign: Actor = { ...admin, id: "brand-foreign", organizationId: "foreign-brand" };
 const base = { city: "Basra", zone: "", orientation: "N" as const, description: "QA brand", is_test: true, latitude: 30.5, longitude: 47.8, uncertainty_m: 5 };
 const now = () => new Date().toISOString();
-const photo = (kind: "front" | "wide") => ({
+const photo = (kind: "front" | "wide" | "angle_1") => ({
   kind,
   bytes: 1000,
   sha256: "a".repeat(64),
@@ -52,7 +52,7 @@ function submission(faceId: string, code: string, task: { assignment_id: string;
     faceCode: code,
     assignmentVersion: task.version,
     challengeId: null,
-    photos: [photo("front"), photo("wide")],
+    photos: [photo("front"), photo("wide"), photo("angle_1")],
     ...(brand === undefined ? {} : { brand }),
   };
 }

@@ -14,6 +14,8 @@ import { getLocation, photograph } from "./device";
 import {
   PHOTO_LIMIT,
   photoKinds,
+  allPhotoKinds,
+  angleKinds,
   storageError,
   type GpsObservation,
   type PhotoKind,
@@ -216,6 +218,14 @@ export default function Capture({
     }
   }
   const locked = draft.state !== "local_draft";
+  const kindLabel = (k: PhotoKind) =>
+    k === "front" ? t.front : k === "wide" ? t.wide : `${t.angle} ${k.slice(-1)}`;
+  const kindGuide = (k: PhotoKind) =>
+    k === "front" ? t.frontGuide : k === "wide" ? t.wideGuide : t.angleGuide;
+  // Front and wide always show; an angle card shows once it has a photo or is selected.
+  const shownKinds = allPhotoKinds.filter(
+    (k) => (photoKinds as readonly string[]).includes(k) || draft.photos[k] || kind === k,
+  );
   const shownGps =
     gps ?? draft.photos[kind]?.gps ?? draft.photos.front?.gps ?? null;
   return (
@@ -375,7 +385,7 @@ export default function Capture({
         )}
       </section>
       <div className="field-photo-grid">
-        {photoKinds.map((k) => (
+        {shownKinds.map((k) => (
           <section
             className={
               "panel field-photo-card " + (kind === k ? "selected-photo" : "")
@@ -383,14 +393,17 @@ export default function Capture({
             key={k}
           >
             <div className="panel-heading">
-              <h3>{k === "front" ? t.front : t.wide} *</h3>
+              <h3>
+                {kindLabel(k)}
+                {photoKinds.includes(k as (typeof photoKinds)[number]) ? " *" : ""}
+              </h3>
               {draft.photos[k] && <Check size={19} />}
             </div>
             {draft.photos[k] ? (
               <>
                 <Photo
                   photo={draft.photos[k]!}
-                  label={k === "front" ? t.front : t.wide}
+                  label={kindLabel(k)}
                 />
                 <div className="field-photo-meta">
                   <strong>{t.saved}</strong>
@@ -431,7 +444,7 @@ export default function Capture({
                 </div>
               </>
             ) : (
-              <p>{k === "front" ? t.frontGuide : t.wideGuide}</p>
+              <p>{kindGuide(k)}</p>
             )}
             {!locked && (
               <button
@@ -439,12 +452,24 @@ export default function Capture({
                 onClick={() => setKind(k)}
                 aria-pressed={kind === k}
               >
-                {kind === k ? t.ready : k === "front" ? t.front : t.wide}
+                {kind === k ? t.ready : kindLabel(k)}
               </button>
             )}
           </section>
         ))}
       </div>
+      {!locked && (
+        <button
+          className="secondary"
+          disabled={!angleKinds.some((k) => !draft.photos[k])}
+          onClick={() => {
+            const free = angleKinds.find((k) => !draft.photos[k]);
+            if (free) setKind(free);
+          }}
+        >
+          {t.addAngle}
+        </button>
+      )}
       {pending && (
         <div className="notice danger" role="alert">
           <strong>{t.notSaved}</strong>

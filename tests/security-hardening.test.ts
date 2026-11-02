@@ -131,7 +131,7 @@ it("preserves receipt after analysis admission failure and replays without priva
   });
   const [task] = await assignments(worker);
   const blobs = await Promise.all(
-    ["#335588", "#558833"].map((background) =>
+    ["#335588", "#558833", "#883355"].map((background) =>
       sharp({ create: { width: 640, height: 480, channels: 3, background } })
         .jpeg()
         .toBuffer(),
@@ -146,7 +146,7 @@ it("preserves receipt after analysis admission failure and replays without priva
     assignmentVersion: task.version,
     challengeId: null,
     photos: blobs.map((b, i) => ({
-      kind: i === 0 ? "front" : "wide",
+      kind: i === 0 ? "front" : i === 1 ? "wide" : "angle_1",
       bytes: b.length,
       sha256: sha256(b),
       capturedAt: now,
@@ -155,8 +155,8 @@ it("preserves receipt after analysis admission failure and replays without priva
     })),
   };
   const session = await beginInspection(worker, input);
-  for (let i = 0; i < 2; i++) {
-    const kind = i === 0 ? "front" : "wide";
+  for (let i = 0; i < 3; i++) {
+    const kind = i === 0 ? "front" : i === 1 ? "wide" : "angle_1";
     await uploadPart(worker, session.inspectionId, kind, 0, blobs[i]);
     await completePhoto(worker, session.inspectionId, kind);
   }
@@ -182,7 +182,7 @@ it("preserves receipt after analysis admission failure and replays without priva
   reads.mockRestore();
   log.mockRestore();
   const report = await assessInspection(admin, session.inspectionId);
-  expect(report.photos).toHaveLength(2);
+  expect(report.photos).toHaveLength(3);
   const [usage] = await db.query<{ active: number }>(
     "SELECT count(*)::int active FROM analysis_admissions WHERE lease_until>now()",
   );

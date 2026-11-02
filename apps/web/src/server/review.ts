@@ -423,7 +423,7 @@ export async function enrollBaseline(actor: Actor, id: string, data: unknown) {
       ],
     );
     await tx.query(
-      "INSERT INTO reference_photos(baseline_id,media_id,kind,original_hash) SELECT $1,id,kind,server_hash FROM media_evidence WHERE inspection_id=$2 AND receipt_id IS NOT NULL",
+      "INSERT INTO reference_photos(baseline_id,media_id,kind,original_hash) SELECT $1,id,kind,server_hash FROM media_evidence WHERE inspection_id=$2 AND receipt_id IS NOT NULL AND kind IN ('front','wide')",
       [baselineId, id],
     );
     await audit(tx, actor, "baseline.enrolled", id, {

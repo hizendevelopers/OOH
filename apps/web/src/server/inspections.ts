@@ -389,15 +389,15 @@ export async function submitInspection(actor: Actor, id: string) {
       "SELECT * FROM media_evidence WHERE inspection_id=$1",
       [id],
     );
-    if (media.length !== 2 || media.some((p) => !p.receipt_id))
+    if (media.length !== row.metadata.photos.length || media.some((p) => !p.receipt_id))
       throw new ApiError(
         409,
-        "Front and wide photographs must both have server receipts",
+        "Every photograph must have a server receipt before submission",
       );
-    if (media[0].server_hash === media[1].server_hash)
+    if (new Set(media.map((p) => p.server_hash)).size !== media.length)
       throw new ApiError(
         422,
-        "Front and wide photographs must be separate captures",
+        "Each photograph must be a separate capture",
       );
     const flags = new Set<string>([
       "browser_signals_untrusted",

@@ -1,10 +1,9 @@
 import type { Actor } from "@ibvs/domain";
-import { FieldStore, metadata } from "./store";
+import { FieldStore, capturedKinds, metadata } from "./store";
 import {
   retryDelay,
   type UploadSession,
   type Receipt,
-  photoKinds,
 } from "../../../../packages/domain/src/inspection";
 
 export class SyncError extends Error {
@@ -76,11 +75,12 @@ export async function syncDraft(
       return;
     }
     let uploaded = 0;
-    const total = photoKinds.reduce(
+    const kinds = capturedKinds(draft);
+    const total = kinds.reduce(
       (sum, k) => sum + draft!.photos[k]!.bytes,
       0,
     );
-    for (const kind of photoKinds) {
+    for (const kind of kinds) {
       const local = draft.photos[kind]!;
       const server = upload.photos.find((p) => p.kind === kind);
       if (!server) throw new SyncError(503, "Incomplete upload session");

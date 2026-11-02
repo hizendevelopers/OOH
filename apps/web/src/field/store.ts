@@ -8,7 +8,8 @@ import {
 } from "../../../../packages/domain/src/brand";
 import {
   inspectionInput,
-  photoKinds,
+  allPhotoKinds,
+  angleKinds,
   type PhotoKind,
   type InspectionInput,
   type Receipt,
@@ -123,6 +124,18 @@ export class FieldStore extends Dexie {
     });
   }
 }
+// Kinds captured for this visit, in a fixed order (front, wide, then angles).
+export function capturedKinds(draft: Draft): PhotoKind[] {
+  return allPhotoKinds.filter((kind) => draft.photos[kind]);
+}
+// A visit needs front, wide and at least one angle photograph.
+export function hasRequiredPhotos(draft: Draft) {
+  return Boolean(
+    draft.photos.front &&
+      draft.photos.wide &&
+      angleKinds.some((kind) => draft.photos[kind]),
+  );
+}
 export function metadata(draft: Draft): InspectionInput {
   return inspectionInput.parse({
     operationId: draft.operationId,
@@ -132,7 +145,7 @@ export function metadata(draft: Draft): InspectionInput {
     assignmentVersion: draft.task.version,
     challengeId: draft.challenge?.id ?? null,
     brand: draft.brand ?? null,
-    photos: photoKinds.map((kind) => {
+    photos: capturedKinds(draft).map((kind) => {
       const photo = draft.photos[kind];
       if (!photo || !photo.blob || photo.blob.size !== photo.bytes)
         throw new Error("Front and wide photos must be saved locally");
