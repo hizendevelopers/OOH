@@ -97,27 +97,27 @@ export function assessPhotoLocation(
 export const locationMessages = {
   within_area: "Within the expected billboard area",
   missing:
-    "Location is missing. Enable location permission and retake this photo, or ask your supervisor for an exception.",
+    "Location is not available. Turn on location for the browser, then take the photo again.",
   stale:
-    "Location is too old for this capture. Retake the photo to collect a fresh reading.",
+    "The GPS reading is too old. Wait a few seconds, then take the photo again.",
   low_accuracy:
-    "Location accuracy is poor. Move safely to an open area and retake, or ask your supervisor for an exception.",
+    "The GPS signal is weak. Move to an open area, wait a few seconds, then take the photo again. If it still fails, ask your supervisor.",
   outside_area:
-    "You are outside the expected billboard area. Confirm the billboard and retake, or ask your supervisor for an exception.",
+    "You seem to be too far from this billboard. Walk closer, check it is the right billboard, then take the photo again. If you cannot get closer, ask your supervisor.",
   source_uncertain:
-    "Registered coordinates need confirmation. Ask your supervisor to correct them or authorize an exception.",
+    "This billboard's saved location needs checking. Tell your supervisor; you can still take the photos.",
 };
 export const locationMessagesAr: Record<keyof typeof locationMessages, string> =
   {
     within_area: "ضمن النطاق المتوقع للوحة",
     missing:
-      "الموقع مفقود. اسمح بالوصول للموقع وأعد التقاط الصورة، أو اطلب استثناء من المشرف.",
+      "الموقع غير متاح. فعّل إذن الموقع للمتصفح ثم التقط الصورة مرة أخرى.",
     stale:
-      "قراءة الموقع قديمة بالنسبة للصورة. أعد الالتقاط للحصول على قراءة حديثة.",
+      "قراءة الموقع قديمة. انتظر بضع ثوانٍ ثم التقط الصورة مرة أخرى.",
     low_accuracy:
-      "دقة الموقع ضعيفة. انتقل بأمان لمكان مفتوح وأعد الالتقاط، أو اطلب استثناء من المشرف.",
+      "إشارة الموقع ضعيفة. انتقل إلى مكان مفتوح وانتظر بضع ثوانٍ ثم التقط الصورة مرة أخرى. إن استمرت المشكلة فاطلب مساعدة المشرف.",
     outside_area:
-      "أنت خارج نطاق اللوحة المتوقع. تحقق من رمز اللوحة وأعد الالتقاط، أو اطلب استثناء من المشرف.",
+      "يبدو أنك بعيد عن هذه اللوحة. اقترب منها وتأكد أنها اللوحة الصحيحة ثم التقط الصورة مرة أخرى. إن تعذّر ذلك فاطلب مساعدة المشرف.",
     source_uncertain:
-      "الإحداثيات المسجلة تحتاج تأكيداً. اطلب من المشرف تصحيحها أو منح استثناء.",
+      "موقع هذه اللوحة المسجل يحتاج إلى مراجعة. أخبر المشرف؛ يمكنك متابعة التقاط الصور.",
   };

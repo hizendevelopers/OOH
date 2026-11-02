@@ -90,7 +90,7 @@ it("keeps denied-location photos as editable drafts instead of queueing them", a
     const blob = new Blob([kind], { type: "image/jpeg" });
     await store.savePhoto(task.assignment_id, { kind, blob, bytes: blob.size, sha256: await digestBlob(blob), capturedAt: new Date().toISOString(), captureMode: "offline", gps: { status: "denied", observedAt: new Date().toISOString() } });
   }
-  await expect(store.queue(task.assignment_id)).rejects.toThrow("Location is missing");
+  await expect(store.queue(task.assignment_id)).rejects.toThrow("Location is not available");
   const draft = (await store.drafts.get(task.assignment_id))!;
   expect(draft.state).toBe("local_draft");
   expect(draft.photos.front!.blob.size).toBeGreaterThan(0);

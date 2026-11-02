@@ -71,9 +71,9 @@ export const fieldStrings = {
     brandNeeded: "Enter the advertised brand, or mark the face blank or unreadable, before sending.",
     brandLocked: "Brand recorded for this visit",
     challengeInfo:
-      "Server-issued cue. Include the requested structure context. This does not attest genuine capture.",
+      "A code from the server, sent while you were online. It helps the review, but does not prove the photo was taken on site.",
     noChallenge:
-      "No online challenge. Offline / unchallenged captures remain explicitly labeled.",
+      "No server code for this photo. It will be marked as taken offline.",
     offlinePhoto: "Offline capture • device claim",
     challengedPhoto: "Online • challenge supplied (untrusted)",
     onlinePhoto: "Online • no challenge",
@@ -81,9 +81,9 @@ export const fieldStrings = {
     notSaved: "Photo is not saved. Keep this page open and retry.",
     saveAgain: "Retry saving photo",
     storage_full:
-      "Device storage is full. Free browser/device space and retry. Your current photo is only in memory.",
+      "Phone storage is full. Free some space and try again. The current photo is not saved yet.",
     storage_unavailable:
-      "Browser storage is unavailable. Do not close this page until photos are saved.",
+      "The browser cannot save photos right now. Keep this page open until the photo is saved.",
     queue: "Queue for upload",
     queueNote:
       "Both photographs are required. Queuing locks this evidence version; original blobs stay on this device until a confirmed receipt.",
@@ -91,9 +91,9 @@ export const fieldStrings = {
     storage: "Device storage",
     persist: "Request persistent storage",
     persistent: "Persistent storage granted",
-    evictable: "Browser may evict local data",
+    evictable: "Your browser may delete unsent photos if storage runs low. Send them as soon as you can.",
     storageNote:
-      "Private browsing, clearing site data or device loss can erase unsynced photos. Download tasks first and check receipts before leaving.",
+      "Private browsing, clearing site data or losing the device can erase unsent photos. Download tasks first and check receipts before leaving.",
     shellReady: "Offline shell ready",
     shellPending: "Offline shell not ready — stay online",
     install: "Install field app",
@@ -201,9 +201,9 @@ export const fieldStrings = {
     brandNeeded: "أدخل العلامة التجارية المعلنة، أو حدّد أن الوجه فارغ أو غير مقروء، قبل الإرسال.",
     brandLocked: "تم تسجيل العلامة لهذه الزيارة",
     challengeInfo:
-      "رمز صادر من الخادم. أظهر سياق الهيكل المطلوب. لا يثبت أصالة الالتقاط.",
+      "رمز أرسله الخادم أثناء اتصالك. يساعد المراجعة، لكنه لا يثبت أن الصورة التُقطت في الموقع.",
     noChallenge:
-      "لا يوجد تحدٍ متصل. صور عدم الاتصال أو غياب التحدي موسومة بوضوح.",
+      "لا يوجد رمز من الخادم لهذه الصورة. ستُسجَّل على أنها التُقطت دون اتصال.",
     offlinePhoto: "التقاط دون اتصال • ادعاء الجهاز",
     challengedPhoto: "متصل • مع تحدٍ (غير موثوق)",
     onlinePhoto: "متصل • دون تحدٍ",
@@ -211,9 +211,9 @@ export const fieldStrings = {
     notSaved: "الصورة غير محفوظة. أبقِ الصفحة مفتوحة وأعد المحاولة.",
     saveAgain: "إعادة محاولة حفظ الصورة",
     storage_full:
-      "مساحة الجهاز ممتلئة. حرّر مساحة ثم أعد المحاولة. الصورة الحالية في الذاكرة فقط.",
+      "مساحة الهاتف ممتلئة. احذف بعض الملفات ثم حاول مرة أخرى. الصورة الحالية غير محفوظة بعد.",
     storage_unavailable:
-      "تخزين المتصفح غير متاح. لا تغلق الصفحة قبل حفظ الصور.",
+      "المتصفح لا يستطيع حفظ الصور الآن. ابقَ على هذه الصفحة مفتوحة حتى تُحفظ الصورة.",
     queue: "إضافة إلى قائمة الرفع",
     queueNote:
       "الصورتان مطلوبتان. إضافة الأدلة تثبّت هذه النسخة. تبقى الأصول على الجهاز حتى تأكيد الإيصال.",
@@ -221,9 +221,9 @@ export const fieldStrings = {
     storage: "تخزين الجهاز",
     persist: "طلب تخزين دائم",
     persistent: "التخزين الدائم ممنوح",
-    evictable: "قد يحذف المتصفح البيانات المحلية",
+    evictable: "قد يحذف المتصفح الصور غير المرسلة إذا قلّت المساحة. أرسلها في أقرب وقت.",
     storageNote:
-      "التصفح الخاص أو مسح البيانات أو فقدان الجهاز قد يمحو الصور غير المرسلة. نزّل المهام وتحقق من الإيصالات.",
+      "التصفح الخاص أو مسح بيانات الموقع أو فقدان الجهاز قد يمحو الصور غير المرسلة. نزّل المهام أولاً وتأكد من الإيصالات قبل المغادرة.",
     shellReady: "واجهة عدم الاتصال جاهزة",
     shellPending: "واجهة عدم الاتصال غير جاهزة — ابقَ متصلاً",
     install: "تثبيت التطبيق الميداني",

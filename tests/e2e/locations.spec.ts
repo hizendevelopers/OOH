@@ -40,7 +40,11 @@ test("admin creates GPS test location, corrects coordinates, worker finds it and
     accuracy: 10,
   });
   await login(page, "admin@demo.ibvs.test");
-  await page.getByRole("button", { name: "Add location", exact: true }).click();
+  // Wait for the workspace to hydrate before opening the dialog; an early click is lost.
+  await expect(async () => {
+    await page.getByRole("button", { name: "Add location", exact: true }).click();
+    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 3000 });
+  }).toPass({ timeout: 60000 });
   const modal = page.getByRole("dialog");
   const code = `QA-LOC-${Date.now()}`;
   await modal.getByLabel("Billboard face code", { exact: true }).fill(code);
