@@ -36,7 +36,7 @@ async function prepared() {
   const store = create();
   await store.start(task);
   await store.setBrand(task.assignment_id, { kind: "blank", text: "" });
-  for (const kind of ["front", "wide"] as const) {
+  for (const kind of ["front", "wide", "angle_1"] as const) {
     const blob = new Blob([kind], { type: "image/jpeg" });
     await store.savePhoto(task.assignment_id, {
       kind,
@@ -86,7 +86,7 @@ it("keeps denied-location photos as editable drafts instead of queueing them", a
   const store = create();
   await store.start(task);
   await store.setBrand(task.assignment_id, { kind: "blank", text: "" });
-  for (const kind of ["front", "wide"] as const) {
+  for (const kind of ["front", "wide", "angle_1"] as const) {
     const blob = new Blob([kind], { type: "image/jpeg" });
     await store.savePhoto(task.assignment_id, { kind, blob, bytes: blob.size, sha256: await digestBlob(blob), capturedAt: new Date().toISOString(), captureMode: "offline", gps: { status: "denied", observedAt: new Date().toISOString() } });
   }
@@ -183,6 +183,11 @@ it("recovers from lost final response using the stable operation key", async () 
             receivedParts: [],
             receiptId: completed ? "photo-wide" : null,
           },
+          {
+            kind: "angle_1",
+            receivedParts: [],
+            receiptId: completed ? "photo-angle_1" : null,
+          },
         ],
         receipt: completed ? receipt : null,
       };
@@ -201,7 +206,7 @@ it("recovers from lost final response using the stable operation key", async () 
   const draft = (await store.drafts.get(task.assignment_id))!;
   expect(draft.receipt).toEqual(receipt);
   expect(draft.state).toBe("server_received");
-  expect(parts).toBe(2);
+  expect(parts).toBe(3);
 });
 it("session expiry and task conflicts pause retry without losing originals", async () => {
   for (const status of [401, 409, 422]) {
@@ -218,7 +223,7 @@ it("skips acknowledged pieces when resuming within a photograph", async () => {
   const store = create();
   await store.start(task);
   await store.setBrand(task.assignment_id, { kind: "blank", text: "" });
-  for (const kind of ["front", "wide"] as const) {
+  for (const kind of ["front", "wide", "angle_1"] as const) {
     const blob = new Blob(
       [new Uint8Array(kind === "front" ? 256 * 1024 + 41 : 50)],
       { type: "image/jpeg" },
@@ -252,6 +257,7 @@ it("skips acknowledged pieces when resuming within a photograph", async () => {
         photos: [
           { kind: "front", receivedParts: [0], receiptId: null },
           { kind: "wide", receivedParts: [], receiptId: null },
+          { kind: "angle_1", receivedParts: [], receiptId: null },
         ],
         receipt: null,
       };

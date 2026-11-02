@@ -113,9 +113,11 @@ async function analyzeReceivedInspection(
     receipt_id: string | null;
   }>("SELECT * FROM media_evidence WHERE inspection_id=$1 ORDER BY kind", [id]);
   if (
-    media.length !== 2 ||
+    media.length < 3 ||
+    media.length > 6 ||
     !media.some((m) => m.kind === "front") ||
     !media.some((m) => m.kind === "wide") ||
+    !media.some((m) => m.kind.startsWith("angle_")) ||
     media.some((m) => !m.receipt_id)
   )
     signals.push(

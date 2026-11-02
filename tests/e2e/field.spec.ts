@@ -76,7 +76,7 @@ test("offline camera evidence survives reload and interrupted upload; server rec
     faceCode: bound.code,
     assignmentVersion: bound.version,
     challengeId: null,
-    photos: ["front", "wide"].map((kind) => ({
+    photos: ["front", "wide", "angle_1"].map((kind) => ({
       kind,
       bytes: 1,
       sha256: "a".repeat(64),
@@ -114,6 +114,14 @@ test("offline camera evidence survives reload and interrupted upload; server rec
   await expect(
     page.getByText("Offline capture • device claim", { exact: true }),
   ).toHaveCount(2);
+  await page.getByRole("button", { name: "Add an angle photo", exact: true }).click();
+  await page.getByRole("button", { name: "Capture", exact: true }).click();
+  await expect(
+    page.getByText("Photo saved locally", { exact: true }),
+  ).toHaveCount(3);
+  await expect(
+    page.getByText("Offline capture • device claim", { exact: true }),
+  ).toHaveCount(3);
   await page.getByRole("button", { name: "Blank face", exact: true }).click();
   await page
     .getByRole("button", { name: "Queue for upload", exact: true })
@@ -133,7 +141,7 @@ test("offline camera evidence survives reload and interrupted upload; server rec
     .click();
   await expect(
     page.getByText("Photo saved locally", { exact: true }),
-  ).toHaveCount(2);
+  ).toHaveCount(3);
   await expect(
     page.getByText("Queued — no server receipt", { exact: true }),
   ).toBeVisible();

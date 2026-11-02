@@ -47,7 +47,7 @@ const admin: Actor = {
 const worker: Actor = { ...admin, id: "worker", role: "worker" };
 const other: Actor = { ...worker, id: "other" };
 let input: InspectionInput;
-let front: Buffer, wide: Buffer;
+let front: Buffer, wide: Buffer, angle: Buffer;
 let id: string;
 const digest = (buffer: Buffer) =>
   createHash("sha256").update(buffer).digest("hex");
@@ -99,6 +99,11 @@ beforeAll(async () => {
   })
     .jpeg()
     .toBuffer();
+  angle = await sharp({
+    create: { width: 720, height: 540, channels: 3, background: "#aa5522" },
+  })
+    .jpeg()
+    .toBuffer();
   input = {
     operationId: randomUUID(),
     assignmentId: task.assignment_id,
@@ -128,6 +133,14 @@ beforeAll(async () => {
           accuracy: 70,
           observedAt: new Date().toISOString(),
         },
+      },
+      {
+        kind: "angle_1",
+        sha256: digest(angle),
+        bytes: angle.length,
+        capturedAt: new Date().toISOString(),
+        captureMode: "offline",
+        gps: { status: "denied", observedAt: new Date().toISOString() },
       },
     ],
   };
@@ -188,7 +201,7 @@ it("retains interrupted uploads without issuing receipts and denies foreign acce
     (await inspectionStatus(worker, id)).photos.find((p) => p.kind === "front")!
       .receivedParts,
   ).toEqual([0]);
-  await expect(submitInspection(worker, id)).rejects.toThrow("both");
+  await expect(submitInspection(worker, id)).rejects.toThrow("server receipt");
   await expect(inspectionStatus(other, id)).rejects.toThrow("not found");
   await expect(evidenceAccess(other, id, "front")).rejects.toThrow("not found");
   await expect(uploadPart(other, id, "wide", 0, wide)).rejects.toThrow(
@@ -290,6 +303,8 @@ it("validates JPEGs and returns stable photo and inspection receipts on replay",
   expect(await completePhoto(worker, id, "front")).toEqual(a);
   await uploadPart(worker, id, "wide", 0, wide);
   await completePhoto(worker, id, "wide");
+  await uploadPart(worker, id, "angle_1", 0, angle);
+  await completePhoto(worker, id, "angle_1");
   const received = await submitInspection(worker, id);
   expect(received.flags).toEqual(
     expect.arrayContaining([
@@ -310,6 +325,7 @@ it("validates JPEGs and returns stable photo and inspection receipts on replay",
   ).toBe("server_received");
   expect(await evidenceAccess(admin, id, "front")).toEqual(front);
   expect(await evidenceAccess(worker, id, "wide")).toEqual(wide);
+  expect(await evidenceAccess(worker, id, "angle_1")).toEqual(angle);
   expect(
     await (
       await getDb()
@@ -571,6 +587,7 @@ it("explains cross-worker duplicates, adjacent identity, uncertain mismatched GP
   for (const [kind, bytes] of [
     ["front", front],
     ["wide", wide],
+    ["angle_1", angle],
   ] as const) {
     await uploadPart(other, session.inspectionId, kind, 0, bytes);
     await completePhoto(other, session.inspectionId, kind);

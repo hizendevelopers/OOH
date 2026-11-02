@@ -3,8 +3,14 @@ import { brandEntry } from "./brand";
 
 export const PHOTO_LIMIT = 6 * 1024 * 1024;
 export const CHUNK_SIZE = 256 * 1024;
+// Front and wide are required. Angle photos are optional extras, and a visit
+// needs at least one of them, so every visit has at least three photographs.
 export const photoKinds = ["front", "wide"] as const;
-export type PhotoKind = (typeof photoKinds)[number];
+export const angleKinds = ["angle_1", "angle_2", "angle_3", "angle_4"] as const;
+export const allPhotoKinds = [...photoKinds, ...angleKinds] as const;
+export const MIN_PHOTOS = 3;
+export const MAX_PHOTOS = 6;
+export type PhotoKind = (typeof allPhotoKinds)[number];
 export const gpsSchema = z.discriminatedUnion("status", [
   z.object({
     status: z.literal("ok"),
@@ -20,7 +26,7 @@ export const gpsSchema = z.discriminatedUnion("status", [
 ]);
 export type GpsObservation = z.infer<typeof gpsSchema>;
 export const photoMetadata = z.object({
-  kind: z.enum(photoKinds),
+  kind: z.enum(allPhotoKinds),
   bytes: z.number().int().min(1).max(PHOTO_LIMIT),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
   capturedAt: z.iso.datetime(),
@@ -38,10 +44,19 @@ export const inspectionInput = z.object({
   brand: brandEntry.nullable().optional(),
   photos: z
     .array(photoMetadata)
-    .length(2)
+    .min(MIN_PHOTOS)
+    .max(MAX_PHOTOS)
     .refine(
-      (photos) => new Set(photos.map((p) => p.kind)).size === 2,
+      (photos) => new Set(photos.map((p) => p.kind)).size === photos.length,
+      "Each photograph must have a different kind",
+    )
+    .refine(
+      (photos) => photos.some((p) => p.kind === "front") && photos.some((p) => p.kind === "wide"),
       "Front and wide context required",
+    )
+    .refine(
+      (photos) => photos.some((p) => (angleKinds as readonly string[]).includes(p.kind)),
+      "At least one additional angle photograph is required",
     ),
 });
 export type InspectionInput = z.infer<typeof inspectionInput>;

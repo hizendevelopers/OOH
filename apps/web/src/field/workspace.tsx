@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import type { Actor } from "@ibvs/domain";
 import type { Assignment } from "../server/service";
-import { FieldStore, type Draft } from "./store";
+import { FieldStore, hasRequiredPhotos, type Draft } from "./store";
 import { fieldRequest, replayQueue, SyncError } from "./sync";
 import { fieldStrings, type FieldText } from "./strings";
 import Capture from "./capture";
@@ -739,11 +739,14 @@ export default function FieldWorkspace() {
                       {locationError}
                     </p>
                   )}
+                  {draft.photos.front && draft.photos.wide && !hasRequiredPhotos(draft) && (
+                    <p className="muted">{t.needAngle}</p>
+                  )}
                   {draft.state === "local_draft" ? (
                     <button
                       className="primary"
                       disabled={
-                        busy || !draft.photos.front || !draft.photos.wide
+                        busy || !hasRequiredPhotos(draft)
                       }
                       onClick={async () => {
                         setBusy(true);

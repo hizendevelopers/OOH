@@ -33,7 +33,7 @@ export function evidenceRoot() {
 }
 function filename(key: string) {
   if (
-    !/^[a-f0-9-]{36}\/(?:front|wide)\/(?:[0-9]{1,2}-[a-f0-9]{64}|original-[a-f0-9]{64})$/.test(
+    !/^[a-f0-9-]{36}\/(?:front|wide|angle_[1-4])\/(?:[0-9]{1,2}-[a-f0-9]{64}|original-[a-f0-9]{64})$/.test(
       key,
     )
   )

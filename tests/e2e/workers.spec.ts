@@ -189,9 +189,11 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
     accuracy: 10,
   });
   await worker.getByRole("button", { name: "Capture", exact: true }).click();
+  await worker.getByRole("button", { name: "Add an angle photo", exact: true }).click();
+  await worker.getByRole("button", { name: "Capture", exact: true }).click();
   await expect(
     worker.getByText("Photo saved locally", { exact: true }),
-  ).toHaveCount(2);
+  ).toHaveCount(3);
   await worker.getByRole("button", { name: "Blank face", exact: true }).click();
   await worker
     .getByRole("button", { name: "Queue for upload", exact: true })

@@ -17,6 +17,18 @@ import {
 } from "lucide-react";
 import type { Actor } from "@ibvs/domain";
 import type { QueueItem, ReviewDetail } from "@/server/review";
+import { allPhotoKinds } from "../../../../packages/domain/src/inspection";
+
+// Front and wide first, then every angle photograph the worker submitted.
+function evidenceKinds(detail: ReviewDetail) {
+  return allPhotoKinds.filter((kind) =>
+    detail.inspection.metadata.photos.some((p) => p.kind === kind),
+  );
+}
+function evidenceName(kind: string, arabic: boolean) {
+  const number = kind.slice(-1);
+  return arabic ? "صورة زاوية " + number : "Angle photograph " + number;
+}
 import {
   ruleLabels,
   type RiskReport,
@@ -68,7 +80,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [tab, setTab] = useState("evidence"),
-    [zoom, setZoom] = useState<"front" | "wide">("front"),
+    [zoom, setZoom] = useState<string>("front"),
     [action, setAction] = useState("approve"),
     [reason, setReason] = useState(""),
     [identity, setIdentity] = useState(false),
@@ -652,7 +664,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                   {tab === "evidence" && (
                     <>
                       <div className="review-photos">
-                        {(["front", "wide"] as const).map((kind) => {
+                        {evidenceKinds(detail).map((kind) => {
                           const photo = detail.inspection.metadata.photos.find(
                             (p) => p.kind === kind,
                           );
@@ -666,10 +678,15 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                                         "Enlarge front photograph",
                                         "تكبير الصورة الأمامية",
                                       )
-                                    : t(
-                                        "Enlarge wide photograph",
-                                        "تكبير صورة السياق",
-                                      )
+                                    : kind === "wide"
+                                      ? t(
+                                          "Enlarge wide photograph",
+                                          "تكبير صورة السياق",
+                                        )
+                                      : t(
+                                          "Enlarge " + evidenceName(kind, false),
+                                          "تكبير " + evidenceName(kind, true),
+                                        )
                                 }
                                 onClick={() => {
                                   setZoom(kind);
@@ -691,10 +708,15 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                                           "Front evidence photograph",
                                           "صورة الدليل الأمامية",
                                         )
-                                      : t(
-                                          "Wide context evidence photograph",
-                                          "صورة دليل السياق الواسع",
-                                        )
+                                      : kind === "wide"
+                                        ? t(
+                                            "Wide context evidence photograph",
+                                            "صورة دليل السياق الواسع",
+                                          )
+                                        : t(
+                                            evidenceName(kind, false) + " evidence photograph",
+                                            evidenceName(kind, true) + " دليل",
+                                          )
                                   }
                                   width={1200}
                                   height={900}
@@ -729,7 +751,9 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                                 <strong>
                                   {kind === "front"
                                     ? t("Front photograph", "الصورة الأمامية")
-                                    : t("Wide context", "السياق الواسع")}
+                                    : kind === "wide"
+                                      ? t("Wide context", "السياق الواسع")
+                                      : evidenceName(kind, ar)}
                                 </strong>
                                 <p>
                                   {t(
@@ -1422,7 +1446,9 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
           <strong id="zoom-title">
             {zoom === "front"
               ? t("Front photograph", "الصورة الأمامية")
-              : t("Wide context photograph", "صورة السياق الواسع")}
+              : zoom === "wide"
+                ? t("Wide context photograph", "صورة السياق الواسع")
+                : evidenceName(zoom, ar)}
           </strong>
           <button
             className="icon-button"

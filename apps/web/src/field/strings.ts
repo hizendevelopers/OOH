@@ -70,6 +70,10 @@ export const fieldStrings = {
     brandSaved: "Recorded on this device",
     brandNeeded: "Enter the advertised brand, or mark the face blank or unreadable, before sending.",
     brandLocked: "Brand recorded for this visit",
+    angle: "Angle photograph",
+    angleGuide: "Optional. Photograph the billboard from another side or further away, so the whole face and its supports show.",
+    addAngle: "Add an angle photo",
+    needAngle: "Add at least one angle photograph before sending.",
     challengeInfo:
       "Server-issued cue. Include the requested structure context. This does not attest genuine capture.",
     noChallenge:
@@ -200,6 +204,10 @@ export const fieldStrings = {
     brandSaved: "مسجّل على هذا الجهاز",
     brandNeeded: "أدخل العلامة التجارية المعلنة، أو حدّد أن الوجه فارغ أو غير مقروء، قبل الإرسال.",
     brandLocked: "تم تسجيل العلامة لهذه الزيارة",
+    angle: "صورة بزاوية أخرى",
+    angleGuide: "اختياري. صوّر اللوحة من جهة أخرى أو من مسافة أبعد، بحيث يظهر الوجه كاملاً ودعاماته.",
+    addAngle: "إضافة صورة بزاوية أخرى",
+    needAngle: "أضف صورة واحدة على الأقل بزاوية أخرى قبل الإرسال.",
     challengeInfo:
       "رمز صادر من الخادم. أظهر سياق الهيكل المطلوب. لا يثبت أصالة الالتقاط.",
     noChallenge:
