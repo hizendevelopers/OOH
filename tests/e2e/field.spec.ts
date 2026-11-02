@@ -279,7 +279,7 @@ test("GPS success, simulated storage exhaustion and denied camera preserve hones
   });
   await page.getByRole("button", { name: "Capture", exact: true }).click();
   await expect(
-    page.getByText("Device storage is full.", { exact: false }),
+    page.getByText("Phone storage is full.", { exact: false }),
   ).toBeVisible();
   await expect(
     page.getByText("Photo saved locally", { exact: true }),
