@@ -3,6 +3,10 @@ import type { Actor } from "@ibvs/domain";
 import type { Assignment } from "../server/service";
 import { assessPhotoLocation, locationMessages } from "./location-policy";
 import {
+  brandEntry,
+  type BrandEntry,
+} from "../../../../packages/domain/src/brand";
+import {
   inspectionInput,
   photoKinds,
   type PhotoKind,
@@ -17,6 +21,7 @@ export type Draft = {
   task: Assignment;
   photos: Partial<Record<PhotoKind, LocalPhoto>>;
   challenge: { id: string; nonce: string; expiresAt: string } | null;
+  brand?: BrandEntry | null;
   state: "local_draft" | "queued" | "uploading" | "blocked" | "server_received";
   attempts: number;
   nextAttemptAt: number;
@@ -80,11 +85,24 @@ export class FieldStore extends Dexie {
       });
     });
   }
+  async setBrand(id: string, brand: BrandEntry) {
+    const parsed = brandEntry.parse(brand);
+    await this.transaction("rw", this.drafts, async () => {
+      const draft = await this.drafts.get(id);
+      if (!draft || draft.state !== "local_draft")
+        throw new Error("Draft is locked for synchronization");
+      await this.drafts.update(id, {
+        brand: parsed,
+        updatedAt: new Date().toISOString(),
+      });
+    });
+  }
   async queue(id: string) {
     await this.transaction("rw", this.drafts, async () => {
       const draft = await this.drafts.get(id);
       if (!draft || draft.state !== "local_draft")
         throw new Error("Draft is locked");
+      if (!draft.brand) throw new Error("brand-required");
       metadata(draft);
       const exception = draft.task.location_exception;
       const hasException =
@@ -113,6 +131,7 @@ export function metadata(draft: Draft): InspectionInput {
     faceCode: draft.task.code,
     assignmentVersion: draft.task.version,
     challengeId: draft.challenge?.id ?? null,
+    brand: draft.brand ?? null,
     photos: photoKinds.map((kind) => {
       const photo = draft.photos[kind];
       if (!photo || !photo.blob || photo.blob.size !== photo.bytes)

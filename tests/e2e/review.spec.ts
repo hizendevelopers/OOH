@@ -187,6 +187,11 @@ test("supervisors review adjacent faces, explicitly version references and reque
       exact: true,
     }),
   ).toBeVisible();
+  await admin.getByRole("tab", { name: "Advertiser", exact: true }).click();
+  await expect(admin.locator("p", { hasText: "Confirmed occupancy" })).toContainText("Not confirmed");
+  await admin.getByRole("combobox", { name: "Outcome", exact: true }).selectOption("blank");
+  await admin.getByRole("button", { name: "Confirm occupancy", exact: true }).click();
+  await expect(admin.locator("p", { hasText: "Confirmed occupancy" })).toContainText("Blank face");
   const d = await (await admin.request.get("/api/reviews/" + id)).json();
   const filters = new URLSearchParams({
     state: "pending",
@@ -452,6 +457,7 @@ test("supervisors review adjacent faces, explicitly version references and reque
   await expect(
     page.getByText("Photo saved locally", { exact: true }),
   ).toHaveCount(2);
+  await page.getByRole("button", { name: "Blank face", exact: true }).click();
   await page
     .getByRole("button", { name: "Queue for upload", exact: true })
     .click();

@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { faceInput, type Actor } from "@ibvs/domain";
+import {
+  dimensionFields,
+  dimensionShape,
+  faceInput,
+  type Actor,
+} from "@ibvs/domain";
 import { getDb } from "./db";
+import { insertRecordedDimension } from "./dimension-storage";
 import { ApiError, audit, requireAdmin } from "./service";
 
 const coordinates = {
@@ -14,6 +20,7 @@ export const locationInput = faceInput
     description: z.string().trim().max(1000).default(""),
     is_test: z.boolean().default(true),
     ...coordinates,
+    ...dimensionShape,
   })
   .strict();
 export const correctionInput = z
@@ -30,6 +37,7 @@ export async function createLocation(
 ) {
   requireAdmin(actor);
   const data = locationInput.parse(input);
+  const dimensions = dimensionFields.parse(data);
   try {
     return await (
       await getDb()
@@ -93,6 +101,12 @@ export async function createLocation(
           actor.id,
         ],
       );
+      await insertRecordedDimension(tx, {
+        organizationId: actor.organizationId,
+        faceId: id,
+        recordedBy: actor.id,
+        dimensions,
+      });
       await audit(tx, actor, "location.create", id, { ...data });
       return { id, code: data.code };
     });

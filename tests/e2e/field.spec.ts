@@ -114,6 +114,7 @@ test("offline camera evidence survives reload and interrupted upload; server rec
   await expect(
     page.getByText("Offline capture • device claim", { exact: true }),
   ).toHaveCount(2);
+  await page.getByRole("button", { name: "Blank face", exact: true }).click();
   await page
     .getByRole("button", { name: "Queue for upload", exact: true })
     .click();

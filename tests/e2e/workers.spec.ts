@@ -192,6 +192,7 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
   await expect(
     worker.getByText("Photo saved locally", { exact: true }),
   ).toHaveCount(2);
+  await worker.getByRole("button", { name: "Blank face", exact: true }).click();
   await worker
     .getByRole("button", { name: "Queue for upload", exact: true })
     .click();

@@ -778,7 +778,13 @@ export default function FieldWorkspace() {
                           const known = Object.entries(locationMessages).find(
                             ([, text]) => text === message,
                           )?.[0] as keyof typeof locationMessages | undefined;
-                          setLocationError(known ? messages[known] : message);
+                          setLocationError(
+                            known
+                              ? messages[known]
+                              : message === "brand-required"
+                                ? t.brandNeeded
+                                : message,
+                          );
                         } finally {
                           setBusy(false);
                         }

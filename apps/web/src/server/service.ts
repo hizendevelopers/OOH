@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { previewCsv, type Actor, type FaceInput } from "@ibvs/domain";
+import {
+  previewCsv,
+  type Actor,
+  type DimensionData,
+  type FaceInput,
+} from "@ibvs/domain";
 import { getDb, type Database } from "./db";
+import { insertRecordedDimension } from "./dimension-storage";
 
 export class ApiError extends Error {
   constructor(
@@ -127,7 +133,7 @@ export async function importCsv(actor: Actor, csv: string, sourceName: string) {
 async function insertFace(
   tx: Database,
   actor: Actor,
-  row: FaceInput,
+  row: FaceInput & DimensionData,
   source: string,
 ) {
   let structures = await tx.query<{ id: string; city: string; zone: string }>(
@@ -178,6 +184,12 @@ async function insertFace(
       actor.id,
     ],
   );
+  await insertRecordedDimension(tx, {
+    organizationId: actor.organizationId,
+    faceId: id,
+    recordedBy: actor.id,
+    dimensions: row,
+  });
 }
 export const assignmentInput = z.object({
   faceIds: z
