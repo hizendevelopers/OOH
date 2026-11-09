@@ -23,6 +23,7 @@ async function main() {
   const adminId = option("--admin");
   const workerId = option("--worker-id");
   const dueDate = option("--due-date");
+  const expectEmail = option("--expect-email");
   const reportPath = option("--report");
   const gpsReportPath = option("--gps-report");
   const apply = process.argv.includes("--apply");
@@ -36,7 +37,8 @@ async function main() {
     [adminId, organizationId],
   );
   if (!admin) throw new Error("Administrator not found in this organization");
-  const actor: Actor = { id: admin.id, organizationId, role: "admin", name: admin.name, email: admin.email };
+  // Operator command line: direct database access, audited under the administrator account it acts for.
+  const actor: Actor & { operatorCli: true } = { id: admin.id, organizationId, role: "admin", name: admin.name, email: admin.email, operatorCli: true };
 
   const text = await readFile(file, "utf8");
   const imported = await importLocations(actor, text, { apply, sourceFile: path.basename(file) });
@@ -63,7 +65,8 @@ Unverified GPS report: ${rows.length} rows written to ${gpsReportPath}`);
   let assignment: unknown = null;
   if (workerId) {
     if (!dueDate) throw new Error("--due-date is required with --worker-id");
-    assignment = await assignImportedLocations(actor, { workerId, dueDate, apply });
+    if (!expectEmail) throw new Error("--expect-email is required with --worker-id");
+    assignment = await assignImportedLocations(actor, { workerId, expectedEmail: expectEmail, dueDate, apply });
     const a = assignment as { worker: { name: string; email: string; id: string }; wouldAssign: number; alreadyAssigned: number; assigned: number };
     console.log(`\nAssignment to ${a.worker.name} (${a.worker.id}): ${apply ? `assigned ${a.assigned}` : `would assign ${a.wouldAssign}`}; already assigned ${a.alreadyAssigned}`);
   }

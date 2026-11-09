@@ -5,6 +5,8 @@ import { code, dimensionFields, type Actor } from "@ibvs/domain";
 import { getDb } from "./db";
 import { insertRecordedDimension } from "./dimension-storage";
 import { ApiError, audit, requireAdmin } from "./service";
+import { requireAccess, type ServerActor } from "./mfa-gate";
+import { decidePromotion, promotionMaxAccuracyM } from "./gps-promotion";
 
 // Import of the Fizzion site spreadsheet. Rules:
 // - Idempotent: the unique site ID per organization decides what already exists. Existing rows are never changed.
@@ -13,7 +15,15 @@ import { ApiError, audit, requireAdmin } from "./service";
 // - Missing dimensions become pending_measurement. Nothing is fabricated.
 // - Original city labels are kept. Two unclear labels get explicit categories, as agreed by the administrator.
 
-export const IMPORT_SOURCE_FILE = "Fizzion_Sites_Upload.csv";
+// A real calendar date: 2026-02-31 is refused.
+export const isoCalendarDate = z
+  .string()
+  .refine(
+    (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value,
+    "Enter a real date in YYYY-MM-DD form",
+  );
+
+export const IMPORT_SOURCE_FILE ="Fizzion_Sites_Upload.csv";
 // Same default uncertainty the existing CSV import uses (faceInput). It is a system default, not a measurement.
 export const IMPORTED_UNCERTAINTY_M = 50;
 export const IMPORT_DIMENSION_NOTE = "Supplied in Fizzion_Sites_Upload.csv; not independently measured";
@@ -229,6 +239,7 @@ type ExistingRecord = {
 // Each new row runs in its own transaction, so one failing row never blocks the others.
 export async function importLocations(actor: Actor, text: string, options: { apply: boolean; sourceFile?: string }) {
   requireAdmin(actor);
+  requireAccess(actor, options.apply ? "sensitive" : "ordinary");
   const sourceFile = options.sourceFile ?? IMPORT_SOURCE_FILE;
   const rows = classifyLocationCsv(text);
   const db = await getDb();
@@ -339,13 +350,16 @@ export async function importLocations(actor: Actor, text: string, options: { app
 // Locations with an active assignment are left as they are. Dry run by default.
 export async function assignImportedLocations(
   actor: Actor,
-  input: { workerId: string; dueDate: string; apply: boolean },
+  input: { workerId: string; expectedEmail: string; dueDate: string; apply: boolean },
 ) {
   requireAdmin(actor);
+  requireAccess(actor, input.apply ? "sensitive" : "ordinary");
   const data = z
     .object({
       workerId: z.string().min(1).max(100),
-      dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      // Confirms the account is the intended person, so a mistyped or copied ID is refused.
+      expectedEmail: z.string().trim().email().max(254),
+      dueDate: isoCalendarDate,
       apply: z.boolean(),
     })
     .parse(input);
@@ -355,8 +369,10 @@ export async function assignImportedLocations(
     [actor.organizationId, data.workerId],
   );
   if (!worker) throw new ApiError(404, "No active worker with this database ID in this organization");
+  if (worker.email.toLowerCase() !== data.expectedEmail.toLowerCase())
+    throw new ApiError(422, "The account email does not match the expected email. Nothing was assigned.");
   const unassigned = await db.query<{ face_id: string; code: string }>(
-    `SELECT r.face_id,f.code FROM location_import_records r JOIN billboard_faces f ON f.id=r.face_id WHERE r.organization_id=$1 AND NOT EXISTS (SELECT 1 FROM assignments a WHERE a.face_id=r.face_id AND a.status IN ('assigned','server_received','pending_review','resurvey_requested','ambiguous')) ORDER BY f.code`,
+    `SELECT r.face_id,f.code FROM location_import_records r JOIN billboard_faces f ON f.id=r.face_id WHERE r.organization_id=$1 AND NOT EXISTS (SELECT 1 FROM assignments a WHERE a.face_id=r.face_id AND a.status IN ('assigned','server_received','pending_review','resurvey_requested','ambiguous','approved','baseline_verified')) ORDER BY f.code`,
     [actor.organizationId],
   );
   const [{ total }] = await db.query<{ total: string }>(
@@ -383,6 +399,7 @@ export async function assignImportedLocations(
 // Corrects the city of one imported location. The original label stays, and each change is kept in history.
 export async function correctImportedCity(actor: Actor, input: { faceId: string; city: string; reason: string }) {
   requireAdmin(actor);
+  requireAccess(actor, "sensitive");
   const data = z
     .object({
       faceId: z.string().uuid(),
@@ -445,6 +462,7 @@ export function toCsv(rows: Record<string, string | number>[]) {
 // Field captures awaiting supervisor review: the position an inspector recorded for a location with no verified coordinate.
 export async function pendingFieldCaptures(actor: Actor) {
   requireAdmin(actor);
+  requireAccess(actor, "ordinary");
   return (await getDb()).query<{
     id: string;
     face_id: string;
@@ -463,36 +481,103 @@ export async function pendingFieldCaptures(actor: Actor) {
 }
 
 // Supervisor verification: promotes one field capture to the verified coordinate of its location.
-// Never automatic. Keeps the original supplied values in location_import_records, and writes an audit event.
-export async function promoteFieldCapture(actor: Actor, input: { captureId: string; reason: string }) {
+// Requires an administrator with a recent second factor, a reading within the accuracy limit, a position inside the
+// vetted Iraq boundary (or a documented boundary exception), and complete server-received photo evidence.
+// The previous status, the supplied coordinate and every promotion are kept in an append-only history.
+export async function promoteFieldCapture(
+  actor: Actor,
+  input: { captureId: string; reason: string; boundaryException?: string | null },
+) {
   requireAdmin(actor);
-  const data = z.object({ captureId: z.string().min(1).max(100), reason: z.string().trim().min(10).max(1000) }).parse(input);
+  requireAccess(actor as ServerActor, "sensitive");
+  const data = z
+    .object({
+      captureId: z.string().min(1).max(100),
+      reason: z.string().trim().min(10).max(1000),
+      boundaryException: z.string().trim().max(1000).nullable().optional(),
+    })
+    .parse(input);
+  const maxAccuracyM = promotionMaxAccuracyM();
   const db = await getDb();
   return db.transaction(async (tx) => {
     await tx.query("SELECT id FROM organizations WHERE id=$1 FOR UPDATE", [actor.organizationId]);
-    const [capture] = await tx.query<{ id: string; face_id: string; latitude: number; longitude: number; accuracy_m: number; gps_status: string; reference_latitude: number | null }>(
-      `SELECT c.id,c.face_id,c.latitude,c.longitude,c.accuracy_m,r.gps_status,r.reference_latitude FROM location_field_captures c JOIN location_import_records r ON r.face_id=c.face_id WHERE c.id=$1 AND c.organization_id=$2 FOR UPDATE OF r`,
+    const [capture] = await tx.query<{
+      id: string;
+      face_id: string;
+      inspection_id: string;
+      latitude: number;
+      longitude: number;
+      accuracy_m: number | null;
+      gps_status: string;
+      reference_latitude: number | null;
+      reference_longitude: number | null;
+      inspection_status: string;
+    }>(
+      `SELECT c.id,c.face_id,c.inspection_id,c.latitude,c.longitude,c.accuracy_m,r.gps_status,r.reference_latitude,r.reference_longitude,i.status AS inspection_status
+       FROM location_field_captures c
+       JOIN location_import_records r ON r.face_id=c.face_id
+       JOIN inspections i ON i.id=c.inspection_id
+       WHERE c.id=$1 AND c.organization_id=$2 FOR UPDATE OF r`,
       [data.captureId, actor.organizationId],
     );
     if (!capture) throw new ApiError(404, "Field capture not found");
     if (capture.gps_status === "verified") throw new ApiError(409, "This location already has a verified coordinate; it was not changed");
     const [existing] = await tx.query<{ id: string }>("SELECT id FROM source_coordinates WHERE face_id=$1", [capture.face_id]);
     if (existing) throw new ApiError(409, "This location already has a source coordinate; it was not changed");
+    // Supporting field evidence: the visit was received by the server, and its front and wide photos have receipts.
+    const evidence = await tx.query<{ kind: string }>(
+      "SELECT DISTINCT m.kind FROM media_evidence m WHERE m.inspection_id=$1 AND m.receipt_id IS NOT NULL",
+      [capture.inspection_id],
+    );
+    const kinds = new Set(evidence.map((row) => row.kind));
+    const evidenceComplete = capture.inspection_status === "server_received" && kinds.has("front") && kinds.has("wide");
+    const decision = decidePromotion({
+      latitude: capture.latitude,
+      longitude: capture.longitude,
+      accuracyM: capture.accuracy_m,
+      maxAccuracyM,
+      evidenceComplete,
+      boundaryExceptionReason: data.boundaryException ?? null,
+    });
+    if (!decision.ok) throw new ApiError(422, decision.reason);
     await tx.query(
       "INSERT INTO source_coordinates(id,face_id,latitude,longitude,uncertainty_m,source_name,imported_by) VALUES($1,$2,$3,$4,$5,$6,$7)",
       [randomUUID(), capture.face_id, capture.latitude, capture.longitude, capture.accuracy_m, `field-capture:${capture.id}`, actor.id],
     );
-    // A pending location gets its first verified position as its reference. Supplied values, when they exist, are kept as they are.
+    // A pending location takes its first verified position as its reference. Supplied values already present are kept.
     await tx.query(
       "UPDATE location_import_records SET gps_status='verified', reference_latitude=COALESCE(reference_latitude,$2), reference_longitude=COALESCE(reference_longitude,$3) WHERE face_id=$1",
       [capture.face_id, capture.latitude, capture.longitude],
     );
+    await tx.query(
+      "INSERT INTO location_gps_promotions(id,organization_id,face_id,capture_id,inspection_id,previous_gps_status,previous_reference_latitude,previous_reference_longitude,promoted_latitude,promoted_longitude,accuracy_m,inside_iraq,boundary_exception,reason,reviewer_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)",
+      [
+        randomUUID(),
+        actor.organizationId,
+        capture.face_id,
+        capture.id,
+        capture.inspection_id,
+        capture.gps_status,
+        capture.reference_latitude,
+        capture.reference_longitude,
+        capture.latitude,
+        capture.longitude,
+        capture.accuracy_m,
+        decision.insideIraq,
+        decision.boundaryException,
+        data.reason,
+        actor.id,
+      ],
+    );
     await audit(tx, actor, "locations.gps_verified", capture.face_id, {
       captureId: capture.id,
       previousStatus: capture.gps_status,
-      reason: data.reason,
       accuracyM: capture.accuracy_m,
+      maxAccuracyM,
+      insideIraq: decision.insideIraq,
+      boundaryException: decision.boundaryException,
+      reason: data.reason,
     });
-    return { faceId: capture.face_id, gpsStatus: "verified" as const, previousStatus: capture.gps_status };
+    return { faceId: capture.face_id, gpsStatus: "verified" as const, previousStatus: capture.gps_status, boundaryException: decision.boundaryException };
   });
 }

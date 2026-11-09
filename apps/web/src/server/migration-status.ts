@@ -14,6 +14,7 @@ export const REQUIRED_MIGRATIONS = [
   "009_angle_photos.sql",
   "010_two_factor.sql",
   "011_location_import.sql",
+  "012_security_hardening.sql",
 ] as const;
 
 export type MigrationStatus = {

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { loginAdmin } from "./admin-login";
 const password = process.env.IBVS_DEMO_PASSWORD;
 test.skip(
   !password,
@@ -45,7 +46,7 @@ test("admin imports, assigns, worker sees authorized visit; CSRF and scope are e
   browser,
 }) => {
   test.setTimeout(240000);
-  await login(page, "admin@demo.ibvs.test");
+  await loginAdmin(page);
   await expect(
     page.getByText("DEMO WORKSPACE", { exact: false }),
   ).toBeVisible();
@@ -118,7 +119,7 @@ test("responsive widths, RTL, themes, offline warning and CSV validation", async
   context,
 }) => {
   test.setTimeout(240000);
-  await login(page, "admin@demo.ibvs.test");
+  await loginAdmin(page);
   for (const width of [360, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await expect(

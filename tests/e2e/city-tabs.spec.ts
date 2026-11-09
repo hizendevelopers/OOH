@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { loginAdmin } from "./admin-login";
 import path from "node:path";
 import { test, expect, type Page } from "@playwright/test";
 
@@ -21,7 +22,7 @@ async function login(page: Page, email: string) {
 
 test("imported cities, pending GPS and worker assignment appear in admin and field tabs", async ({ page, browser }) => {
   test.setTimeout(240000);
-  await login(page, "admin@demo.ibvs.test");
+  await loginAdmin(page);
 
   const csv = readFileSync(path.join(process.cwd(), "tests", "fixtures", "fizzion-sample.csv"), "utf8");
   const headers = { origin, "content-type": "application/json" };
@@ -39,7 +40,7 @@ test("imported cities, pending GPS and worker assignment appear in admin and fie
   const due = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
   const assigned = await page.request.post("/api/locations/import/assign", {
     headers,
-    data: { workerId: worker.id, dueDate: due, apply: true },
+    data: { workerId: worker.id, expectedEmail: "worker@demo.ibvs.test", dueDate: due, apply: true },
   });
   expect(assigned.status()).toBe(200);
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { currentActor, signInRequired } from "@/server/access";
+import { MfaError, purposeForMethod, requireAccess } from "@/server/mfa-gate";
 import { createWorker } from "@/server/worker-management";
 import { getDb } from "@/server/db";
 import { ConfigurationError } from "@/server/env";
@@ -17,7 +18,7 @@ import {
   requireAdmin,
 } from "@/server/service";
 import { csvCell } from "@ibvs/domain";
-import { assignImportedLocations, correctImportedCity, importLocations, pendingFieldCaptures, promoteFieldCapture } from "@/server/location-import";
+import { assignImportedLocations, correctImportedCity, importLocations, isoCalendarDate, pendingFieldCaptures, promoteFieldCapture } from "@/server/location-import";
 export const dynamic = "force-dynamic";
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -36,6 +37,8 @@ async function handle(request: Request) {
       }
     }
     const actor = await currentActor();
+    // Second-factor gate for every protected route. Enrollment status is the only thing returned on /me.
+    requireAccess(actor, route === "me" ? "setup" : purposeForMethod(request.method));
     if (route === "workers" && request.method === "POST") {
       if (!signInRequired())
         throw new ApiError(403, "Enable sign-in before creating worker accounts");
@@ -47,7 +50,7 @@ async function handle(request: Request) {
         const { migrationStatus } = await import("@/server/migration-status");
         return json({ ...(await migrationStatus(await getDb())), database: process.env.DATABASE_URL ? "postgresql" : "local" });
       }
-      if (route === "me") return json(actor);
+      if (route === "me") return json({ id: actor.id, organizationId: actor.organizationId, role: actor.role, name: actor.name, email: actor.email, mfa: { enrolled: actor.secondFactor && "enrolled" in actor.secondFactor ? actor.secondFactor.enrolled : null } });
       if (route === "locations/captures") return json(await pendingFieldCaptures(actor));
       if (route === "overview") return json(await overview(actor));
       if (route === "inventory") return json(await inventory(actor));
@@ -140,7 +143,7 @@ async function handle(request: Request) {
       }
       if (route === "locations/import/assign") {
         const input = z
-          .object({ workerId: z.string().min(1).max(100), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), apply: z.boolean().default(false) })
+          .object({ workerId: z.string().min(1).max(100), expectedEmail: z.string().trim().email().max(254), dueDate: isoCalendarDate, apply: z.boolean().default(false) })
           .parse(body);
         return json(await assignImportedLocations(actor, input));
       }
@@ -178,6 +181,8 @@ async function handle(request: Request) {
         503,
       );
     }
+    if (error instanceof MfaError)
+      return json({ error: error.message, code: error.code, requestId }, error.status);
     if (error instanceof ApiError)
       return json({ error: error.message, requestId }, error.status);
     if (error instanceof z.ZodError)
@@ -185,7 +190,18 @@ async function handle(request: Request) {
         { error: "Invalid request", issues: error.issues, requestId },
         422,
       );
-    console.error(JSON.stringify({ requestId, category: "request_failed" }));
+    // Operators need the cause to fix it. Only the error class, database error code and a short message are logged, never values.
+    const failure = error as { name?: unknown; code?: unknown; message?: unknown };
+    console.error(
+      JSON.stringify({
+        requestId,
+        category: "request_failed",
+        route,
+        errorName: typeof failure?.name === "string" ? failure.name : "unknown",
+        errorCode: typeof failure?.code === "string" && /^[A-Z0-9]{2,10}$/.test(failure.code) ? failure.code : undefined,
+        message: typeof failure?.message === "string" ? failure.message.slice(0, 300) : undefined,
+      }),
+    );
     return json(
       {
         error:

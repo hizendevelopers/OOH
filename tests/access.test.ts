@@ -30,7 +30,8 @@ it("opens as an existing administrator without a session when login is disabled"
     email: "admin@example.test",
   };
   query.mockResolvedValue([admin]);
-  expect(await currentActor()).toEqual(admin);
+  // Local open workspace only: the actor carries an explicit local marker, never an enrolled second factor.
+  expect(await currentActor()).toEqual({ ...admin, secondFactor: { localOpen: true } });
   expect(getSession).not.toHaveBeenCalled();
 });
 
@@ -61,12 +62,31 @@ it("requires sign-in on a hosted installation even when the old bypass setting i
 it("preserves the signed-in user's role and organization when login is enabled", async () => {
   vi.stubEnv("IBVS_REQUIRE_SIGN_IN", "true");
   getSession.mockResolvedValue({
+    session: { createdAt: new Date(Date.now() - 60000) },
     user: { id: "worker", name: "Worker", email: "worker@example.test" },
   });
-  query.mockResolvedValue([{ organization_id: "worker-org", role: "worker" }]);
+  query.mockResolvedValueOnce([{ organization_id: "worker-org", role: "worker" }]);
+  query.mockResolvedValueOnce([{ enabled: false, verified_at: null }]);
   await expect(currentActor()).resolves.toMatchObject({
     id: "worker",
     organizationId: "worker-org",
     role: "worker",
+    secondFactor: { enrolled: false, verifiedAt: null },
   });
+});
+
+it("derives second-factor state from the database and the session, never from the client", async () => {
+  vi.stubEnv("IBVS_REQUIRE_SIGN_IN", "true");
+  const verifiedAt = new Date(Date.now() - 3600000);
+  const createdAt = new Date(Date.now() - 60000);
+  getSession.mockResolvedValue({ session: { createdAt }, user: { id: "admin", name: "Admin", email: "admin@example.test" } });
+  query.mockResolvedValueOnce([{ organization_id: "org", role: "admin" }]);
+  query.mockResolvedValueOnce([{ enabled: true, verified_at: verifiedAt }]);
+  const actor = await currentActor();
+  expect(actor.secondFactor).toEqual({ enrolled: true, verifiedAt: verifiedAt.getTime(), sessionCreatedAt: createdAt.getTime() });
+  // A session with no creation time gives no session age, so sensitive actions are refused later.
+  getSession.mockResolvedValue({ session: {}, user: { id: "admin", name: "Admin", email: "admin@example.test" } });
+  query.mockResolvedValueOnce([{ organization_id: "org", role: "admin" }]);
+  query.mockResolvedValueOnce([{ enabled: true, verified_at: verifiedAt }]);
+  expect((await currentActor()).secondFactor).toMatchObject({ enrolled: true, sessionCreatedAt: null });
 });

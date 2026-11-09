@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { loginAdmin } from "./admin-login";
 const password = process.env.IBVS_DEMO_PASSWORD;
 test.skip(!password, "Requires the isolated browser-check database");
 test.use({ actionTimeout: 30000 });
@@ -39,7 +40,7 @@ test("admin creates GPS test location, corrects coordinates, worker finds it and
     longitude: 67.01,
     accuracy: 10,
   });
-  await login(page, "admin@demo.ibvs.test");
+  await loginAdmin(page);
   // React attaches its fiber keys to rendered DOM nodes only after hydration; clicks before
   // that are not handled. Waiting for this state avoids both arbitrary delays and retries.
   await page.waitForFunction(() => {
