@@ -74,6 +74,7 @@ export const fieldStrings = {
     angleGuide: "Optional. Photograph the billboard from another side or further away, so the whole face and its supports show.",
     addAngle: "Add an angle photo",
     needAngle: "Add at least one angle photograph before sending.",
+    needs_angle_photo: "This visit was saved before angle photos were required. Your photos are kept. Add one angle photo to send it.",
     challengeInfo:
       "A code from the server, sent while you were online. It helps the review, but does not prove the photo was taken on site.",
     noChallenge:
@@ -208,6 +209,7 @@ export const fieldStrings = {
     angleGuide: "اختياري. صوّر اللوحة من جهة أخرى أو من مسافة أبعد، بحيث يظهر الوجه كاملاً ودعاماته.",
     addAngle: "إضافة صورة بزاوية أخرى",
     needAngle: "أضف صورة واحدة على الأقل بزاوية أخرى قبل الإرسال.",
+    needs_angle_photo: "تم حفظ هذه الزيارة قبل اشتراط صور الزوايا. صورك محفوظة. أضف صورة زاوية واحدة لإرسالها.",
     challengeInfo:
       "رمز أرسله الخادم أثناء اتصالك. يساعد المراجعة، لكنه لا يثبت أن الصورة التُقطت في الموقع.",
     noChallenge:

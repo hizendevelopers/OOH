@@ -25,21 +25,30 @@ export async function migrate() {
       path.join(root(), "db", "migrations", file),
       "utf8",
     );
-    await db.transaction(async (tx) => {
+    const applied = await db.transaction(async (tx) => {
+      // One migration runs at a time across all processes. The lock is released at commit or rollback.
+      await tx.query("SELECT pg_advisory_xact_lock(727001)");
+      // Re-check under the lock: another process may have applied this file meanwhile.
+      const [recorded] = await tx.query("SELECT 1 AS present FROM schema_migrations WHERE name=$1", [file]);
+      if (recorded) return false;
       // Split only at top-level semicolons; preserve PL/pgSQL dollar blocks.
       const statements =
         sql.match(/(?:[^;$]|\$(?!\$)|\$\$[\s\S]*?\$\$)+;?/g) ?? [];
       for (const statement of statements)
         if (statement.trim()) await tx.query(statement);
       await tx.query("INSERT INTO schema_migrations(name) VALUES($1)", [file]);
+      return true;
     });
-    console.log(`Applied ${file}`);
+    if (applied) console.log(`Applied ${file}`);
   }
 }
-if (process.argv[1]?.endsWith("migrate.ts"))
+if (process.argv[1]?.endsWith("migrate.ts")) {
+  // Migrations may use a separate, more privileged connection than the runtime account.
+  if (process.env.DATABASE_MIGRATION_URL) process.env.DATABASE_URL = process.env.DATABASE_MIGRATION_URL;
   migrate()
     .then(closeDb)
     .catch((e) => {
       console.error(e.message);
       process.exit(1);
     });
+}

@@ -125,6 +125,10 @@ describe("configuration", () => {
     expect(() => createEvidenceStoreFromEnv({ NODE_ENV: "production", IBVS_EVIDENCE_STORE: "filesystem" } as NodeJS.ProcessEnv)).toThrow("requires IBVS_EVIDENCE_DIR");
     expect(createEvidenceStoreFromEnv({ NODE_ENV: "production", IBVS_EVIDENCE_STORE: "filesystem", IBVS_EVIDENCE_DIR: dir } as NodeJS.ProcessEnv).kind).toBe("filesystem");
   });
+  it("refuses filesystem evidence on Vercel even when a directory is supplied", async () => {
+    const dir = await testDirectory("evidence-vercel-");
+    expect(() => createEvidenceStoreFromEnv({ NODE_ENV: "production", VERCEL: "1", IBVS_EVIDENCE_STORE: "filesystem", IBVS_EVIDENCE_DIR: dir } as NodeJS.ProcessEnv)).toThrow("Vercel cannot keep local evidence");
+  });
   it("requires complete S3 settings", () => {
     expect(() => createEvidenceStoreFromEnv({ NODE_ENV: "production", IBVS_EVIDENCE_STORE: "s3" } as NodeJS.ProcessEnv)).toThrow("requires bucket");
   });

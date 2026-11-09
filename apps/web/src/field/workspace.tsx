@@ -165,6 +165,7 @@ export default function FieldWorkspace() {
   }, []);
   useEffect(() => {
     if (!store) return;
+    void store.reopenIncomplete().catch(() => setError("storage_unavailable"));
     const subscription = liveQuery(() => store.drafts.toArray()).subscribe({
       next: setDrafts,
       error: () => setError("storage_unavailable"),

@@ -20,6 +20,7 @@
     "ops:restore-drill": "tsx scripts/restore-drill.ts",
     "ops:evidence-check": "tsx scripts/evidence-integrity.ts",
     "db:migrate": "node scripts/with-app-env.mjs scripts/migrate.ts",
+    "db:verify": "node scripts/with-app-env.mjs scripts/verify-migrations.ts",
     "db:seed": "node scripts/with-app-env.mjs scripts/seed.ts",
     "db:bootstrap": "node scripts/with-app-env.mjs scripts/bootstrap-workspace.ts",
     "db:clean-demo": "node scripts/with-app-env.mjs scripts/remove-demo-data.ts",

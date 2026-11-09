@@ -208,6 +208,9 @@ export function createEvidenceStoreFromEnv(env: NodeJS.ProcessEnv = process.env)
     return new S3EvidenceStore(client, bucket, env.IBVS_EVIDENCE_S3_PREFIX || "evidence/");
   }
   if (choice === "filesystem") {
+    // Vercel runs the app without a persistent disk: files written there can disappear.
+    // Refuse regardless of any directory supplied, so evidence cannot be lost silently.
+    if (env.VERCEL) throw new Error("Vercel cannot keep local evidence files. Use the S3 evidence store.");
     // Production filesystem storage needs an explicit single-host decision.
     if (env.NODE_ENV === "production" && env.IBVS_ALLOW_LOCAL_DB !== "true") {
       if (env.IBVS_EVIDENCE_STORE !== "filesystem")

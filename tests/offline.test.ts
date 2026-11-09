@@ -273,3 +273,44 @@ it("skips acknowledged pieces when resuming within a photograph", async () => {
     receipt,
   );
 });
+
+// F-05: visits queued with only front and wide photos, before angle photos were required.
+it("reopens an old two-photo draft for its angle photo without losing photos", async () => {
+  const store = create();
+  await store.start(task);
+  await store.setBrand(task.assignment_id, { kind: "blank", text: "" });
+  for (const kind of ["front", "wide"] as const) {
+    const blob = new Blob([kind], { type: "image/jpeg" });
+    await store.savePhoto(task.assignment_id, {
+      kind,
+      blob,
+      bytes: blob.size,
+      sha256: await digestBlob(blob),
+      capturedAt: new Date().toISOString(),
+      captureMode: "offline",
+      gps: { status: "ok", latitude: 33, longitude: 44, accuracy: 10, observedAt: new Date().toISOString() },
+    });
+  }
+  // Simulate a draft written by the previous version: queued with two photos.
+  await store.drafts.update(task.assignment_id, { state: "queued" });
+
+  expect(await store.reopenIncomplete()).toBe(1);
+  const reopened = (await store.drafts.get(task.assignment_id))!;
+  expect(reopened).toMatchObject({ state: "local_draft", lastError: "needs_angle_photo" });
+  expect(Object.keys(reopened.photos).sort()).toEqual(["front", "wide"]);
+  expect(await store.reopenIncomplete()).toBe(0);
+});
+
+it("never reopens a visit the server has already received", async () => {
+  const store = create();
+  await store.start(task);
+  await store.drafts.update(task.assignment_id, { state: "server_received", serverId: "server-1" });
+  expect(await store.reopenIncomplete()).toBe(0);
+  expect((await store.drafts.get(task.assignment_id))!.state).toBe("server_received");
+});
+
+it("keeps a complete queued visit queued", async () => {
+  const store = await prepared();
+  expect(await store.reopenIncomplete()).toBe(0);
+  expect((await store.drafts.get(task.assignment_id))!.state).toBe("queued");
+});
