@@ -17,6 +17,7 @@ import {
   requireAdmin,
 } from "@/server/service";
 import { csvCell } from "@ibvs/domain";
+import { assignImportedLocations, correctImportedCity, importLocations, pendingFieldCaptures, promoteFieldCapture } from "@/server/location-import";
 export const dynamic = "force-dynamic";
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -47,6 +48,7 @@ async function handle(request: Request) {
         return json({ ...(await migrationStatus(await getDb())), database: process.env.DATABASE_URL ? "postgresql" : "local" });
       }
       if (route === "me") return json(actor);
+      if (route === "locations/captures") return json(await pendingFieldCaptures(actor));
       if (route === "overview") return json(await overview(actor));
       if (route === "inventory") return json(await inventory(actor));
       if (route === "workers") return json(await workers(actor));
@@ -131,6 +133,22 @@ async function handle(request: Request) {
             : await importCsv(actor, input.csv, input.sourceName),
         );
       }
+      // Location import: dry run unless apply is true. Administrator only (checked in the service).
+      if (route === "locations/import") {
+        const input = z.object({ csv: z.string().min(1).max(1000000), apply: z.boolean().default(false) }).parse(body);
+        return json(await importLocations(actor, input.csv, { apply: input.apply }));
+      }
+      if (route === "locations/import/assign") {
+        const input = z
+          .object({ workerId: z.string().min(1).max(100), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), apply: z.boolean().default(false) })
+          .parse(body);
+        return json(await assignImportedLocations(actor, input));
+      }
+      // Supervisor verification of a field-captured position. Never automatic.
+      if (route === "locations/gps/verify")
+        return json(await promoteFieldCapture(actor, z.object({ captureId: z.string().min(1).max(100), reason: z.string() }).parse(body)));
+      if (route === "locations/city")
+        return json(await correctImportedCity(actor, z.object({ faceId: z.string().uuid(), city: z.string(), reason: z.string() }).parse(body)));
       if (route === "assignments")
         return json(await assign(actor, assignmentInput.parse(body)), 201);
       if (route === "workers")

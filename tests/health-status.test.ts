@@ -20,7 +20,7 @@ it("lists every migration file in order, so a new file cannot ship unlisted", as
 
 it("reports a complete schema with the newest required migration as latest", async () => {
   const status = await migrationStatus(await getDb());
-  expect(status).toMatchObject({ complete: true, requiredCount: REQUIRED_MIGRATIONS.length, appliedCount: REQUIRED_MIGRATIONS.length, latest: "009_angle_photos.sql", missing: [] });
+  expect(status).toMatchObject({ complete: true, requiredCount: REQUIRED_MIGRATIONS.length, appliedCount: REQUIRED_MIGRATIONS.length, latest: "011_location_import.sql", missing: [] });
   expect(publicHealth(status)).toEqual({ httpStatus: 200, body: { status: "ok" } });
 });
 

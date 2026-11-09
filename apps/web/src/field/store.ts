@@ -134,7 +134,8 @@ export class FieldStore extends Dexie {
       if (!hasException)
         for (const photo of Object.values(draft.photos)) {
           const result = assessPhotoLocation(photo, draft.task);
-          if (result.status !== "within_area")
+          // first_capture: no verified location yet. The reading is valid and the server checks the whole visit.
+          if (result.status !== "within_area" && result.status !== "first_capture")
             throw new Error(locationMessages[result.status]);
         }
       await this.drafts.update(id, {

@@ -58,12 +58,18 @@ export function Nearby({
             .filter(
               (task) =>
                 ["assigned", "resurvey_requested"].includes(task.status) &&
-                (includeTest || !task.is_test),
+                (includeTest || !task.is_test) &&
+                // Pending GPS locations have no verified position to measure from; they are not listed as nearby.
+                task.latitude !== null &&
+                task.longitude !== null,
             )
             .map((task) => ({
               ...task,
+              latitude: task.latitude as number,
+              longitude: task.longitude as number,
+              uncertainty_m: task.uncertainty_m ?? 0,
               is_test: !!task.is_test,
-              distance_m: metresBetween(fix, task),
+              distance_m: metresBetween(fix, { latitude: task.latitude as number, longitude: task.longitude as number }),
             }))
             .filter((task) => task.distance_m <= 5000)
             .sort((a, b) => a.distance_m - b.distance_m)

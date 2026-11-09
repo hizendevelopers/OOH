@@ -2369,3 +2369,63 @@ td small {
     grid-template-columns: 1fr;
   }
 }
+
+/* City navigation and location status (admin and field dashboards). */
+.city-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.city-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.city-tab[aria-pressed="true"] {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-weight: 600;
+}
+.city-tab strong {
+  font-variant-numeric: tabular-nums;
+}
+.city-tab em {
+  font-style: normal;
+  font-size: 0.8em;
+  color: var(--amber);
+}
+.location-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.location-flag {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.78em;
+  background: var(--surface2);
+  border: 1px solid var(--line);
+}
+.location-flag.warn {
+  color: var(--amber);
+}
+.location-flag.info {
+  color: var(--blue);
+}
+.location-flag.ok {
+  color: #15803d;
+}
+.pending-gps {
+  color: var(--amber);
+}

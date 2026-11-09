@@ -433,7 +433,7 @@ test("supervisors review adjacent faces, explicitly version references and reque
     .getByRole("button", { name: "Open inspection", exact: true })
     .click();
   await page.context().grantPermissions(["camera", "geolocation"]);
-  await page.context().setGeolocation({ latitude: task!.latitude, longitude: task!.longitude, accuracy: 10 });
+  await page.context().setGeolocation({ latitude: task!.latitude!, longitude: task!.longitude!, accuracy: 10 });
   await page
     .getByRole("button", { name: "Start live camera", exact: true })
     .click();
