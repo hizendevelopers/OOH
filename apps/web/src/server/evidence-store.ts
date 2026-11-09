@@ -191,7 +191,9 @@ export class S3EvidenceStore implements EvidenceStore {
 let configured: EvidenceStore | null = null;
 
 export function createEvidenceStoreFromEnv(env: NodeJS.ProcessEnv = process.env): EvidenceStore {
-  const choice = env.IBVS_EVIDENCE_STORE ?? (env.NODE_ENV === "production" ? "s3" : "filesystem");
+  // Hosted production (not the local test server) defaults to S3-compatible storage.
+  const hosted = env.NODE_ENV === "production" && env.IBVS_ALLOW_LOCAL_DB !== "true";
+  const choice = env.IBVS_EVIDENCE_STORE ?? (hosted ? "s3" : "filesystem");
   if (choice === "s3") {
     const bucket = env.IBVS_EVIDENCE_S3_BUCKET;
     const endpoint = env.IBVS_EVIDENCE_S3_ENDPOINT;
