@@ -1,3 +1,4 @@
+import { requireAccess } from "@/server/mfa-gate";
 import { z } from "zod";
 import { currentActor } from "@/server/access";
 import { ApiError } from "@/server/service";
@@ -10,7 +11,11 @@ export async function GET(request: Request) {
     if (!params.has("latitude") || !params.has("longitude"))
       throw new ApiError(422, "Latitude and longitude required");
     return Response.json(
-      await nearbyLocations(await currentActor(), Object.fromEntries(params)),
+      await (async () => {
+        const actor = await currentActor();
+        requireAccess(actor, "ordinary");
+        return nearbyLocations(actor, Object.fromEntries(params));
+      })(),
       { headers },
     );
   } catch (error) {

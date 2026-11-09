@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { loginAdmin } from "./admin-login";
 import { randomBytes } from "node:crypto";
 const password = process.env.IBVS_DEMO_PASSWORD;
 test.skip(!password, "Requires isolated browser-check database");
@@ -36,7 +37,7 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
   const email = `worker-${suffix}@example.test`;
   const workerName = `Field Worker ${suffix}`;
   const workerPassword = randomBytes(24).toString("base64url");
-  await login(page, baseURL!, "admin@demo.ibvs.test", password!);
+  await loginAdmin(page);
   await expect(
     page.getByText("Billboard faces", { exact: true }),
   ).toBeVisible();

@@ -1,3 +1,4 @@
+import { purposeForMethod, requireAccess } from "@/server/mfa-gate";
 import { z } from "zod";
 import { currentActor } from "@/server/access";
 import { ApiError, requireAdmin } from "@/server/service";
@@ -22,6 +23,7 @@ async function handle(request: Request) {
   const requestId = crypto.randomUUID();
   try {
     const actor = await currentActor();
+    requireAccess(actor, purposeForMethod(request.method));
     requireAdmin(actor);
     const url = new URL(request.url),
       segments = url.pathname.split("/").filter(Boolean).slice(2);

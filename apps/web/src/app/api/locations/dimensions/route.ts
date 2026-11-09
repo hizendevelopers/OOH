@@ -1,3 +1,4 @@
+import { purposeForMethod, requireAccess } from "@/server/mfa-gate";
 import { z } from "zod";
 import { currentActor } from "@/server/access";
 import { ApiError } from "@/server/service";
@@ -15,6 +16,7 @@ const json = (value: unknown, status = 200) =>
 async function handle(request: Request) {
   try {
     const actor = await currentActor();
+    requireAccess(actor, purposeForMethod(request.method));
     if (request.method === "GET")
       return json(
         await dimensionHistory(

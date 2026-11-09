@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { loginAdmin } from "./admin-login";
 import sharp from "sharp";
 import { randomBytes, createHash, randomUUID } from "node:crypto";
 import type { Assignment } from "../../apps/web/src/server/service";
@@ -46,7 +47,7 @@ test("supervisors review adjacent faces, explicitly version references and reque
   expect(task?.worker_id).toBeTruthy();
   const adminContext = await browser.newContext(),
     admin = await adminContext.newPage();
-  await login(admin, "admin@demo.ibvs.test");
+  await loginAdmin(admin);
   const kinds = ["front", "wide", "angle_1"] as const;
   const bytes = await Promise.all(
     [0, 1, 2].map(async () =>
@@ -303,7 +304,7 @@ test("supervisors review adjacent faces, explicitly version references and reque
   ).toBeVisible();
   const secondContext = await browser.newContext(),
     second = await secondContext.newPage();
-  await login(second, "reviewer2@demo.ibvs.test");
+  await loginAdmin(second, "reviewer2@demo.ibvs.test");
   await second.goto("/review");
   await second.getByLabel("Status", { exact: true }).selectOption("ambiguous");
   await second

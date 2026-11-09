@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { currentActor, signInRequired } from "@/server/access";
+import { evaluateAccess } from "@/server/mfa-gate";
 import { ApiError } from "@/server/service";
 import Workspace from "@/components/workspace";
 import { ConfigurationError } from "@/server/env";
@@ -22,6 +23,12 @@ export default async function Page() {
         ...(e instanceof ConfigurationError ? { message: e.message } : {}),
       }),
     );
+  }
+  if (actor) {
+    // Administrators must have a verified second factor before the workspace opens.
+    const decision = evaluateAccess(actor, "ordinary");
+    if (!decision.allowed)
+      redirect(decision.code === "MFA_SETUP_REQUIRED" ? "/security" : "/sign-in?reauth=1");
   }
   if (actor) return <Workspace actor={actor} signInRequired={requiresSignIn} />;
   return (

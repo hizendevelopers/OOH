@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import type { Actor } from "../packages/domain/src";
+import type { ServerActor } from "../apps/web/src/server/mfa-gate";
 import { testDirectory } from "../scripts/test-directory";
 import { migrate } from "../scripts/migrate";
 import { closeDb, getDb } from "../apps/web/src/server/db";
@@ -16,7 +17,9 @@ import {
 import { assessFieldCapture, type CapturePhoto } from "../apps/web/src/server/location-capture";
 
 const fixture = readFileSync(path.join(__dirname, "fixtures", "fizzion-sample.csv"), "utf8");
-const admin: Actor = { id: "import-admin", organizationId: "import-org", role: "admin", name: "Admin", email: "admin@import.invalid" };
+const freshFactor = (): ServerActor["secondFactor"] => ({ enrolled: true, verifiedAt: Date.now() - 3600000, sessionCreatedAt: Date.now() - 60000 });
+const admin: ServerActor = {
+  secondFactor: freshFactor(), id: "import-admin", organizationId: "import-org", role: "admin", name: "Admin", email: "admin@import.invalid" };
 const worker: Actor = { id: "import-worker", organizationId: "import-org", role: "worker", name: "Field Worker", email: "worker@import.invalid" };
 const inactive: Actor = { ...worker, id: "import-inactive" };
 const otherOrg: Actor = { ...admin, id: "import-foreign-admin", organizationId: "import-foreign" };
@@ -41,6 +44,10 @@ beforeAll(async () => {
 });
 afterAll(closeDb);
 
+async function receivedVisit(db: Awaited<ReturnType<typeof getDb>>, inspectionId: string, organizationId: string, assignmentId: string, faceId: string, workerId: string) {
+  await db.query("INSERT INTO inspections(id,organization_id,assignment_id,face_id,worker_id,operation_id,payload_hash,metadata,status,receipt_id,received_at) VALUES($1,$2,$3,$4,$5,$6,'x','{}','server_received',$7,now())", [inspectionId, organizationId, assignmentId, faceId, workerId, randomUUID(), randomUUID()]);
+  await db.query("INSERT INTO media_evidence(id,inspection_id,kind,expected_bytes,expected_hash,receipt_id,received_at) VALUES($1,$2,'front',10,'a',$3,now()),($4,$2,'wide',10,'b',$5,now())", [randomUUID(), inspectionId, randomUUID(), randomUUID(), randomUUID()]);
+}
 const byCode = <T extends { code: string }>(rows: T[], code: string) => rows.find((r) => r.code === code)!;
 
 it("classifies each row without inventing coordinates, dimensions or city names", () => {
@@ -130,22 +137,24 @@ it("isolates organizations: another organization's administrator sees none of th
 });
 
 it("assigns imported locations only to an active worker identified by database ID", async () => {
-  await expect(assignImportedLocations(admin, { workerId: "no-such-user", dueDate: "2027-01-31", apply: true })).rejects.toThrow("No active worker");
-  await expect(assignImportedLocations(admin, { workerId: inactive.id, dueDate: "2027-01-31", apply: true })).rejects.toThrow("No active worker");
-  await expect(assignImportedLocations(admin, { workerId: admin.id, dueDate: "2027-01-31", apply: true })).rejects.toThrow("No active worker");
-  await expect(assignImportedLocations(worker, { workerId: worker.id, dueDate: "2027-01-31", apply: true })).rejects.toThrow("Administrator access required");
+  await expect(assignImportedLocations(admin, { workerId: "no-such-user", expectedEmail: worker.id + "@qa.invalid", dueDate: "2027-01-31", apply: true })).rejects.toThrow("No active worker");
+  await expect(assignImportedLocations(admin, { workerId: inactive.id, expectedEmail: inactive.id + "@qa.invalid", dueDate: "2027-01-31", apply: true })).rejects.toThrow("No active worker");
+  await expect(assignImportedLocations(admin, { workerId: admin.id, expectedEmail: admin.id + "@qa.invalid", dueDate: "2027-01-31", apply: true })).rejects.toThrow("No active worker");
+  await expect(assignImportedLocations(worker, { workerId: worker.id, expectedEmail: worker.id + "@qa.invalid", dueDate: "2027-01-31", apply: true })).rejects.toThrow("Administrator access required");
 
-  const preview = await assignImportedLocations(admin, { workerId: worker.id, dueDate: "2027-01-31", apply: false });
+  // A wrong expected email refuses the assignment, even when the ID is a real active worker.
+  await expect(assignImportedLocations(admin, { workerId: worker.id, expectedEmail: "someone.else@example.invalid", dueDate: "2027-01-31", apply: true })).rejects.toThrow("does not match");
+  const preview = await assignImportedLocations(admin, { workerId: worker.id, expectedEmail: worker.id + "@qa.invalid", dueDate: "2027-01-31", apply: false });
   expect(preview).toMatchObject({ wouldAssign: 8, assigned: 0 });
 
-  const applied = await assignImportedLocations(admin, { workerId: worker.id, dueDate: "2027-01-31", apply: true });
+  const applied = await assignImportedLocations(admin, { workerId: worker.id, expectedEmail: worker.id + "@qa.invalid", dueDate: "2027-01-31", apply: true });
   expect(applied).toMatchObject({ assigned: 8, alreadyAssigned: 0 });
   // The deadline the administrator set is the one the worker sees, for every assigned location.
   const mine = (await assignments(worker)).filter((row) => row.worker_id === worker.id);
   expect(mine.length).toBeGreaterThanOrEqual(8);
   for (const row of mine) expect(row.due_date).toBe("2027-01-31");
   expect(byCode(await inventory(admin), "IQ-TST-0005")).toMatchObject({ gps_status: "pending_gps", dimension_status: "pending_measurement" });
-  const again = await assignImportedLocations(admin, { workerId: worker.id, dueDate: "2027-01-31", apply: true });
+  const again = await assignImportedLocations(admin, { workerId: worker.id, expectedEmail: worker.id + "@qa.invalid", dueDate: "2027-01-31", apply: true });
   expect(again).toMatchObject({ assigned: 0, alreadyAssigned: 8 });
   const db = await getDb();
   const [{ n }] = await db.query<{ n: string }>(
@@ -264,10 +273,7 @@ it("never promotes a field capture automatically; a supervisor must verify it wi
   const [assignment] = await db.query<{ id: string }>("SELECT id FROM assignments WHERE face_id=$1", [kura.id]);
   // Capture recorded during a visit (inspection row created directly, since the visit pipeline needs uploaded evidence).
   const inspectionId = randomUUID();
-  await db.query(
-    "INSERT INTO inspections(id,organization_id,assignment_id,face_id,worker_id,operation_id,payload_hash,metadata) VALUES($1,$2,$3,$4,$5,$6,'x','{}')",
-    [inspectionId, admin.organizationId, assignment.id, kura.id, worker.id, randomUUID()],
-  );
+  await receivedVisit(db, inspectionId, admin.organizationId, assignment.id, kura.id, worker.id);
   const captureId = randomUUID();
   await db.query(
     "INSERT INTO location_field_captures(id,organization_id,face_id,inspection_id,worker_id,latitude,longitude,accuracy_m,captured_at) VALUES($1,$2,$3,$4,$5,33.31,44.13,6,now())",
@@ -291,10 +297,7 @@ it("promoting an approximate location keeps its original supplied coordinates as
   const approx = byCode(rows, "IQ-TST-0002");
   const [assignment] = await db.query<{ id: string }>("SELECT id FROM assignments WHERE face_id=$1", [approx.id]);
   const inspectionId = randomUUID();
-  await db.query(
-    "INSERT INTO inspections(id,organization_id,assignment_id,face_id,worker_id,operation_id,payload_hash,metadata) VALUES($1,$2,$3,$4,$5,$6,'x','{}')",
-    [inspectionId, admin.organizationId, assignment.id, approx.id, worker.id, randomUUID()],
-  );
+  await receivedVisit(db, inspectionId, admin.organizationId, assignment.id, approx.id, worker.id);
   const captureId = randomUUID();
   await db.query(
     "INSERT INTO location_field_captures(id,organization_id,face_id,inspection_id,worker_id,latitude,longitude,accuracy_m,captured_at) VALUES($1,$2,$3,$4,$5,33.2999,44.1001,5,now())",
@@ -307,4 +310,77 @@ it("promoting an approximate location keeps its original supplied coordinates as
   );
   expect(record).toEqual({ reference_latitude: 33.3, reference_longitude: 44.1, gps_status: "verified" });
   expect(byCode(await inventory(admin), "IQ-TST-0002").latitude).toBe(33.2999);
+});
+
+async function capturedVisit(faceCode: string, capture: { latitude: number; longitude: number; accuracy: number | null; received: boolean }) {
+  const db = await getDb();
+  const face = byCode(await inventory(admin), faceCode);
+  const [assignment] = await db.query<{ id: string }>("SELECT id FROM assignments WHERE face_id=$1", [face.id]);
+  const inspectionId = randomUUID();
+  if (capture.received) await receivedVisit(db, inspectionId, admin.organizationId, assignment.id, face.id, worker.id);
+  else await db.query("INSERT INTO inspections(id,organization_id,assignment_id,face_id,worker_id,operation_id,payload_hash,metadata) VALUES($1,$2,$3,$4,$5,$6,'x','{}')", [inspectionId, admin.organizationId, assignment.id, face.id, worker.id, randomUUID()]);
+  const captureId = randomUUID();
+  await db.query(
+    "INSERT INTO location_field_captures(id,organization_id,face_id,inspection_id,worker_id,latitude,longitude,accuracy_m,captured_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,now())",
+    [captureId, admin.organizationId, face.id, inspectionId, worker.id, capture.latitude, capture.longitude, capture.accuracy],
+  );
+  return { captureId, faceId: face.id };
+}
+
+it("refuses a capture above the accuracy limit and a visit without server-received evidence", async () => {
+  const { promoteFieldCapture } = await import("../apps/web/src/server/location-import");
+  const weak = await capturedVisit("IQ-TST-0003", { latitude: 33.31, longitude: 44.13, accuracy: 60, received: true });
+  await expect(promoteFieldCapture(admin, { captureId: weak.captureId, reason: "Supervisor reviewed the photos" })).rejects.toThrow("above the 50 m limit");
+  const unreceived = await capturedVisit("IQ-TST-0006", { latitude: 33.31, longitude: 44.13, accuracy: 10, received: false });
+  await expect(promoteFieldCapture(admin, { captureId: unreceived.captureId, reason: "Supervisor reviewed the photos" })).rejects.toThrow("evidence");
+  const db = await getDb();
+  const [{ n }] = await db.query<{ n: string }>("SELECT count(*)::text AS n FROM source_coordinates WHERE face_id=(SELECT id FROM billboard_faces WHERE organization_id=$1 AND code='IQ-TST-0003')", [admin.organizationId]);
+  expect(n).toBe("0");
+});
+
+it("keeps an outside-Iraq capture out of verification unless a documented boundary exception is recorded", async () => {
+  const { promoteFieldCapture } = await import("../apps/web/src/server/location-import");
+  const db = await getDb();
+  const outside = await capturedVisit("IQ-TST-0009", { latitude: 33.5138, longitude: 36.2765, accuracy: 10, received: true });
+  await expect(promoteFieldCapture(admin, { captureId: outside.captureId, reason: "Supervisor reviewed the photos" })).rejects.toThrow("outside the Iraq boundary");
+  await expect(promoteFieldCapture(admin, { captureId: outside.captureId, reason: "Supervisor reviewed the photos", boundaryException: "short" })).rejects.toThrow("boundary exception");
+  const done = await promoteFieldCapture(admin, {
+    captureId: outside.captureId,
+    reason: "Supervisor reviewed the photos",
+    boundaryException: "Border-area pin confirmed by supervisor on site visit",
+  });
+  expect(done).toMatchObject({ gpsStatus: "verified", previousStatus: "pending_gps", boundaryException: true });
+  const [history] = await db.query<{ previous_gps_status: string; previous_reference_latitude: number | null; promoted_latitude: number; accuracy_m: number; inside_iraq: boolean; boundary_exception: boolean; reviewer_id: string; reason: string }>(
+    "SELECT previous_gps_status,previous_reference_latitude,promoted_latitude,accuracy_m,inside_iraq,boundary_exception,reviewer_id,reason FROM location_gps_promotions WHERE capture_id=$1",
+    [outside.captureId],
+  );
+  expect(history).toMatchObject({ previous_gps_status: "pending_gps", previous_reference_latitude: null, promoted_latitude: 33.5138, accuracy_m: 10, inside_iraq: false, boundary_exception: true, reviewer_id: admin.id });
+  await expect(db.query("UPDATE location_gps_promotions SET reason='changed' WHERE capture_id=$1", [outside.captureId])).rejects.toThrow("Immutable record");
+});
+
+it("does not let an account from another organization be assigned locations", async () => {
+  const db = await getDb();
+  await db.query('INSERT INTO "user"(id,name,email) VALUES($1,$2,$3)', ["import-foreign-worker", "Foreign Worker", "import-foreign-worker@qa.invalid"]);
+  await db.query("INSERT INTO organization_members(organization_id,user_id,role) VALUES($1,$2,'worker')", ["import-foreign", "import-foreign-worker"]);
+  await db.query("INSERT INTO worker_profiles(user_id,organization_id,active) VALUES($1,$2,true)", ["import-foreign-worker", "import-foreign"]);
+  await expect(
+    assignImportedLocations(admin, { workerId: "import-foreign-worker", expectedEmail: "import-foreign-worker@qa.invalid", dueDate: "2027-01-31", apply: true }),
+  ).rejects.toThrow("No active worker");
+});
+
+it("does not reassign a location whose assignment is already approved, on an ordinary rerun", async () => {
+  const db = await getDb();
+  const face = byCode(await inventory(admin), "IQ-TST-0002");
+  await db.query("UPDATE assignments SET status='approved' WHERE face_id=$1", [face.id]);
+  const dry = await assignImportedLocations(admin, { workerId: worker.id, expectedEmail: worker.id + "@qa.invalid", dueDate: "2027-01-31", apply: false });
+  expect(dry.wouldAssign).toBe(0);
+  const applied = await assignImportedLocations(admin, { workerId: worker.id, expectedEmail: worker.id + "@qa.invalid", dueDate: "2027-01-31", apply: true });
+  expect(applied.assigned).toBe(0);
+  const [{ n }] = await db.query<{ n: string }>("SELECT count(*)::text AS n FROM assignments WHERE face_id=$1", [face.id]);
+  expect(n).toBe("1");
+});
+
+it("refuses an impossible due date such as 31 February", async () => {
+  await expect(assignImportedLocations(admin, { workerId: worker.id, expectedEmail: worker.id + "@qa.invalid", dueDate: "2026-02-31", apply: false })).rejects.toThrow();
+  await expect(assignImportedLocations(admin, { workerId: worker.id, expectedEmail: worker.id + "@qa.invalid", dueDate: "2027-01-31", apply: false })).resolves.toMatchObject({ worker: { id: worker.id } });
 });

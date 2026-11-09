@@ -4,6 +4,7 @@ import { getDb } from "./db";
 import { ApiError } from "./service";
 import type { Actor } from "@ibvs/domain";
 import { environment } from "./env";
+import type { ServerActor } from "./mfa-gate";
 
 export function signInRequired() {
   const env = environment();
@@ -14,7 +15,9 @@ export function signInRequired() {
   );
 }
 
-export async function currentActor(): Promise<Actor> {
+// Every value here is read from the database or the authenticated session on the server.
+// Client-supplied flags and claims are never used.
+export async function currentActor(): Promise<ServerActor> {
   if (!signInRequired()) {
     const [admin] = await (
       await getDb()
@@ -32,23 +35,35 @@ export async function currentActor(): Promise<Actor> {
         503,
         "Provision an administrator to open the workspace",
       );
-    return admin;
+    return { ...admin, secondFactor: { localOpen: true } };
   }
   const auth = await getAuth();
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) throw new ApiError(401, "Sign in required");
-  const [member] = await (
-    await getDb()
-  ).query<{ organization_id: string; role: "admin" | "worker" }>(
+  const result = await auth.api.getSession({ headers: await headers() });
+  if (!result?.session || !result.user) throw new ApiError(401, "Sign in required");
+  const db = await getDb();
+  const [member] = await db.query<{ organization_id: string; role: "admin" | "worker" }>(
     "SELECT organization_id,role FROM organization_members WHERE user_id=$1",
-    [session.user.id],
+    [result.user.id],
   );
   if (!member) throw new ApiError(403, "No active organization membership");
+  const [security] = await db.query<{ enabled: boolean | null; verified_at: Date | string | null }>(
+    `SELECT u."twoFactorEnabled" AS enabled,
+       (SELECT max(t."verifiedAt") FROM "twoFactor" t WHERE t."userId" = u.id AND t.verified) AS verified_at
+     FROM "user" u WHERE u.id = $1`,
+    [result.user.id],
+  );
+  const verifiedAt = security?.verified_at ? new Date(security.verified_at).getTime() : null;
+  const createdAt = result.session.createdAt ? new Date(result.session.createdAt).getTime() : null;
   return {
-    id: session.user.id,
+    id: result.user.id,
     organizationId: member.organization_id,
     role: member.role,
-    name: session.user.name,
-    email: session.user.email,
+    name: result.user.name,
+    email: result.user.email,
+    secondFactor: {
+      enrolled: security?.enabled === true,
+      verifiedAt: verifiedAt !== null && Number.isFinite(verifiedAt) ? verifiedAt : null,
+      sessionCreatedAt: createdAt !== null && Number.isFinite(createdAt) ? createdAt : null,
+    },
   };
 }
