@@ -17,6 +17,7 @@ import {
   requireAdmin,
 } from "@/server/service";
 import { csvCell } from "@ibvs/domain";
+import { assignImportedLocations, correctImportedCity, importLocations, pendingFieldCaptures, promoteFieldCapture } from "@/server/location-import";
 export const dynamic = "force-dynamic";
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -25,20 +26,14 @@ async function handle(request: Request) {
   const route = new URL(request.url).pathname.replace("/api/", "");
   try {
     if (route === "health") {
-      const db = await getDb();
-      const migrations = await db.query(
-        "SELECT name FROM schema_migrations WHERE name=$1",
-        ["006_location_management.sql"],
-      );
-      if (!migrations.length)
-        throw new ApiError(503, "Database migrations are incomplete");
-      await db.query("SELECT id FROM organizations LIMIT 1");
-      return json({
-        status: "ok",
-        service: "ibvs",
-        database: process.env.DATABASE_URL ? "postgresql" : "local",
-        migrations: "006_location_management.sql",
-      });
+      // Public: minimal answer only. Migration and database details need administrator access.
+      try {
+        const { publicHealth, migrationStatus } = await import("@/server/migration-status");
+        const result = publicHealth(await migrationStatus(await getDb()));
+        return json(result.body, result.httpStatus);
+      } catch {
+        return json({ status: "unavailable" }, 503);
+      }
     }
     const actor = await currentActor();
     if (route === "workers" && request.method === "POST") {
@@ -47,7 +42,13 @@ async function handle(request: Request) {
       requireAdmin(actor);
     }
     if (request.method === "GET") {
+      if (route === "admin/health") {
+        requireAdmin(actor);
+        const { migrationStatus } = await import("@/server/migration-status");
+        return json({ ...(await migrationStatus(await getDb())), database: process.env.DATABASE_URL ? "postgresql" : "local" });
+      }
       if (route === "me") return json(actor);
+      if (route === "locations/captures") return json(await pendingFieldCaptures(actor));
       if (route === "overview") return json(await overview(actor));
       if (route === "inventory") return json(await inventory(actor));
       if (route === "workers") return json(await workers(actor));
@@ -132,6 +133,22 @@ async function handle(request: Request) {
             : await importCsv(actor, input.csv, input.sourceName),
         );
       }
+      // Location import: dry run unless apply is true. Administrator only (checked in the service).
+      if (route === "locations/import") {
+        const input = z.object({ csv: z.string().min(1).max(1000000), apply: z.boolean().default(false) }).parse(body);
+        return json(await importLocations(actor, input.csv, { apply: input.apply }));
+      }
+      if (route === "locations/import/assign") {
+        const input = z
+          .object({ workerId: z.string().min(1).max(100), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), apply: z.boolean().default(false) })
+          .parse(body);
+        return json(await assignImportedLocations(actor, input));
+      }
+      // Supervisor verification of a field-captured position. Never automatic.
+      if (route === "locations/gps/verify")
+        return json(await promoteFieldCapture(actor, z.object({ captureId: z.string().min(1).max(100), reason: z.string() }).parse(body)));
+      if (route === "locations/city")
+        return json(await correctImportedCity(actor, z.object({ faceId: z.string().uuid(), city: z.string(), reason: z.string() }).parse(body)));
       if (route === "assignments")
         return json(await assign(actor, assignmentInput.parse(body)), 201);
       if (route === "workers")
@@ -147,11 +164,15 @@ async function handle(request: Request) {
           settings: error.fields,
         }),
       );
+      // Public health exposes no setting names. Operators see them in server logs.
+      if (route === "health") {
+        console.error(JSON.stringify({ category: "configuration_error", requestId, settings: error.fields }));
+        return json({ status: "unavailable" }, 503);
+      }
       return json(
         {
           error: "Server configuration is incomplete.",
           code: "CONFIGURATION_ERROR",
-          ...(route === "health" ? { settings: error.fields } : {}),
           requestId,
         },
         503,

@@ -25,7 +25,11 @@ export const nearbyInput = z.object({
     .default("false")
     .transform((v) => v === "true"),
 });
+// Nearby results always have a verified coordinate (inner join), so the coordinate fields are not null here.
 export type NearbyLocation = Assignment & {
+  latitude: number;
+  longitude: number;
+  uncertainty_m: number;
   distance_m: number;
   is_test: boolean;
 };
@@ -60,8 +64,9 @@ export async function nearbyLocations(actor: Actor, raw: unknown) {
   );
   const locations: NearbyLocation[] = rows
     .map((row) => ({
-      ...row,
-      distance_m: row.distance_m ?? metresBetween(input, row),
+      ...(row as NearbyLocation),
+      // The query joins verified coordinates with an inner join, so these values are present.
+      distance_m: row.distance_m ?? metresBetween(input, row as { latitude: number; longitude: number }),
     }))
     .filter((row) => row.distance_m <= input.radiusM)
     .sort((a, b) => a.distance_m - b.distance_m || a.code.localeCompare(b.code))

@@ -38,6 +38,7 @@ import type { Face, Assignment } from "@/server/service";
 import { LocationEditor } from "./location-editor";
 import { LocationMap } from "./location-map";
 import { WorkerManagement } from "./worker-management";
+import { CityTabs, LocationFlags, cityCounts, needsLocationAttention } from "./city-tabs";
 type Tab = "overview" | "inventory" | "assignments" | "workers" | "audit";
 type Summary = {
   faces: number;
@@ -262,6 +263,9 @@ export default function Workspace({
   );
   const [locationKind, setLocationKind] = useState("all");
   const [exceptionTask, setExceptionTask] = useState<Assignment | null>(null);
+  const [cityFix, setCityFix] = useState<Face | null>(null);
+  const [cityName, setCityName] = useState("");
+  const [cityReason, setCityReason] = useState("");
   const [exceptionReason, setExceptionReason] = useState("");
   const [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
@@ -884,24 +888,18 @@ export default function Workspace({
                         placeholder={t.search}
                       />
                     </label>
-                    <select
-                      aria-label={t.city}
+                    <CityTabs
+                      label={locale === "ar" ? "المدن" : "Cities"}
+                      allLabel={locale === "ar" ? "كل المدن" : "All cities"}
+                      total={(tab === "inventory" ? faces : tasks).length}
+                      cities={cityCounts(
+                        tab === "inventory" ? faces : tasks,
+                        tab === "inventory" ? (f) => needsLocationAttention(f) : () => false,
+                      )}
                       value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                    >
-                      <option value="">{t.all}</option>
-                      {[
-                        ...new Set(
-                          (tab === "inventory" ? faces : tasks).map(
-                            (f) => f.city,
-                          ),
-                        ),
-                      ]
-                        .sort()
-                        .map((c) => (
-                          <option key={c}>{c}</option>
-                        ))}
-                    </select>
+                      onChange={setCity}
+                      ar={locale === "ar"}
+                    />
                     {tab === "inventory" && (
                       <select
                         aria-label={
@@ -1017,8 +1015,46 @@ export default function Workspace({
                                 <td>
                                   <strong>{f.city}</strong>
                                   <small>{f.zone || "—"}</small>
+                                  {f.city_label && f.city_label !== f.city && (
+                                    <small>
+                                      {locale === "ar" ? "الأصلي" : "Original"}: <bdi>{f.city_label}</bdi>
+                                    </small>
+                                  )}
+                                  {f.city_status && f.city_status !== "confirmed" && (
+                                    <button
+                                      className="text-button"
+                                      onClick={() => {
+                                        setCityFix(f);
+                                        setCityName("");
+                                        setCityReason("");
+                                      }}
+                                    >
+                                      {locale === "ar" ? "تصحيح المدينة" : "Correct city"}
+                                    </button>
+                                  )}
                                 </td>
                                 <td>
+                                  {f.latitude === null || f.longitude === null ? (
+                                    <>
+                                      <strong className="pending-gps">
+                                        {locale === "ar" ? "بانتظار الموقع GPS" : "Pending GPS"}
+                                      </strong>
+                                      <small>
+                                        {locale === "ar"
+                                          ? "يُسجَّل الموقع من الزيارة الأولى"
+                                          : "Captured on the first visit"}
+                                      </small>
+                                      {f.reference_latitude !== null && f.reference_longitude !== null && (
+                                        <small>
+                                          {locale === "ar" ? "مرجع غير موثّق" : "Unverified reference"}:{" "}
+                                          <bdi>
+                                            {f.reference_latitude}, {f.reference_longitude}
+                                          </bdi>
+                                        </small>
+                                      )}
+                                    </>
+                                  ) : (
+                                  <>
                                   <bdi className="mono">
                                     {f.latitude.toFixed(5)},{" "}
                                     {f.longitude.toFixed(5)}
@@ -1050,6 +1086,8 @@ export default function Workspace({
                                   {f.description && (
                                     <small>{f.description}</small>
                                   )}
+                                  </>
+                                  )}
                                 </td>
                                 <td>
                                   <bdi>{f.orientation}</bdi>
@@ -1059,6 +1097,7 @@ export default function Workspace({
                                     status={f.status}
                                     ar={locale === "ar"}
                                   />
+                                  <LocationFlags item={f} ar={locale === "ar"} />
                                 </td>
                               </tr>
                             ))}
@@ -1106,6 +1145,7 @@ export default function Workspace({
                             <p>
                               {a.city} · {a.zone}
                             </p>
+                            <LocationFlags item={a} ar={locale === "ar"} />
                             <div className="task-bottom">
                               <span>
                                 <Clock size={14} />
@@ -1202,12 +1242,22 @@ export default function Workspace({
                       </dd>
                     </div>
                   </dl>
-                  <LocationMap
-                    latitude={detail.latitude}
-                    longitude={detail.longitude}
-                    uncertainty={detail.uncertainty_m}
-                    ar={locale === "ar"}
-                  />
+                  {detail.latitude !== null &&
+                  detail.longitude !== null &&
+                  detail.uncertainty_m !== null ? (
+                    <LocationMap
+                      latitude={detail.latitude}
+                      longitude={detail.longitude}
+                      uncertainty={detail.uncertainty_m}
+                      ar={locale === "ar"}
+                    />
+                  ) : (
+                    <p className="notice">
+                      {locale === "ar"
+                        ? "لا يوجد موقع موثّق لهذه اللوحة بعد. سيُسجَّل الموقع أثناء الزيارة الأولى."
+                        : "No verified location yet. The position is recorded during the first visit."}
+                    </p>
+                  )}
                   {detail.location_exception && (
                     <div className="notice warning">
                       {locale === "ar"
@@ -1378,6 +1428,77 @@ export default function Workspace({
               void load();
             }}
           />
+        </Modal>
+      )}
+      {cityFix && (
+        <Modal
+          title={locale === "ar" ? "تصحيح مدينة الموقع" : "Correct location city"}
+          close={() => {
+            if (!busy) setCityFix(null);
+          }}
+          closeLabel={t.close}
+        >
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setBusy(true);
+              setFormError("");
+              try {
+                await api("locations/city", {
+                  faceId: cityFix.id,
+                  city: cityName,
+                  reason: cityReason,
+                });
+                setCityFix(null);
+                setToast(locale === "ar" ? "تم تصحيح المدينة وحفظ السجل." : "City corrected and recorded in history.");
+                await load();
+              } catch (error) {
+                setFormError((error as Error).message);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <p>
+              <bdi>{cityFix.code}</bdi> · {locale === "ar" ? "الأصلي" : "Original"}:{" "}
+              <bdi>{cityFix.city_label}</bdi>
+            </p>
+            <label>
+              {locale === "ar" ? "المدينة الصحيحة" : "Correct city"}
+              <input
+                value={cityName}
+                onChange={(e) => setCityName(e.target.value)}
+                maxLength={120}
+                required
+                disabled={busy}
+              />
+            </label>
+            <label>
+              {locale === "ar" ? "السبب (١٠ أحرف على الأقل)" : "Reason (at least 10 characters)"}
+              <textarea
+                value={cityReason}
+                onChange={(e) => setCityReason(e.target.value)}
+                minLength={10}
+                maxLength={1000}
+                required
+                disabled={busy}
+              />
+            </label>
+            {formError && (
+              <div className="notice danger" role="alert">
+                {formError}
+              </div>
+            )}
+            <div className="modal-actions">
+              <button className="secondary" type="button" disabled={busy} onClick={() => setCityFix(null)}>
+                {t.cancel}
+              </button>
+              <button className="primary" type="submit" disabled={busy}>
+                {busy ? <LoaderCircle className="spin" size={16} /> : null}
+                {locale === "ar" ? "حفظ التصحيح" : "Save correction"}
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
       {exceptionTask && (

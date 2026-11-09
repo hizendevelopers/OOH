@@ -39,16 +39,19 @@ export type ReviewInspection = {
   zone: string;
   orientation: string;
   is_test: boolean;
-  latitude: number;
-  longitude: number;
-  uncertainty_m: number;
-  original_latitude: number;
-  original_longitude: number;
-  original_uncertainty_m: number;
+  // Null while the location is pending GPS: there is no verified coordinate to compare against.
+  latitude: number | null;
+  longitude: number | null;
+  uncertainty_m: number | null;
+  original_latitude: number | null;
+  original_longitude: number | null;
+  original_uncertainty_m: number | null;
   worker_name: string;
   assigned_face_id: string;
   parent_inspection_id: string | null;
 };
+// A record whose location has a verified coordinate, so distance checks can run.
+type LocatedInspection = ReviewInspection & { latitude: number; longitude: number; uncertainty_m: number };
 export async function inspectionRecord(
   organizationId: string,
   id: string,
@@ -56,7 +59,7 @@ export async function inspectionRecord(
   const [row] = await (
     await getDb()
   ).query<ReviewInspection>(
-    `SELECT i.*,a.face_id assigned_face_id,a.parent_inspection_id,f.code,s.code structure_code,s.city,s.zone,f.orientation,f.is_test,c.latitude,c.longitude,c.uncertainty_m,c.original_latitude,c.original_longitude,c.original_uncertainty_m,u.name worker_name FROM inspections i JOIN assignments a ON a.id=i.assignment_id JOIN billboard_faces f ON f.id=i.face_id JOIN billboard_structures s ON s.id=f.structure_id JOIN effective_source_coordinates c ON c.face_id=f.id JOIN "user" u ON u.id=i.worker_id WHERE i.id=$1 AND i.organization_id=$2 AND i.status='server_received'`,
+    `SELECT i.*,a.face_id assigned_face_id,a.parent_inspection_id,f.code,s.code structure_code,s.city,s.zone,f.orientation,f.is_test,c.latitude,c.longitude,c.uncertainty_m,c.original_latitude,c.original_longitude,c.original_uncertainty_m,u.name worker_name FROM inspections i JOIN assignments a ON a.id=i.assignment_id JOIN billboard_faces f ON f.id=i.face_id JOIN billboard_structures s ON s.id=f.structure_id LEFT JOIN effective_source_coordinates c ON c.face_id=f.id JOIN "user" u ON u.id=i.worker_id WHERE i.id=$1 AND i.organization_id=$2 AND i.status='server_received'`,
     [id, organizationId],
   );
   if (!row) throw new ApiError(404, "Received inspection not found");
@@ -294,14 +297,18 @@ async function analyzeReceivedInspection(
         }),
       );
   }
-  const engine = await spatialEngine(db),
-    candidates = await nearbyFaces(
-      db,
-      actor.organizationId,
-      row.face_id,
-      row,
-      engine,
+  // Without a verified coordinate, neighbour and GPS-distance checks cannot run. Say so instead of passing silently.
+  const located = row.latitude !== null && row.longitude !== null && row.uncertainty_m !== null;
+  if (!located)
+    signals.push(
+      signal("pending_gps_location", "medium", {
+        note: "No verified coordinate for this location; the GPS captured during the visit is the only location evidence",
+      }),
     );
+  const engine = await spatialEngine(db),
+    candidates = located
+      ? await nearbyFaces(db, actor.organizationId, row.face_id, row as LocatedInspection, engine)
+      : [];
   if (candidates.length)
     signals.push(
       signal(
@@ -382,8 +389,8 @@ async function analyzeReceivedInspection(
       continue;
     }
     const gps = photo.gps,
-      distance = await geoDistance(db, gps, row, engine);
-    observations.push({ kind: photo.kind, ...gps, distanceM: distance });
+      distance = located ? await geoDistance(db, gps, row as LocatedInspection, engine) : null;
+    if (distance !== null) observations.push({ kind: photo.kind, ...gps, distanceM: distance });
     if (gps.accuracy > 100)
       signals.push(
         signal("gps_low_accuracy", "medium", {
@@ -392,7 +399,7 @@ async function analyzeReceivedInspection(
           thresholdM: 100,
         }),
       );
-    if (distance > gps.accuracy + row.uncertainty_m)
+    if (distance !== null && distance > gps.accuracy + (row.uncertainty_m ?? 0))
       signals.push(
         signal(
           "gps_mismatch",

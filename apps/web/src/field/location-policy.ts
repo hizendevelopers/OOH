@@ -47,11 +47,16 @@ export function metresBetween(
 }
 export function assessPhotoLocation(
   photo: { gps: GpsObservation; capturedAt: string },
-  target: { latitude: number; longitude: number; uncertainty_m: number },
+  target: {
+    latitude: number | null;
+    longitude: number | null;
+    uncertainty_m: number | null;
+  },
   policy = locationPolicy(),
 ): {
   status:
     | "within_area"
+    | "first_capture"
     | "missing"
     | "stale"
     | "low_accuracy"
@@ -62,6 +67,16 @@ export function assessPhotoLocation(
 } {
   if (photo.gps.status !== "ok") return { status: "missing" };
   const gps = photo.gps;
+  // No verified coordinate yet (pending GPS): only the reading itself can be checked here.
+  // The server compares every photo of the visit before the inspection can be completed.
+  if (target.latitude === null || target.longitude === null || target.uncertainty_m === null) {
+    if (![gps.latitude, gps.longitude, gps.accuracy].every(Number.isFinite) || gps.accuracy < 0)
+      return { status: "missing" };
+    const pendingAge = Math.abs(Date.parse(photo.capturedAt) - Date.parse(gps.observedAt));
+    if (!Number.isFinite(pendingAge) || pendingAge > policy.maxCaptureAgeMs) return { status: "stale" };
+    if (gps.accuracy > policy.maxAccuracyM) return { status: "low_accuracy" };
+    return { status: "first_capture" };
+  }
   if (
     ![
       gps.latitude,
@@ -81,7 +96,7 @@ export function assessPhotoLocation(
   );
   if (!Number.isFinite(age) || age > policy.maxCaptureAgeMs)
     return { status: "stale" };
-  const distanceM = metresBetween(gps, target);
+  const distanceM = metresBetween(gps, { latitude: target.latitude, longitude: target.longitude });
   const allowedDistanceM =
     policy.baseRadiusM +
     Math.min(gps.accuracy, policy.maxAccuracyM) +
@@ -96,6 +111,8 @@ export function assessPhotoLocation(
 }
 export const locationMessages = {
   within_area: "Within the expected billboard area",
+  first_capture:
+    "This billboard has no verified location yet. This reading will be recorded for the visit and checked against your other photos when you submit.",
   missing:
     "Location is not available. Turn on location for the browser, then take the photo again.",
   stale:
@@ -110,6 +127,8 @@ export const locationMessages = {
 export const locationMessagesAr: Record<keyof typeof locationMessages, string> =
   {
     within_area: "ضمن النطاق المتوقع للوحة",
+    first_capture:
+      "لا يوجد موقع موثّق لهذه اللوحة بعد. سيُسجَّل هذا القياس للزيارة وسيُقارن بباقي صورك عند الإرسال.",
     missing:
       "الموقع غير متاح. فعّل إذن الموقع للمتصفح ثم التقط الصورة مرة أخرى.",
     stale:

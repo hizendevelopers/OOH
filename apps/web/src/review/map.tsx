@@ -7,6 +7,20 @@ export default function EvidenceMap({
   arabic: boolean;
 }) {
   const { inspection: i, report } = detail;
+  // Pending GPS: there is no verified billboard position to draw around.
+  if (i.latitude === null || i.longitude === null || i.uncertainty_m === null)
+    return (
+      <figure className="review-map">
+        <p>
+          {arabic
+            ? "لا يوجد موقع موثّق لهذه اللوحة بعد. الموقع الملتقط أثناء هذه الزيارة مسجّل ضمن أدلة الزيارة."
+            : "This billboard has no verified location yet. The GPS captured on this visit is kept with the inspection evidence."}
+        </p>
+      </figure>
+    );
+  const lat = i.latitude,
+    lon = i.longitude,
+    unc = i.uncertainty_m;
   const points = [
     ...(report?.observations || []).map((o) => ({ ...o, radius: o.accuracy })),
     ...(report?.candidates || []).map((c) => ({
@@ -14,22 +28,22 @@ export default function EvidenceMap({
       radius: c.uncertainty_m,
     })),
   ];
-  const scaleLon = 111320 * Math.cos((i.latitude * Math.PI) / 180),
+  const scaleLon = 111320 * Math.cos((lat * Math.PI) / 180),
     scaleLat = 111320;
   const extent = Math.max(
     150,
-    i.uncertainty_m,
+    unc,
     ...points.map(
       (p) =>
         Math.hypot(
-          (p.longitude - i.longitude) * scaleLon,
-          (p.latitude - i.latitude) * scaleLat,
+          (p.longitude - lon) * scaleLon,
+          (p.latitude - lat) * scaleLat,
         ) + p.radius,
     ),
   );
   const k = 140 / extent,
-    x = (lon: number) => 180 + (lon - i.longitude) * scaleLon * k,
-    y = (lat: number) => 170 - (lat - i.latitude) * scaleLat * k;
+    x = (lon: number) => 180 + (lon - lon) * scaleLon * k,
+    y = (lat: number) => 170 - (lat - lat) * scaleLat * k;
   return (
     <figure className="review-map">
       <svg
@@ -60,7 +74,7 @@ export default function EvidenceMap({
         <circle
           cx="180"
           cy="170"
-          r={i.uncertainty_m * k}
+          r={unc * k}
           fill="var(--blue)"
           opacity=".12"
         />
@@ -118,7 +132,7 @@ export default function EvidenceMap({
           : "◆ Assigned · ● Front green / wide gold · ■ Neighbors"}
         <br />
         <bdi>
-          {i.latitude}, {i.longitude} ± {i.uncertainty_m} m
+          {lat}, {lon} ± {unc} m
         </bdi>
       </figcaption>
     </figure>

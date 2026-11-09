@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { liveQuery } from "dexie";
+import { CityTabs, LocationFlags, cityCounts, needsLocationAttention } from "../components/city-tabs";
 import Link from "next/link";
 import {
   Compass,
@@ -37,6 +38,7 @@ type InstallEvent = Event & { prompt: () => Promise<void> };
 const ownerKey = "ibvs-field-owner-v2";
 export default function FieldWorkspace() {
   const requestedVisitHandled = useRef(false);
+  const [cityFilter, setCityFilter] = useState("");
   const [locale, setLocale] = useState<"en" | "ar">("en"),
     [dark, setDark] = useState(false),
     [online, setOnline] = useState(true),
@@ -165,6 +167,7 @@ export default function FieldWorkspace() {
   }, []);
   useEffect(() => {
     if (!store) return;
+    void store.reopenIncomplete().catch(() => setError("storage_unavailable"));
     const subscription = liveQuery(() => store.drafts.toArray()).subscribe({
       next: setDrafts,
       error: () => setError("storage_unavailable"),
@@ -515,9 +518,18 @@ export default function FieldWorkspace() {
                     {t.download}
                   </button>
                 </section>
+                <CityTabs
+                  label={locale === "ar" ? "المدن" : "Cities"}
+                  allLabel={locale === "ar" ? "كل المواقع المكلّف بها" : "All assigned locations"}
+                  total={tasks.length}
+                  cities={cityCounts(tasks, needsLocationAttention)}
+                  value={cityFilter}
+                  onChange={setCityFilter}
+                  ar={locale === "ar"}
+                />
                 <div className="field-visits">
                   {tasks.length ? (
-                    tasks.map((task) => {
+                    tasks.filter((task) => !cityFilter || task.city === cityFilter).map((task) => {
                       const saved = drafts.find(
                         (d) => d.id === task.assignment_id,
                       );
@@ -558,9 +570,16 @@ export default function FieldWorkspace() {
                           <p>
                             {task.city} · {task.zone}
                           </p>
+                          <LocationFlags item={task} ar={locale === "ar"} />
                           <div className="field-task-meta">
                             <span>
                               {t.due}: <bdi>{task.due_date}</bdi>
+                            </span>
+                            <span>
+                              {locale === "ar" ? "الزيارة: " : "Visit: "}
+                              {["assigned", "resurvey_requested"].includes(task.status)
+                                ? locale === "ar" ? "لم تُرسل بعد" : "not submitted yet"
+                                : locale === "ar" ? "أُرسلت" : "submitted"}
                             </span>
                             <span>
                               {cachedIds.includes(task.assignment_id)
@@ -682,7 +701,9 @@ export default function FieldWorkspace() {
                       <dt>{t.original}</dt>
                       <dd>
                         <bdi>
-                          {draft.task.latitude}, {draft.task.longitude}
+                          {draft.task.latitude === null || draft.task.longitude === null
+                            ? (locale === "ar" ? "بانتظار الموقع GPS" : "Pending GPS")
+                            : `${draft.task.latitude}, ${draft.task.longitude}`}
                         </bdi>
                       </dd>
                     </div>
@@ -725,7 +746,7 @@ export default function FieldWorkspace() {
                     )}
                   {Object.values(draft.photos).map((photo) => {
                     const result = assessPhotoLocation(photo, draft.task);
-                    return result.status !== "within_area" ? (
+                    return result.status !== "within_area" && result.status !== "first_capture" ? (
                       <p key={photo.kind} className="notice warning">
                         {photo.kind}: {messages[result.status]}{" "}
                         {locale === "ar"

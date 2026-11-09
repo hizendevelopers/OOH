@@ -364,23 +364,31 @@ export default function Capture({
                     draft.task,
                   ).status
                 ]
-              }{" "}
-              ·{" "}
-              {Math.round(
-                assessPhotoLocation(
-                  { gps: shownGps, capturedAt: shownGps.observedAt },
-                  draft.task,
-                ).distanceM || 0,
-              )}{" "}
-              {arabic
-                ? "م من موقع اللوحة المسجل"
-                : "m from registered billboard"}
+              }
+              {draft.task.latitude !== null &&
+                draft.task.longitude !== null && (
+                  <>
+                    {" "}
+                    ·{" "}
+                    {Math.round(
+                      assessPhotoLocation(
+                        { gps: shownGps, capturedAt: shownGps.observedAt },
+                        draft.task,
+                      ).distanceM || 0,
+                    )}{" "}
+                    {arabic
+                      ? "م من موقع اللوحة المسجل"
+                      : "m from registered billboard"}
+                  </>
+                )}
             </p>
-            <LocationMap
-              gps={shownGps}
-              locations={[draft.task]}
-              arabic={arabic}
-            />
+            {draft.task.latitude !== null && draft.task.longitude !== null && (
+              <LocationMap
+                gps={shownGps}
+                locations={[{ ...draft.task, latitude: draft.task.latitude, longitude: draft.task.longitude, uncertainty_m: draft.task.uncertainty_m ?? 0 }]}
+                arabic={arabic}
+              />
+            )}
           </>
         )}
       </section>

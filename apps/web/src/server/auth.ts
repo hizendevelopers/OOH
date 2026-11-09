@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { twoFactor } from "better-auth/plugins";
 import { authDatabase } from "./db";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
@@ -43,6 +44,13 @@ export async function createAuth(provision = false) {
       minPasswordLength: 12,
       autoSignIn: false,
     },
+    // Second factor is verified before any session is created for an enrolled account.
+    plugins: [
+      twoFactor({
+        issuer: "IBVS",
+        skipVerificationOnEnable: false,
+      }),
+    ],
     session: { expiresIn: 60 * 60 * 12, updateAge: 60 * 30 },
     rateLimit: {
       enabled: true,

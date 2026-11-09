@@ -40,10 +40,13 @@ export async function audit(
     ],
   );
 }
+// Import provenance for each location. Pending-GPS locations have no source coordinate, so coordinate joins are LEFT joins.
+const importColumns = `r.gps_status,r.city_status,r.city_label,r.source_site_id,r.needs_review,r.open_issues,r.dimension_status,r.reference_latitude,r.reference_longitude`;
+const importJoin = `LEFT JOIN location_import_records r ON r.face_id=f.id`;
 export async function inventory(actor: Actor) {
   requireAdmin(actor);
   return (await getDb()).query<Face>(
-    `SELECT f.id,f.code,f.orientation,f.description,f.is_test,s.code structure_code,s.city,s.zone,c.latitude,c.longitude,c.uncertainty_m,c.original_latitude,c.original_longitude,c.original_uncertainty_m, a.status, a.worker_id FROM billboard_faces f JOIN billboard_structures s ON s.id=f.structure_id JOIN effective_source_coordinates c ON c.face_id=f.id LEFT JOIN assignments a ON a.face_id=f.id AND a.status IN ('assigned','server_received','pending_review','resurvey_requested','ambiguous') WHERE f.organization_id=$1 ORDER BY f.created_at DESC,f.code LIMIT 10001`,
+    `SELECT f.id,f.code,f.orientation,f.description,f.is_test,s.code structure_code,s.city,s.zone,c.latitude,c.longitude,c.uncertainty_m,c.original_latitude,c.original_longitude,c.original_uncertainty_m, ${importColumns} , a.status, a.worker_id FROM billboard_faces f JOIN billboard_structures s ON s.id=f.structure_id LEFT JOIN effective_source_coordinates c ON c.face_id=f.id ${importJoin} LEFT JOIN assignments a ON a.face_id=f.id AND a.status IN ('assigned','server_received','pending_review','resurvey_requested','ambiguous') WHERE f.organization_id=$1 ORDER BY f.created_at DESC,f.code LIMIT 10001`,
     [actor.organizationId],
   );
 }
@@ -59,9 +62,19 @@ export type Face = {
   structure_code: string;
   city: string;
   zone: string;
-  latitude: number;
-  longitude: number;
-  uncertainty_m: number;
+  // Null while the location is pending GPS (no verified source coordinate yet).
+  latitude: number | null;
+  longitude: number | null;
+  uncertainty_m: number | null;
+  gps_status: "verified" | "approximate" | "to_correct" | "pending_gps" | null;
+  city_status: "confirmed" | "unspecified" | "pending_verification" | null;
+  city_label: string | null;
+  source_site_id: string | null;
+  needs_review: boolean | null;
+  open_issues: string | null;
+  dimension_status: "recorded" | "pending_measurement" | null;
+  reference_latitude: number | null;
+  reference_longitude: number | null;
   status: string | null;
   worker_id: string | null;
 };
@@ -79,7 +92,7 @@ export type Assignment = Face & {
 };
 export async function assignments(actor: Actor, id?: string) {
   return (await getDb()).query<Assignment>(
-    `SELECT f.id,f.code,f.orientation,f.description,f.is_test,s.code structure_code,s.city,s.zone,c.latitude,c.longitude,c.uncertainty_m,c.original_latitude,c.original_longitude,c.original_uncertainty_m,a.id assignment_id,a.parent_inspection_id,a.instructions,(SELECT r.state FROM review_cases r JOIN inspections i ON i.id=r.inspection_id WHERE i.assignment_id=a.id) review_state,(SELECT d.reason FROM review_decisions d JOIN inspections i ON i.id=d.inspection_id WHERE i.assignment_id=a.id ORDER BY d.version DESC LIMIT 1) review_reason,a.status,a.worker_id,a.due_date::text,a.version,u.name worker_name,(SELECT jsonb_build_object('id',e.id,'reason',e.reason,'authorized_by',e.authorized_by,'expires_at',e.expires_at,'assignment_version',e.assignment_version) FROM location_exceptions e WHERE e.assignment_id=a.id AND e.organization_id=a.organization_id AND e.assignment_version=a.version AND e.expires_at>now() ORDER BY e.created_at DESC,e.id DESC LIMIT 1) location_exception FROM assignments a JOIN billboard_faces f ON f.id=a.face_id JOIN billboard_structures s ON s.id=f.structure_id JOIN effective_source_coordinates c ON c.face_id=f.id JOIN "user" u ON u.id=a.worker_id WHERE a.organization_id=$1 AND ($2::text='admin' OR a.worker_id=$3) AND ($4::text IS NULL OR a.id=$4) ORDER BY a.due_date,a.created_at DESC LIMIT 10000`,
+    `SELECT f.id,f.code,f.orientation,f.description,f.is_test,s.code structure_code,s.city,s.zone,c.latitude,c.longitude,c.uncertainty_m,c.original_latitude,c.original_longitude,c.original_uncertainty_m,${importColumns},a.id assignment_id,a.parent_inspection_id,a.instructions,(SELECT r.state FROM review_cases r JOIN inspections i ON i.id=r.inspection_id WHERE i.assignment_id=a.id) review_state,(SELECT d.reason FROM review_decisions d JOIN inspections i ON i.id=d.inspection_id WHERE i.assignment_id=a.id ORDER BY d.version DESC LIMIT 1) review_reason,a.status,a.worker_id,a.due_date::text,a.version,u.name worker_name,(SELECT jsonb_build_object('id',e.id,'reason',e.reason,'authorized_by',e.authorized_by,'expires_at',e.expires_at,'assignment_version',e.assignment_version) FROM location_exceptions e WHERE e.assignment_id=a.id AND e.organization_id=a.organization_id AND e.assignment_version=a.version AND e.expires_at>now() ORDER BY e.created_at DESC,e.id DESC LIMIT 1) location_exception FROM assignments a JOIN billboard_faces f ON f.id=a.face_id JOIN billboard_structures s ON s.id=f.structure_id LEFT JOIN effective_source_coordinates c ON c.face_id=f.id ${importJoin} JOIN "user" u ON u.id=a.worker_id WHERE a.organization_id=$1 AND ($2::text='admin' OR a.worker_id=$3) AND ($4::text IS NULL OR a.id=$4) ORDER BY a.due_date,a.created_at DESC LIMIT 10000`,
     [actor.organizationId, actor.role, actor.id, id ?? null],
   );
 }

@@ -273,3 +273,101 @@ it("skips acknowledged pieces when resuming within a photograph", async () => {
     receipt,
   );
 });
+
+// F-05: visits queued with only front and wide photos, before angle photos were required.
+it("reopens an old two-photo draft for its angle photo without losing photos", async () => {
+  const store = create();
+  await store.start(task);
+  await store.setBrand(task.assignment_id, { kind: "blank", text: "" });
+  for (const kind of ["front", "wide"] as const) {
+    const blob = new Blob([kind], { type: "image/jpeg" });
+    await store.savePhoto(task.assignment_id, {
+      kind,
+      blob,
+      bytes: blob.size,
+      sha256: await digestBlob(blob),
+      capturedAt: new Date().toISOString(),
+      captureMode: "offline",
+      gps: { status: "ok", latitude: 33, longitude: 44, accuracy: 10, observedAt: new Date().toISOString() },
+    });
+  }
+  // Simulate a draft written by the previous version: queued with two photos.
+  await store.drafts.update(task.assignment_id, { state: "queued" });
+
+  expect(await store.reopenIncomplete()).toBe(1);
+  const reopened = (await store.drafts.get(task.assignment_id))!;
+  expect(reopened).toMatchObject({ state: "local_draft", lastError: "needs_angle_photo" });
+  expect(Object.keys(reopened.photos).sort()).toEqual(["front", "wide"]);
+  expect(await store.reopenIncomplete()).toBe(0);
+});
+
+it("never reopens a visit the server has already received", async () => {
+  const store = create();
+  await store.start(task);
+  await store.drafts.update(task.assignment_id, { state: "server_received", serverId: "server-1" });
+  expect(await store.reopenIncomplete()).toBe(0);
+  expect((await store.drafts.get(task.assignment_id))!.state).toBe("server_received");
+});
+
+it("keeps a complete queued visit queued", async () => {
+  const store = await prepared();
+  expect(await store.reopenIncomplete()).toBe(0);
+  expect((await store.drafts.get(task.assignment_id))!.state).toBe("queued");
+});
+
+// Pending GPS: the location has no verified coordinate, so the visit's own GPS readings are the only evidence.
+const pendingTask = {
+  assignment_id: "33333333-3333-4333-8333-333333333333",
+  id: "44444444-4444-4444-8444-444444444444",
+  code: "PENDING-001",
+  version: 1,
+  latitude: null,
+  longitude: null,
+  uncertainty_m: null,
+  gps_status: "pending_gps",
+} as unknown as Assignment;
+const reading = (accuracy = 10) => ({ status: "ok" as const, latitude: 33.3, longitude: 44.1, accuracy, observedAt: new Date().toISOString() });
+async function pendingDraft(gps: ReturnType<typeof reading> | { status: "denied"; observedAt: string }, kinds = ["front", "wide", "angle_1"] as const) {
+  const store = create();
+  await store.start(pendingTask);
+  await store.setBrand(pendingTask.assignment_id, { kind: "blank", text: "" });
+  for (const kind of kinds) {
+    const blob = new Blob([kind + "-pending"], { type: "image/jpeg" });
+    await store.savePhoto(pendingTask.assignment_id, {
+      kind,
+      blob,
+      bytes: blob.size,
+      sha256: await digestBlob(blob),
+      capturedAt: new Date().toISOString(),
+      captureMode: "offline",
+      gps,
+    });
+  }
+  return store;
+}
+it("queues a pending-GPS visit when every photo has a fresh, accurate reading", async () => {
+  const store = await pendingDraft(reading());
+  await store.queue(pendingTask.assignment_id);
+  expect((await store.drafts.get(pendingTask.assignment_id))!.state).toBe("queued");
+});
+it("refuses to queue a pending-GPS visit when a photo has no location or a weak one", async () => {
+  const denied = await pendingDraft({ status: "denied", observedAt: new Date().toISOString() });
+  await expect(denied.queue(pendingTask.assignment_id)).rejects.toThrow("Location is not available");
+  expect((await denied.drafts.get(pendingTask.assignment_id))!.state).toBe("local_draft");
+  const weak = await pendingDraft(reading(300));
+  await expect(weak.queue(pendingTask.assignment_id)).rejects.toThrow("GPS signal is weak");
+});
+it("keeps photos and their GPS readings when a pending-GPS upload is interrupted", async () => {
+  const store = await pendingDraft(reading());
+  await store.queue(pendingTask.assignment_id);
+  await syncDraft(store, pendingTask.assignment_id, (async () => {
+    throw new TypeError("Offline");
+  }) as Transport);
+  const draft = (await store.drafts.get(pendingTask.assignment_id))!;
+  expect(draft).toMatchObject({ state: "queued", lastError: "connection_interrupted" });
+  expect(draft.receipt).toBeUndefined();
+  for (const kind of ["front", "wide", "angle_1"] as const) {
+    expect(draft.photos[kind]!.blob.size).toBeGreaterThan(0);
+    expect(draft.photos[kind]!.gps).toMatchObject({ status: "ok", latitude: 33.3, longitude: 44.1 });
+  }
+});

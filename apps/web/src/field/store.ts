@@ -98,6 +98,27 @@ export class FieldStore extends Dexie {
       });
     });
   }
+  // Visits queued before angle photos were required hold only two photos and can never
+  // be sent as they are. Reopen them for the missing angle photo. Nothing is deleted, and
+  // visits the server has already seen are left alone.
+  async reopenIncomplete() {
+    let reopened = 0;
+    await this.transaction("rw", this.drafts, async () => {
+      const candidates = await this.drafts.toArray();
+      for (const draft of candidates) {
+        if (draft.serverId || (draft.state !== "queued" && draft.state !== "blocked")) continue;
+        if (hasRequiredPhotos(draft)) continue;
+        await this.drafts.update(draft.id, {
+          state: "local_draft",
+          lastError: "needs_angle_photo",
+          nextAttemptAt: 0,
+          updatedAt: new Date().toISOString(),
+        });
+        reopened++;
+      }
+    });
+    return reopened;
+  }
   async queue(id: string) {
     await this.transaction("rw", this.drafts, async () => {
       const draft = await this.drafts.get(id);
@@ -113,7 +134,8 @@ export class FieldStore extends Dexie {
       if (!hasException)
         for (const photo of Object.values(draft.photos)) {
           const result = assessPhotoLocation(photo, draft.task);
-          if (result.status !== "within_area")
+          // first_capture: no verified location yet. The reading is valid and the server checks the whole visit.
+          if (result.status !== "within_area" && result.status !== "first_capture")
             throw new Error(locationMessages[result.status]);
         }
       await this.drafts.update(id, {

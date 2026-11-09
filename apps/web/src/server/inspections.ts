@@ -19,6 +19,7 @@ import {
   locationMessages,
 } from "../field/location-policy";
 import { activeLocationException } from "./location-exceptions";
+import { assessFieldCapture, insertFieldCapture } from "./location-capture";
 
 const hash = (bytes: Buffer | string) =>
   createHash("sha256").update(bytes).digest("hex");
@@ -53,11 +54,12 @@ async function task(db: Database, actor: Actor, id: string) {
     code: string;
     version: number;
     status: string;
-    latitude: number;
-    longitude: number;
-    uncertainty_m: number;
+    latitude: number | null;
+    longitude: number | null;
+    uncertainty_m: number | null;
+    gps_status: string | null;
   }>(
-    `SELECT a.*,f.code,c.latitude,c.longitude,c.uncertainty_m FROM assignments a JOIN billboard_faces f ON f.id=a.face_id JOIN effective_source_coordinates c ON c.face_id=f.id JOIN worker_profiles w ON w.user_id=a.worker_id WHERE a.id=$1 AND a.organization_id=$2 AND a.worker_id=$3 AND w.active=true FOR UPDATE OF a`,
+    `SELECT a.*,f.code,c.latitude,c.longitude,c.uncertainty_m,r.gps_status FROM assignments a JOIN billboard_faces f ON f.id=a.face_id LEFT JOIN effective_source_coordinates c ON c.face_id=f.id LEFT JOIN location_import_records r ON r.face_id=f.id JOIN worker_profiles w ON w.user_id=a.worker_id WHERE a.id=$1 AND a.organization_id=$2 AND a.worker_id=$3 AND w.active=true FOR UPDATE OF a`,
     [id, actor.organizationId, actor.id],
   );
   if (!row) throw new ApiError(404, "Assignment not found");
@@ -69,13 +71,32 @@ async function enforcePhotoLocations(
   bound: Awaited<ReturnType<typeof task>>,
   photos: InspectionInput["photos"],
 ) {
+  // Pending GPS: no verified coordinate exists yet, so the visit must supply valid GPS for every photo.
+  // A supervisor exception cannot waive this, because nothing has been verified to compare against.
+  if (bound.latitude === null || bound.longitude === null || bound.uncertainty_m === null) {
+    const capture = assessFieldCapture(photos);
+    if (!capture.ok)
+      throw new ApiError(
+        422,
+        "This location has no verified GPS yet. " +
+          capture.failures
+            .map((f) => `${f.kind}: ${locationMessages[f.status]}`)
+            .join(" "),
+      );
+    return { failures: [], exception: null, fieldCapture: capture.capture };
+  }
+  const target = {
+    latitude: bound.latitude,
+    longitude: bound.longitude,
+    uncertainty_m: bound.uncertainty_m,
+  };
   const failures = photos
     .map((photo) => ({
       kind: photo.kind,
-      ...assessPhotoLocation(photo, bound),
+      ...assessPhotoLocation(photo, target),
     }))
     .filter((result) => result.status !== "within_area");
-  if (!failures.length) return { failures, exception: null };
+  if (!failures.length) return { failures, exception: null, fieldCapture: null };
   const exception = await activeLocationException(
     db,
     actor,
@@ -89,7 +110,7 @@ async function enforcePhotoLocations(
         .map((result) => `${result.kind}: ${locationMessages[result.status]}`)
         .join(" "),
     );
-  return { failures, exception };
+  return { failures, exception, fieldCapture: null };
 }
 async function owned(db: Database, actor: Actor, id: string, lock = false) {
   const [row] = await db.query<Inspection>(
@@ -426,14 +447,26 @@ export async function submitInspection(actor: Actor, id: string) {
         if (Math.abs(captured - Date.parse(p.gps.observedAt)) > 30000)
           flags.add("gps_stale_device_claim");
         if (p.gps.accuracy > 100) flags.add("gps_low_accuracy");
-        flags.add(
-          locationFlag(
-            distanceM(p.gps, bound),
-            p.gps.accuracy,
-            bound.uncertainty_m,
-          ),
-        );
+        if (bound.latitude !== null && bound.longitude !== null && bound.uncertainty_m !== null)
+          flags.add(
+            locationFlag(
+              distanceM(p.gps, bound as { latitude: number; longitude: number }),
+              p.gps.accuracy,
+              bound.uncertainty_m,
+            ),
+          );
       }
+    }
+    if (locationAssessment.fieldCapture) {
+      // The visit established the position. Stored as evidence; no source coordinate is changed.
+      flags.add("pending_gps_first_capture");
+      await insertFieldCapture(db, {
+        organizationId: actor.organizationId,
+        faceId: bound.face_id,
+        inspectionId: id,
+        workerId: actor.id,
+        capture: locationAssessment.fieldCapture,
+      });
     }
     if (row.challenge_id) {
       const [challenge] = await db.query<{

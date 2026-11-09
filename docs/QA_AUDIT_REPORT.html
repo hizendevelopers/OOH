@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>IBVS End-to-End Audit and QA Report</title>
+<style>
+  body { font-family: "Segoe UI", Arial, sans-serif; color: #16233a; font-size: 10.5pt; line-height: 1.45; margin: 0; }
+  h1 { font-size: 22pt; margin: 0 0 4pt; color: #101d32; }
+  h2 { font-size: 15pt; border-bottom: 2px solid #1769e8; padding-bottom: 3pt; margin-top: 22pt; color: #101d32; }
+  h3 { font-size: 11.5pt; margin-top: 14pt; color: #1769e8; }
+  .meta { color: #64748b; margin-bottom: 14pt; }
+  table { width: 100%; border-collapse: collapse; margin: 6pt 0 10pt; font-size: 9.5pt; }
+  th, td { border: 1px solid #d6dde7; padding: 4pt 6pt; vertical-align: top; text-align: left; }
+  th { background: #eaf2ff; }
+  .sev { font-weight: 700; white-space: nowrap; }
+  .critical { color: #b42318; } .high { color: #b54708; } .medium { color: #96610e; } .low { color: #475467; } .pass { color: #087f68; }
+  .box { border-left: 4px solid #1769e8; background: #f5f9ff; padding: 8pt 10pt; margin: 8pt 0; }
+  code { font-family: Consolas, monospace; font-size: 9pt; background: #f1f5f9; padding: 0 2pt; }
+  pre { background: #f1f5f9; padding: 6pt 8pt; font-size: 8.5pt; white-space: pre-wrap; }
+  .page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<h1>IBVS: End-to-End Audit and QA Report</h1>
+<div class="meta">Iraq Billboard Verification System · Repository hizendevelopers/OOH · Production: ooh-green.vercel.app<br>
+Audit date: 9 November 2026 · Branch audited: main (commit 4741b60, after PR #3) · Prepared by Claude Code for the project owner</div>
+
+<h2>1. Executive summary</h2>
+<p>The application's code is in good shape on the checks that can be run here: lint, types, 124 unit and integration tests, dependency vulnerabilities, and the browser flows all pass. Production blocks anonymous access, has the required security headers, and has sign-up turned off.</p>
+<p>Five issues need action before real field use. The most serious is that <b>uploaded photos are stored on the server's disk</b>, but the live site is on Vercel, which does not keep files between deployments. The other three are the health check that reports the wrong migration, no multi-factor sign-in for supervisors, and no test on real phones. The database was also out of date until today, which caused the failed saves described in section 5; it is now up to date.</p>
+
+<div class="box"><b>Overall verdict:</b> not ready for a pilot with real workers until the two Critical items in section 4 are closed and the phone test in section 6 passes.</div>
+
+<h3>Findings by severity</h3>
+<table>
+<tr><th>Severity</th><th>Count</th><th>Items</th></tr>
+<tr><td class="sev critical">Critical</td><td>1</td><td>F-01 photo storage on a host that does not keep files</td></tr>
+<tr><td class="sev high">High</td><td>4</td><td>F-02 health check reports the wrong migration · F-03 no multi-factor sign-in for supervisors · F-04 no real-phone testing · F-05 workers' old two-photo drafts are rejected</td></tr>
+<tr><td class="sev medium">Medium</td><td>4</td><td>F-06 Content Security Policy allows inline scripts · F-07 production PostGIS path not verified · F-08 database changes are a manual step, not part of deployment · F-09 new Arabic text not reviewed by a native speaker</td></tr>
+<tr><td class="sev low">Low</td><td>5</td><td>F-10 health endpoint publicly reveals database type · F-11 location-form test was timing-sensitive · F-12 duplicated fetch code in the location editor · F-13 documentation claims ahead of evidence · F-14 default production build failed on the audit machine (omitted from the first version of this summary)</td></tr>
+</table>
+
+<h2>2. Scope and method</h2>
+<ul>
+<li><b>Automated checks:</b> ESLint, TypeScript typecheck, Vitest unit and integration suite (embedded PostgreSQL), production build, Playwright browser acceptance on the production build, and <code>npm audit</code>.</li>
+<li><b>Code review:</b> authentication and session settings, origin and CSRF checks on mutating routes, organization isolation in server queries, SQL construction, security headers, secret handling, evidence storage, and deployment assumptions in the repository documentation.</li>
+<li><b>Live read-only checks:</b> anonymous responses from production endpoints, response security headers, and the health endpoint. No data was written to production.</li>
+<li><b>Out of scope:</b> real Android and iPhone devices, camera and GPS on real hardware, load testing, penetration testing by an outside party, and a review of the Supabase project settings.</li>
+</ul>
+
+<h2>3. Results of automated checks</h2>
+<table>
+<tr><th>Check</th><th>Result</th><th>Notes</th></tr>
+<tr><td>ESLint (<code>npm run lint</code>)</td><td class="pass">Pass</td><td>No errors or warnings.</td></tr>
+<tr><td>TypeScript (<code>npm run typecheck</code>)</td><td class="pass">Pass</td><td>Covers the web app and the tests.</td></tr>
+<tr><td>Unit and integration tests (Vitest)</td><td class="pass">Pass: 124 of 124, 20 files</td><td>Includes dimensions, advertiser history, angle-photo rules, offline sync, evidence integrity, review workflow and access control.</td></tr>
+<tr><td>Dependency audit (<code>npm audit --omit=dev --audit-level=high</code>)</td><td class="pass">Pass: 0 vulnerabilities</td><td>Production dependencies only.</td></tr>
+<tr><td>Production build (webpack)</td><td class="pass">Pass</td><td>The default Turbopack build failed on the audit machine with a Windows child-process error. It is not caused by application code (see F-14).</td></tr>
+<tr><td>Browser acceptance (Playwright, production build)</td><td class="pass">Pass: 9 of 9</td><td>Nine flows: field capture, offline sync, GPS and storage failures, logout, locations, review, workers, sign-in and access rules.</td></tr>
+</table>
+<h3>3.1 Browser acceptance</h3>
+<p>All nine flows passed on the production build of current <code>main</code> (commit 4741b60). The run is on Chromium with simulated camera and GPS, so it does not replace the real-phone test in F-04.</p>
+
+<h2>4. Findings</h2>
+<p>Each finding lists the evidence, the risk, and the recommended fix. Severity reflects the risk to workers and to the integrity of evidence.</p>
+
+<h3>F-01 · Critical · Uploaded photos depend on a server disk that the live host does not keep</h3>
+<p><b>Evidence:</b> <code>apps/web/src/server/evidence-storage.ts</code> writes every photo under <code>IBVS_EVIDENCE_DIR</code> and refuses to run in production without a private, persistent directory. The architecture document (<code>docs/ARCHITECTURE.md</code>) says the design is for a single persistent host and "does not support ephemeral/serverless disks". The live site is served from Vercel, and the repository has no configuration that provides a persistent volume.</p>
+<p><b>Risk:</b> photos may fail to save, or may disappear when the host restarts or redeploys. Evidence is the core of the product, so this is a data-loss risk.</p>
+<p><b>Fix:</b> choose one, in this order of preference:</p>
+<ol>
+<li>Host the application on a server with a persistent disk, using the Docker setup in <code>docs/DEPLOYMENT.md</code>, and point <code>IBVS_EVIDENCE_DIR</code> at that disk. Back up the disk together with the database.</li>
+<li>Or add an object-storage adapter (for example Cloudflare R2 or Amazon S3). The architecture document already lists this as a future option. This needs a code change and new tests.</li>
+</ol>
+<p><b>Verify first:</b> in the Vercel project settings, confirm whether <code>IBVS_EVIDENCE_DIR</code> is set and where it points. Then run one upload in a staging copy and restart it to confirm the photo is still there.</p>
+
+<h3>F-02 · High · Health check reports a fixed migration name</h3>
+<p><b>Evidence:</b> <code>apps/web/src/app/api/[...path]/route.ts</code> checks that <code>006_location_management.sql</code> is recorded and always returns that name. Production therefore reported "006" while the database was missing 007 to 009, which made it look healthy.</p>
+<p><b>Risk:</b> the health check gives false assurance about the database and cannot be used to confirm a deployment.</p>
+<p><b>Fix:</b> return the newest recorded migration from <code>schema_migrations</code>, and fail the check if any file in <code>db/migrations</code> is not recorded.</p>
+
+<h3>F-03 · High · No multi-factor sign-in for supervisors</h3>
+<p><b>Evidence:</b> <code>apps/web/src/server/auth.ts</code> uses email and password only. <code>docs/SECURITY_THREAT_MODEL.md</code> lists administrator multi-factor sign-in as a deployment gate. Supervisors approve evidence and can change references.</p>
+<p><b>Risk:</b> a stolen or guessed supervisor password gives full control over approvals.</p>
+<p><b>Fix:</b> enable two-factor sign-in (Better Auth's two-factor plugin, using an authenticator app) for every administrator account before the pilot. Require it for approval and reference actions.</p>
+
+<h3>F-04 · High · Not tested on real phones</h3>
+<p><b>Evidence:</b> <code>PROJECT_HANDOVER.md</code> records that real Android and iOS devices were not tested. All camera, GPS and offline tests run in a desktop browser with simulated inputs.</p>
+<p><b>Risk:</b> camera behaviour, GPS accuracy, storage limits, app suspension and offline recovery may fail on real phones.</p>
+<p><b>Fix:</b> run the checklist in <code>docs/M4_FIELD_DEVICE_CHECKLIST.md</code> on at least two Android phones and one iPhone, over HTTPS, with real workers' accounts on a test organization. Record results per item.</p>
+
+<h3>F-05 · High · Visits already queued with two photos will be rejected</h3>
+<p><b>Evidence:</b> the rules now require three to six photos (<code>packages/domain/src/inspection.ts</code>). Drafts queued before the update still hold two photos, so they fail validation on every sync attempt. The photos stay on the phone, but the visit cannot be sent.</p>
+<p><b>Risk:</b> workers may believe their visits were sent when they were not, and may delete the app and lose the photos.</p>
+<p><b>Fix:</b> before the update reaches workers, ask them to send all queued visits. For anything still stuck, add a recovery step that lets a worker add an angle photo to an existing two-photo draft, and tell workers to keep the app installed until their queue is empty.</p>
+
+<h3>F-06 · Medium · Content Security Policy allows inline scripts</h3>
+<p><b>Evidence:</b> the live policy includes <code>script-src 'self' 'unsafe-inline'</code> (<code>apps/web/next.config.ts</code>).</p>
+<p><b>Risk:</b> if any cross-site scripting bug is introduced later, inline scripts would run. Other headers are set correctly.</p>
+<p><b>Fix:</b> move to per-request nonces with Next.js middleware, and remove <code>'unsafe-inline'</code> from <code>script-src</code>.</p>
+
+<h3>F-07 · Medium · Production spatial queries are not verified</h3>
+<p><b>Evidence:</b> the tests use an embedded database with a great-circle fallback. <code>docs/PROJECT_HANDOVER.md</code> says the PostGIS path and the remote PostGIS check have not been run.</p>
+<p><b>Risk:</b> nearby-face and GPS-distance checks may behave differently in production.</p>
+<p><b>Fix:</b> run <code>npm run test:postgis</code> against an isolated PostGIS database, and apply <code>db/spatial.sql</code> to staging before pilot.</p>
+
+<h3>F-08 · Medium · Database changes are a manual step, not part of deployment</h3>
+<p><b>Evidence:</b> the runtime database account cannot create tables. Migrations must be run by hand with the admin account. Nothing in the deployment process does this, so the live database fell behind the code (see section 5).</p>
+<p><b>Fix:</b> add a migration step to the deployment, run with a separate admin secret, that stops the release when a migration is missing. Combine it with the fix for F-02.</p>
+
+<h3>F-09 · Medium · Arabic text has not been reviewed</h3>
+<p><b>Evidence:</b> the worker messages added in this audit cycle (location, storage, online code, angle photos and brand choices) were written without a native-speaker review.</p>
+<p><b>Fix:</b> have a native speaker review every Arabic string in <code>apps/web/src/field/strings.ts</code> and <code>location-policy.ts</code> before workers receive them.</p>
+
+<h3>F-10 · Low · Health endpoint is public and reveals the database type</h3>
+<p><b>Evidence:</b> <code>/api/health</code> answers without sign-in and returns the database type and migration name.</p>
+<p><b>Fix:</b> return only "ok" publicly; move the detailed status behind administrator sign-in.</p>
+
+<h3>F-11 · Low · Location-form browser test is timing-sensitive</h3>
+<p><b>Evidence:</b> the "Add location" test passed and failed on different runs before the click was retried until the dialog opened. The app itself was not at fault.</p>
+<p><b>Fix:</b> keep the retry in place, and add an explicit wait for the workspace to be ready before the test starts.</p>
+
+<h3>F-12 · Low · Duplicated fetch logic in the location editor</h3>
+<p><b>Evidence:</b> <code>apps/web/src/components/location-editor.tsx</code>, <code>DimensionRecord</code>, fetches the size history twice (once in an effect and once in the load helper).</p>
+<p><b>Fix:</b> have the effect call the load helper.</p>
+
+<h3>F-13 · Low · Some documents describe features as ready before they are verified</h3>
+<p><b>Evidence:</b> <code>docs/M4_TEST_REPORT.md</code> and related files describe deployment gates that have not been run. The documents are honest about this in their text, but the summaries can be read as more complete than they are.</p>
+<p><b>Fix:</b> add a status line at the top of each release document that lists the gates still open.</p>
+
+<h3>F-14 · Low · Default production build fails on the audit machine</h3>
+<p><b>Evidence:</b> <code>next build</code> (Turbopack) failed with a Windows child-process error while processing CSS. The same build succeeds with <code>next build --webpack</code>, and the failure happened with the CSS change removed too.</p>
+<p><b>Fix:</b> confirm on the build server (Vercel) that the default build passes. If it does not, switch to the webpack builder in the project configuration.</p>
+
+<h2>5. Incident note: database out of date</h2>
+<p>The live database had migrations 001 to 006 applied, and the code expected 007 to 009. The first attempt to apply them was run with the application's restricted database account and was refused. A later attempt, using a copy of the script, failed because one table already existed. A read-only check confirmed that the table was empty, that all nine migrations are now recorded, and that the media rule allows angle photos. The database is now up to date. The health check still showed 006 at the time of the check (see F-02).</p>
+
+<h2>6. Acceptance tests still required before pilot</h2>
+<table>
+<tr><th>#</th><th>Test</th><th>Owner</th><th>Status</th></tr>
+<tr><td>1</td><td>Photo persistence after restart on the chosen host (F-01)</td><td>Owner and developer</td><td>Open</td></tr>
+<tr><td>2</td><td>Full field visit with three photos on two Android phones and one iPhone (F-04)</td><td>Field tester</td><td>Open</td></tr>
+<tr><td>3</td><td>Two-factor sign-in enabled for every administrator (F-03)</td><td>Owner</td><td>Open</td></tr>
+<tr><td>4</td><td>Health check reports the newest migration (F-02)</td><td>Developer</td><td>Open</td></tr>
+<tr><td>5</td><td>PostGIS suite on staging (F-07)</td><td>Developer</td><td>Open</td></tr>
+<tr><td>6</td><td>Native-speaker review of Arabic text (F-09)</td><td>Arabic reviewer</td><td>Open</td></tr>
+<tr><td>7</td><td>Queued two-photo drafts recovered before rollout (F-05)</td><td>Owner and field lead</td><td>Open</td></tr>
+</table>
+
+<h2>7. What passed</h2>
+<ul>
+<li>Lint, typecheck, 124 unit and integration tests, and the production dependency audit (no high or critical vulnerabilities).</li>
+<li>Anonymous requests to inspections, reviews, locations, assignments and workers all return 401. Public sign-up returns 404.</li>
+<li>Responses include HSTS, <code>X-Frame-Options: DENY</code>, <code>X-Content-Type-Options: nosniff</code>, a referrer policy, and a Content Security Policy.</li>
+<li>The application's own mutating routes check the request origin. The sign-in route relies on the authentication library's origin checks, which were not tested separately. Database queries use parameters; the few interpolated identifiers come from fixed internal constants.</li>
+<li>Sign-in is rate-limited, sessions expire after 12 hours, and the production build refuses the embedded development database.</li>
+</ul>
+
+<h2>8. Recommended order of work</h2>
+<ol>
+<li>Resolve F-01 (storage location) and F-05 (queued drafts) before any worker uses the new version.</li>
+<li>Complete the phone test (F-04) and two-factor sign-in (F-03).</li>
+<li>Fix the health check (F-02) and add the migration step (F-08).</li>
+<li>Close the medium and low items, and repeat the QA cycle.</li>
+</ol>
+
+<h2 class="page-break">Appendix A · Commands run</h2>
+<pre>npm run lint
+npm run typecheck
+npx vitest run                 (124 tests, 20 files)
+npm audit --omit=dev --audit-level=high
+cd apps/web &amp;&amp; npx next build --webpack
+npm run test:browser           (Playwright, production build)
+curl https://ooh-green.vercel.app/api/health
+curl -o /dev/null -w "%{http_code}" https://ooh-green.vercel.app/api/inspections   (and other protected endpoints)</pre>
+
+<h2>Appendix B · Limits of this audit</h2>
+<p>This audit did not use real phones, did not test the Supabase project settings or backups, did not attempt to bypass any protection, and did not write to the production database. The read-only checks and the automated tests are evidence for the items above, not a substitute for the acceptance tests in section 6.</p>
+
+</body>
+</html>

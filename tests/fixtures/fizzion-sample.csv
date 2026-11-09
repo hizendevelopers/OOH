@@ -1,0 +1,11 @@
+﻿fizzion_site_id,city,governorate,region,area,location_en,location_ar,supplier,supplier_code,format,width_m,height_m,latitude,longitude,gps_status,priority,coca_cola_2026_code,needs_review,open_issues,vendor_tab,source_file,source_row
+IQ-TST-0001,Baghdad,Baghdad,Federal Iraq,Abu Ghraib,Abu Ghraib – Hay Al-Muhandiseen,,POB,BA-AG2,Billboard (type not stated),20,9,33.308528,44.126111,Supplied,,,No,,Baghdad,test.xlsx,2
+IQ-TST-0002,Baghdad,Baghdad,Federal Iraq,Abu Ghraib,"Al Hariri School, Al Aazamiya, Rassafa",,POB,BA-AG3,Billboard (type not stated),,,33.3,44.1,Approximate – pin on visit,,,No,,Baghdad,test.xlsx,3
+IQ-TST-0003,Erbil,Erbil,Kurdistan,Ankawa,Ankawa main road,,SUP,ER-3,Billboard,,,,,Missing – pin on visit,,,Yes,[Low] Size not given; [Low] GPS not provided,Erbil & Ankawa,test.xlsx,4
+IQ-TST-0004,Anbar (city not stated),Anbar,Federal Iraq,,Roundabout,,POB,AN-4,Billboard,12.5,4,33.4,43.6,Supplied,,,No,,Other towns,test.xlsx,5
+IQ-TST-0005,Kura (as listed),,,,Kura roundabout,,POB,KU-5,Billboard,,,,,Missing – pin on visit,,,No,,Other towns,test.xlsx,6
+IQ-TST-0006,Baghdad,Baghdad,Federal Iraq,Karrada,Karrada gate,,POB,BA-6,Billboard,15,6,12.26442,44.1,Supplied,,,No,[Critical] Coordinates outside Iraq,Baghdad,test.xlsx,7
+IQ-TST-0001,Baghdad,Baghdad,Federal Iraq,Abu Ghraib,Duplicate row for the same site,,POB,BA-AG9,Billboard,20,9,33.31,44.12,Supplied,,,No,,Baghdad,test.xlsx,8
+bad id,Baghdad,,,,Invalid identifier row,,POB,BA-X,Billboard,,,33.3,44.4,Supplied,,,No,,Baghdad,test.xlsx,9
+IQ-TST-0008,Najaf,Najaf,Najaf,Kufa,"Kufa, Market Street, near Al Askari",,SUP,NA-8,Billboard (type not stated),30,7,32.02,44.34,Supplied,,,No,,Najaf & Kufa,test.xlsx,10
+IQ-TST-0009,Najaf,Najaf,Najaf,Kufa,Second Najaf site,,SUP,NA-9,Billboard,50,,,,Missing – pin on visit,,,Yes,[High] Duplicate supplier code,Najaf & Kufa,test.xlsx,11

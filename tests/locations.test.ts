@@ -99,16 +99,17 @@ it("orders nearby assigned locations by distance and enforces radius, test filte
 
 it("enforces photo GPS before persistence and accepts original offline capture coordinates", async () => {
   const task = (await assignments(worker)).find(row => row.code === "NEAR")!;
+  const [taskLat, taskLon] = [task.latitude!, task.longitude!];
   const capturedAt = new Date(Date.now() - 3600000).toISOString();
   const make = (): InspectionInput => ({
     operationId: randomUUID(), assignmentId: task.assignment_id, assignmentVersion: task.version, faceId: task.id, faceCode: task.code, challengeId: null,
-    photos: (["front", "wide", "angle_1"] as const).map(kind => ({ kind, bytes: 10, sha256: (kind === "front" ? "a" : kind === "wide" ? "b" : "c").repeat(64), capturedAt, captureMode: "offline", gps: { status: "ok", latitude: task.latitude, longitude: task.longitude, accuracy: 10, observedAt: capturedAt } })),
+    photos: (["front", "wide", "angle_1"] as const).map(kind => ({ kind, bytes: 10, sha256: (kind === "front" ? "a" : kind === "wide" ? "b" : "c").repeat(64), capturedAt, captureMode: "offline", gps: { status: "ok", latitude: taskLat, longitude: taskLon, accuracy: 10, observedAt: capturedAt } })),
   });
   for (const gps of [
     { status: "denied", observedAt: capturedAt },
-    { status: "ok", latitude: task.latitude, longitude: task.longitude, accuracy: 1000, observedAt: capturedAt },
-    { status: "ok", latitude: task.latitude + 1, longitude: task.longitude, accuracy: 10, observedAt: capturedAt },
-    { status: "ok", latitude: task.latitude, longitude: task.longitude, accuracy: 10, observedAt: new Date(Date.parse(capturedAt) - 60000).toISOString() },
+    { status: "ok", latitude: taskLat, longitude: taskLon, accuracy: 1000, observedAt: capturedAt },
+    { status: "ok", latitude: taskLat + 1, longitude: taskLon, accuracy: 10, observedAt: capturedAt },
+    { status: "ok", latitude: taskLat, longitude: taskLon, accuracy: 10, observedAt: new Date(Date.parse(capturedAt) - 60000).toISOString() },
   ] as const) {
     const payload = make();
     payload.photos[0].gps = gps;
