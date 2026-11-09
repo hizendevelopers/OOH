@@ -146,11 +146,15 @@ async function handle(request: Request) {
           settings: error.fields,
         }),
       );
+      // Public health exposes no setting names. Operators see them in server logs.
+      if (route === "health") {
+        console.error(JSON.stringify({ category: "configuration_error", requestId, settings: error.fields }));
+        return json({ status: "unavailable" }, 503);
+      }
       return json(
         {
           error: "Server configuration is incomplete.",
           code: "CONFIGURATION_ERROR",
-          ...(route === "health" ? { settings: error.fields } : {}),
           requestId,
         },
         503,

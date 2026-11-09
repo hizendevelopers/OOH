@@ -62,9 +62,8 @@ it("health diagnostics expose only invalid setting names, never their values", (
   );
   const { status, body } = JSON.parse(output);
   expect(status).toBe(503);
-  expect(body).toMatchObject({
-    code: "CONFIGURATION_ERROR",
-    settings: ["BETTER_AUTH_SECRET"],
-  });
+  // Public health reveals neither setting names nor values (audit F-10).
+  expect(body).toEqual({ status: "unavailable" });
+  expect(output).not.toContain("BETTER_AUTH_SECRET");
   expect(output).not.toContain("private-invalid-value");
 });

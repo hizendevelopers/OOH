@@ -28,7 +28,7 @@ Audit date: 9 November 2026 · Branch audited: main (commit 4741b60, after PR #3
 
 <h2>1. Executive summary</h2>
 <p>The application's code is in good shape on the checks that can be run here: lint, types, 124 unit and integration tests, dependency vulnerabilities, and the browser flows all pass. Production blocks anonymous access, has the required security headers, and has sign-up turned off.</p>
-<p>Four issues need action before real field use. The most serious is that <b>uploaded photos are stored on the server's disk</b>, but the live site is on Vercel, which does not keep files between deployments. The other three are the health check that reports the wrong migration, no multi-factor sign-in for supervisors, and no test on real phones. The database was also out of date until today, which caused the failed saves described in section 5; it is now up to date.</p>
+<p>Five issues need action before real field use. The most serious is that <b>uploaded photos are stored on the server's disk</b>, but the live site is on Vercel, which does not keep files between deployments. The other three are the health check that reports the wrong migration, no multi-factor sign-in for supervisors, and no test on real phones. The database was also out of date until today, which caused the failed saves described in section 5; it is now up to date.</p>
 
 <div class="box"><b>Overall verdict:</b> not ready for a pilot with real workers until the two Critical items in section 4 are closed and the phone test in section 6 passes.</div>
 
@@ -38,7 +38,7 @@ Audit date: 9 November 2026 · Branch audited: main (commit 4741b60, after PR #3
 <tr><td class="sev critical">Critical</td><td>1</td><td>F-01 photo storage on a host that does not keep files</td></tr>
 <tr><td class="sev high">High</td><td>4</td><td>F-02 health check reports the wrong migration · F-03 no multi-factor sign-in for supervisors · F-04 no real-phone testing · F-05 workers' old two-photo drafts are rejected</td></tr>
 <tr><td class="sev medium">Medium</td><td>4</td><td>F-06 Content Security Policy allows inline scripts · F-07 production PostGIS path not verified · F-08 database changes are a manual step, not part of deployment · F-09 new Arabic text not reviewed by a native speaker</td></tr>
-<tr><td class="sev low">Low</td><td>4</td><td>F-10 health endpoint publicly reveals database type · F-11 location-form test was timing-sensitive · F-12 duplicated fetch code in the review workspace · F-13 documentation claims ahead of evidence</td></tr>
+<tr><td class="sev low">Low</td><td>5</td><td>F-10 health endpoint publicly reveals database type · F-11 location-form test was timing-sensitive · F-12 duplicated fetch code in the location editor · F-13 documentation claims ahead of evidence · F-14 default production build failed on the audit machine (omitted from the first version of this summary)</td></tr>
 </table>
 
 <h2>2. Scope and method</h2>
