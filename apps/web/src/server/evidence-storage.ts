@@ -1,80 +1,14 @@
-import path from "node:path";
-import { mkdir, writeFile, open, link, unlink } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
-import { root } from "./db";
+// Public entry point for evidence bytes. Callers keep using putPrivate and readPrivate;
+// the configured backend (S3-compatible object storage or a single-host filesystem) is
+// chosen in evidence-store.ts.
+import { evidenceStore } from "./evidence-store";
 
-// Private, single-host storage. No filename or path component comes from a client.
-export function evidenceRoot() {
-  const configured = process.env.IBVS_EVIDENCE_DIR;
-  if (configured && !path.isAbsolute(configured))
-    throw new Error("IBVS_EVIDENCE_DIR must be absolute");
-  if (
-    !configured &&
-    process.env.NODE_ENV === "production" &&
-    process.env.IBVS_ALLOW_LOCAL_DB !== "true"
-  )
-    throw new Error("Production requires private persistent IBVS_EVIDENCE_DIR");
-  const directory = path.resolve(
-    /* turbopackIgnore: true */
-    configured || path.join(root(), ".local", "evidence"),
-  );
-  const publicDirectory = path.resolve(root(), "apps", "web");
-  const relative = path.relative(publicDirectory, directory);
-  if (
-    relative === "" ||
-    (!relative.startsWith(".." + path.sep) &&
-      relative !== ".." &&
-      !path.isAbsolute(relative))
-  )
-    throw new Error(
-      "Evidence cannot be stored under the web application directory",
-    );
-  return directory;
-}
-function filename(key: string) {
-  if (
-    !/^[a-f0-9-]{36}\/(?:front|wide|angle_[1-4])\/(?:[0-9]{1,2}-[a-f0-9]{64}|original-[a-f0-9]{64})$/.test(
-      key,
-    )
-  )
-    throw new Error("Invalid internal evidence key");
-  return path.join(evidenceRoot(), ...key.split("/"));
-}
+export { evidenceRoot } from "./evidence-store";
+
 export async function putPrivate(key: string, data: Buffer) {
-  const file = filename(key);
-  await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
-  const temp = file + "." + randomUUID() + ".tmp";
-  try {
-    await writeFile(temp, data, { flag: "wx", mode: 0o600, flush: true });
-    await link(temp, file);
-  } catch (e) {
-    if ((e as { code?: string }).code !== "EEXIST") throw e;
-  } finally {
-    await unlink(temp).catch((error) => {
-      if (error.code !== "ENOENT") throw error;
-    });
-  }
+  await evidenceStore().put(key, data);
 }
+
 export async function readPrivate(key: string) {
-  const file = await open(filename(key), "r");
-  try {
-    const info = await file.stat();
-    if (!info.isFile() || info.size > 6 * 1024 * 1024)
-      throw new Error("Invalid private evidence size");
-    const data = Buffer.alloc(info.size);
-    let offset = 0;
-    while (offset < data.length) {
-      const { bytesRead } = await file.read(
-        data,
-        offset,
-        data.length - offset,
-        offset,
-      );
-      if (!bytesRead) throw new Error("Interrupted private evidence read");
-      offset += bytesRead;
-    }
-    return data;
-  } finally {
-    await file.close();
-  }
+  return evidenceStore().get(key);
 }

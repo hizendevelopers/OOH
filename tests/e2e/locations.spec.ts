@@ -40,11 +40,14 @@ test("admin creates GPS test location, corrects coordinates, worker finds it and
     accuracy: 10,
   });
   await login(page, "admin@demo.ibvs.test");
-  // Wait for the workspace to hydrate before opening the dialog; an early click is lost.
-  await expect(async () => {
-    await page.getByRole("button", { name: "Add location", exact: true }).click();
-    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 3000 });
-  }).toPass({ timeout: 60000 });
+  // React attaches its fiber keys to rendered DOM nodes only after hydration; clicks before
+  // that are not handled. Waiting for this state avoids both arbitrary delays and retries.
+  await page.waitForFunction(() => {
+    const main = document.querySelector("main");
+    return Boolean(main && Object.keys(main).some((key) => key.startsWith("__reactFiber")));
+  });
+  await page.getByRole("button", { name: "Add location", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
   const modal = page.getByRole("dialog");
   const code = `QA-LOC-${Date.now()}`;
   await modal.getByLabel("Billboard face code", { exact: true }).fill(code);

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigation, LoaderCircle } from "lucide-react";
 import type { Face } from "@/server/service";
 import { LocationMap } from "./location-map";
@@ -529,34 +529,29 @@ function DimensionRecord({ faceId, ar }: { faceId: string; ar: boolean }) {
     status: "",
     source: "",
   });
-  const load = () =>
-    fetch(`/api/locations/dimensions?faceId=${encodeURIComponent(faceId)}`, {
-      cache: "no-store",
-    })
-      .then(async (r) => {
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error);
+  // One loading path for the history. Only the newest request may update state, so an
+  // older response that arrives late cannot overwrite a newer result.
+  const latestRequest = useRef(0);
+  const load = useCallback(async () => {
+    const request = ++latestRequest.current;
+    try {
+      const r = await fetch(`/api/locations/dimensions?faceId=${encodeURIComponent(faceId)}`, {
+        cache: "no-store",
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error);
+      if (request === latestRequest.current) {
         setHistory(data);
         setLoadError("");
-      })
-      .catch((e) => setLoadError((e as Error).message));
-  useEffect(() => {
-    let active = true;
-    fetch(`/api/locations/dimensions?faceId=${encodeURIComponent(faceId)}`, {
-      cache: "no-store",
-    })
-      .then(async (r) => {
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error);
-        if (active) setHistory(data);
-      })
-      .catch((e) => {
-        if (active) setLoadError((e as Error).message);
-      });
-    return () => {
-      active = false;
-    };
+      }
+    } catch (e) {
+      if (request === latestRequest.current) setLoadError((e as Error).message);
+    }
   }, [faceId]);
+  useEffect(() => {
+    setHistory([]);
+    void load();
+  }, [load]);
   const current = history[0];
   async function record(e: React.FormEvent) {
     e.preventDefault();

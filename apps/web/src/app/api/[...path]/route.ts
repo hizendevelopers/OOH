@@ -25,20 +25,14 @@ async function handle(request: Request) {
   const route = new URL(request.url).pathname.replace("/api/", "");
   try {
     if (route === "health") {
-      const db = await getDb();
-      const migrations = await db.query(
-        "SELECT name FROM schema_migrations WHERE name=$1",
-        ["006_location_management.sql"],
-      );
-      if (!migrations.length)
-        throw new ApiError(503, "Database migrations are incomplete");
-      await db.query("SELECT id FROM organizations LIMIT 1");
-      return json({
-        status: "ok",
-        service: "ibvs",
-        database: process.env.DATABASE_URL ? "postgresql" : "local",
-        migrations: "006_location_management.sql",
-      });
+      // Public: minimal answer only. Migration and database details need administrator access.
+      try {
+        const { publicHealth, migrationStatus } = await import("@/server/migration-status");
+        const result = publicHealth(await migrationStatus(await getDb()));
+        return json(result.body, result.httpStatus);
+      } catch {
+        return json({ status: "unavailable" }, 503);
+      }
     }
     const actor = await currentActor();
     if (route === "workers" && request.method === "POST") {
@@ -47,6 +41,11 @@ async function handle(request: Request) {
       requireAdmin(actor);
     }
     if (request.method === "GET") {
+      if (route === "admin/health") {
+        requireAdmin(actor);
+        const { migrationStatus } = await import("@/server/migration-status");
+        return json({ ...(await migrationStatus(await getDb())), database: process.env.DATABASE_URL ? "postgresql" : "local" });
+      }
       if (route === "me") return json(actor);
       if (route === "overview") return json(await overview(actor));
       if (route === "inventory") return json(await inventory(actor));
