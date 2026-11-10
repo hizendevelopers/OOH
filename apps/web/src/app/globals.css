@@ -2429,3 +2429,25 @@ td small {
 .pending-gps {
   color: var(--amber);
 }
+
+/* City tabs sit in their own full-width row above the table toolbar. */
+.city-tabs-row {
+  padding: 16px 23px 0;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.city-tabs-row .city-tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  width: 100%;
+  padding-bottom: 12px;
+}
+.city-tabs-row .city-tab {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  .city-tabs-row {
+    padding: 12px 16px 0;
+  }
+}
