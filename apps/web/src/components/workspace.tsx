@@ -878,6 +878,20 @@ export default function Workspace({
               )}
               {(tab === "inventory" || tab === "assignments") && !detail && (
                 <section className="panel">
+                  <div className="city-tabs-row">
+                  <CityTabs
+                    label={locale === "ar" ? "المدن" : "Cities"}
+                    allLabel={locale === "ar" ? "كل المدن" : "All cities"}
+                    total={(tab === "inventory" ? faces : tasks).length}
+                    cities={cityCounts(
+                      tab === "inventory" ? faces : tasks,
+                      tab === "inventory" ? (f) => needsLocationAttention(f) : () => false,
+                    )}
+                    value={city}
+                    onChange={setCity}
+                    ar={locale === "ar"}
+                  />
+                  </div>
                   <div className="table-toolbar">
                     <label className="search-field">
                       <Search size={17} />
@@ -888,18 +902,6 @@ export default function Workspace({
                         placeholder={t.search}
                       />
                     </label>
-                    <CityTabs
-                      label={locale === "ar" ? "المدن" : "Cities"}
-                      allLabel={locale === "ar" ? "كل المدن" : "All cities"}
-                      total={(tab === "inventory" ? faces : tasks).length}
-                      cities={cityCounts(
-                        tab === "inventory" ? faces : tasks,
-                        tab === "inventory" ? (f) => needsLocationAttention(f) : () => false,
-                      )}
-                      value={city}
-                      onChange={setCity}
-                      ar={locale === "ar"}
-                    />
                     {tab === "inventory" && (
                       <select
                         aria-label={
