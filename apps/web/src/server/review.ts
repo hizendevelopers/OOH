@@ -77,7 +77,7 @@ export async function reviewDetail(actor: Actor, id: string) {
     receipt_id: string;
     parts: number;
   }>(
-    "SELECT m.kind,m.server_hash,m.received_at,m.width,m.height,m.receipt_id,(SELECT count(*)::integer FROM evidence_parts p WHERE p.media_id=m.id) parts FROM media_evidence m WHERE m.inspection_id=$1 ORDER BY kind",
+    "SELECT m.kind,m.server_hash,m.received_at,m.width,m.height,m.receipt_id,(SELECT count(*)::integer FROM evidence_parts p WHERE p.media_id=m.id) parts FROM media_evidence m WHERE m.inspection_id=$1 AND m.superseded_at IS NULL ORDER BY kind",
     [id],
   );
   const assessments = await db.query<{
@@ -423,7 +423,7 @@ export async function enrollBaseline(actor: Actor, id: string, data: unknown) {
       ],
     );
     await tx.query(
-      "INSERT INTO reference_photos(baseline_id,media_id,kind,original_hash) SELECT $1,id,kind,server_hash FROM media_evidence WHERE inspection_id=$2 AND receipt_id IS NOT NULL AND kind IN ('front','wide')",
+      "INSERT INTO reference_photos(baseline_id,media_id,kind,original_hash) SELECT $1,id,kind,server_hash FROM media_evidence WHERE inspection_id=$2 AND receipt_id IS NOT NULL AND superseded_at IS NULL AND kind IN ('front','wide')",
       [baselineId, id],
     );
     await audit(tx, actor, "baseline.enrolled", id, {

@@ -28,15 +28,25 @@ import {
   locationMessagesAr,
 } from "./location-policy";
 import { LocationMap } from "./location-map";
+import { verificationReason } from "./verification-messages";
+import {
+  advisoryGalleryCheck,
+  platformOf,
+  withGalleryType,
+  type GalleryWarning,
+} from "./gallery-file";
 
 function Photo({ photo, label }: { photo: LocalPhoto; label: string }) {
   const [url, setUrl] = useState("");
+  const heic = /heic|heif/i.test(photo.blob.type);
   useEffect(() => {
+    if (heic) return;
     const value = URL.createObjectURL(photo.blob);
     setUrl(value);
     return () => URL.revokeObjectURL(value);
-  }, [photo.blob]);
-  return url ? (
+  }, [photo.blob, heic]);
+  // Most desktop and Android browsers cannot display HEIC; the original is kept and the server reads it.
+  return url && !heic ? (
     <Image
       src={url}
       alt={label}
@@ -65,7 +75,8 @@ export default function Capture({
     stream = useRef<MediaStream | null>(null),
     mounted = useRef(true),
     allowed = useRef(draft.state === "local_draft"),
-    requestVersion = useRef(0);
+    requestVersion = useRef(0),
+    fileInput = useRef<HTMLInputElement>(null);
   const [camera, setCamera] = useState(false),
     [ready, setReady] = useState(false),
     [busy, setBusy] = useState(false),
@@ -74,7 +85,8 @@ export default function Capture({
     [locating, setLocating] = useState(false),
     [error, setError] = useState<keyof FieldText | null>(null),
     [now, setNow] = useState(0),
-    [pending, setPending] = useState<LocalPhoto | null>(null);
+    [pending, setPending] = useState<LocalPhoto | null>(null),
+    [galleryNotice, setGalleryNotice] = useState<{ kind: PhotoKind; warnings: GalleryWarning[] } | null>(null);
   const stop = () => {
     requestVersion.current++;
     stream.current?.getTracks().forEach((track) => track.stop());
@@ -226,8 +238,40 @@ export default function Capture({
   const shownKinds = allPhotoKinds.filter(
     (k) => (photoKinds as readonly string[]).includes(k) || draft.photos[k] || kind === k,
   );
+  // Gallery originals carry no device GPS claim; only camera readings drive the live location panel.
+  const cameraGps = (p?: LocalPhoto) => (p && p.source !== "gallery" ? p.gps : null);
   const shownGps =
-    gps ?? draft.photos[kind]?.gps ?? draft.photos.front?.gps ?? null;
+    gps ?? cameraGps(draft.photos[kind]) ?? cameraGps(draft.photos.front) ?? null;
+  async function pickGallery(file: File) {
+    setError(null);
+    if (file.size > PHOTO_LIMIT) {
+      setError("photoTooLarge");
+      return;
+    }
+    setBusy(true);
+    try {
+      const blob = withGalleryType(file);
+      const now = new Date().toISOString();
+      const photo: LocalPhoto = {
+        kind,
+        blob,
+        bytes: blob.size,
+        sha256: await digestBlob(blob),
+        capturedAt: now,
+        captureMode: "gallery_original",
+        gps: { status: "unavailable", observedAt: now },
+        source: "gallery",
+      };
+      // Advisory check only: the worker can re-pick now, while still at the site. The server still decides.
+      const warnings = await advisoryGalleryCheck(blob);
+      setGalleryNotice({ kind, warnings });
+      await save(photo);
+    } catch {
+      setError("storage_unavailable");
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <section className="field-capture">
       <div className="notice warning">
@@ -302,6 +346,53 @@ export default function Capture({
               </button>
             )}
           </div>
+          <div className="field-camera-actions">
+            <button
+              className="secondary"
+              disabled={busy}
+              onClick={() => fileInput.current?.click()}
+            >
+              {t.chooseGallery}
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept="image/*,.heic,.heif,.jpg,.jpeg"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) void pickGallery(file);
+              }}
+            />
+          </div>
+          <p className="field-caption">{t.galleryNote}</p>
+          {galleryNotice && galleryNotice.kind === kind && (
+            <div
+              className={"notice " + (galleryNotice.warnings.length ? "warning" : "")}
+              role="status"
+            >
+              {galleryNotice.warnings.length === 0 ? (
+                <p>{t.galleryWarnOk}</p>
+              ) : (
+                <>
+                  {galleryNotice.warnings.includes("no_location") && (
+                    <p>
+                      {platformOf(navigator.userAgent) === "ios"
+                        ? t.galleryWarnNoLocationIos
+                        : platformOf(navigator.userAgent) === "android"
+                          ? t.galleryWarnNoLocationAndroid
+                          : t.galleryWarnNoLocation}
+                    </p>
+                  )}
+                  {galleryNotice.warnings.includes("no_date") && <p>{t.galleryWarnNoDate}</p>}
+                  {galleryNotice.warnings.includes("unreadable") && (
+                    <p>{t.galleryWarnUnreadable}</p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
           <p className="field-caption">{t.gpsWarning}</p>
         </section>
       )}
@@ -415,24 +506,52 @@ export default function Capture({
                 />
                 <div className="field-photo-meta">
                   <strong>{t.saved}</strong>
-                  <p>
-                    {draft.photos[k]!.captureMode === "offline"
-                      ? t.offlinePhoto
-                      : draft.photos[k]!.captureMode === "online_challenged"
-                        ? t.challengedPhoto
-                        : t.onlinePhoto}
-                  </p>
-                  <small>
-                    {t.deviceTime}: <bdi>{draft.photos[k]!.capturedAt}</bdi>
-                  </small>
-                  <p>
-                    {
-                      messages[
-                        assessPhotoLocation(draft.photos[k]!, draft.task).status
-                      ]
-                    }
-                  </p>
-                  {draft.photos[k]!.gps.status === "ok" && (
+                  {draft.photos[k]!.source === "gallery" ? (
+                    <p>{t.galleryChecked}</p>
+                  ) : (
+                    <>
+                      <p>
+                        {draft.photos[k]!.captureMode === "offline"
+                          ? t.offlinePhoto
+                          : draft.photos[k]!.captureMode === "online_challenged"
+                            ? t.challengedPhoto
+                            : t.onlinePhoto}
+                      </p>
+                      <small>
+                        {t.deviceTime}: <bdi>{draft.photos[k]!.capturedAt}</bdi>
+                      </small>
+                      <p>
+                        {
+                          messages[
+                            assessPhotoLocation(draft.photos[k]!, draft.task).status
+                          ]
+                        }
+                      </p>
+                    </>
+                  )}
+                  {(() => {
+                    const check = draft.verification?.find((v) => v.kind === k);
+                    if (!check) return null;
+                    return (
+                      <div
+                        className={"notice " + (check.status === "approved" ? "" : "danger")}
+                        role="status"
+                      >
+                        <strong>
+                          {t.verificationTitle}:{" "}
+                          {check.status === "approved"
+                            ? t.verificationApproved
+                            : check.status === "rejected"
+                              ? t.verificationRejected
+                              : t.verificationReview}
+                        </strong>
+                        {check.reasons.map((r) => (
+                          <p key={r.code}>{verificationReason(r.code, arabic)}</p>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                  {draft.photos[k]!.source !== "gallery" && draft.photos[k]!.gps.status === "ok" && (
                     <small>
                       {arabic
                         ? "الموقع عند الالتقاط: ±"

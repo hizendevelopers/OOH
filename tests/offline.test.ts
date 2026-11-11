@@ -2,6 +2,7 @@ import "fake-indexeddb/auto";
 import { it, expect, afterEach, vi } from "vitest";
 import { FieldStore, metadata, digestBlob } from "../apps/web/src/field/store";
 import {
+  replayQueue,
   syncDraft,
   SyncError,
   type Transport,
@@ -208,8 +209,8 @@ it("recovers from lost final response using the stable operation key", async () 
   expect(draft.state).toBe("server_received");
   expect(parts).toBe(3);
 });
-it("session expiry and task conflicts pause retry without losing originals", async () => {
-  for (const status of [401, 409, 422]) {
+it("task conflicts pause retry without losing originals", async () => {
+  for (const status of [409, 422]) {
     const store = await prepared();
     await syncDraft(store, task.assignment_id, (async () => {
       throw new SyncError(status, "blocked");
@@ -218,6 +219,23 @@ it("session expiry and task conflicts pause retry without losing originals", asy
     expect(draft!.state).toBe("blocked");
     expect(draft!.photos.front!.blob.size).toBeGreaterThan(0);
   }
+});
+it("session expiry keeps the visit queued and uploads after sign-in", async () => {
+  const store = await prepared();
+  await syncDraft(store, task.assignment_id, (async () => {
+    throw new SyncError(401, "expired");
+  }) as Transport);
+  const expired = (await store.drafts.get(task.assignment_id))!;
+  expect(expired).toMatchObject({ state: "queued", lastError: "session_expired" });
+  expect(expired.photos.front!.blob.size).toBeGreaterThan(0);
+  // Simulate the retry window passing and a fresh session.
+  await store.drafts.update(task.assignment_id, { nextAttemptAt: 0 });
+  const transport = (async (url: string) => {
+    if (url === "me") return { ...store.owner, role: "worker" };
+    throw new SyncError(409, "stop after identity check");
+  }) as Transport;
+  await replayQueue(store, transport);
+  expect((await store.drafts.get(task.assignment_id))!.state).toBe("blocked");
 });
 it("skips acknowledged pieces when resuming within a photograph", async () => {
   const store = create();

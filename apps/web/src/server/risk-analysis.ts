@@ -114,7 +114,8 @@ async function analyzeReceivedInspection(
     server_hash: string;
     object_key: string | null;
     receipt_id: string | null;
-  }>("SELECT * FROM media_evidence WHERE inspection_id=$1 ORDER BY kind", [id]);
+    original_format: string | null;
+  }>("SELECT * FROM media_evidence WHERE inspection_id=$1 AND superseded_at IS NULL ORDER BY kind", [id]);
   if (
     media.length < 3 ||
     media.length > 6 ||
@@ -135,6 +136,17 @@ async function analyzeReceivedInspection(
     );
   const photos: PhotoFacts[] = [];
   for (const m of media) {
+    // HEIC/HEIF originals cannot be decoded for pHash here; their EXIF is verified at upload instead.
+    if (m.original_format === "heic" || m.original_format === "heif") {
+      signals.push(
+        signal("image_analysis_skipped", "low", {
+          kind: m.kind,
+          format: m.original_format,
+          note: "Perceptual analysis not available for this format; EXIF verification applies",
+        }),
+      );
+      continue;
+    }
     try {
       if (!m.object_key) throw new Error("Missing object");
       const bytes = await readPrivate(m.object_key),
@@ -229,7 +241,7 @@ async function analyzeReceivedInspection(
     verified_hash: string;
     phash: string;
   }>(
-    `SELECT m.inspection_id,i.worker_id,f.code,m.kind,m.server_hash verified_hash,coalesce(a.phash,'') phash FROM media_evidence m LEFT JOIN media_analysis a ON a.media_id=m.id JOIN inspections i ON i.id=m.inspection_id JOIN billboard_faces f ON f.id=i.face_id WHERE i.organization_id=$1 AND i.id<>$2 AND i.status='server_received' ORDER BY i.created_at DESC,i.id,m.kind LIMIT 10001`,
+    `SELECT m.inspection_id,i.worker_id,f.code,m.kind,m.server_hash verified_hash,coalesce(a.phash,'') phash FROM media_evidence m LEFT JOIN media_analysis a ON a.media_id=m.id JOIN inspections i ON i.id=m.inspection_id JOIN billboard_faces f ON f.id=i.face_id WHERE i.organization_id=$1 AND i.id<>$2 AND i.status='server_received' AND m.superseded_at IS NULL ORDER BY i.created_at DESC,i.id,m.kind LIMIT 10001`,
     [actor.organizationId, id],
   );
   if (duplicates.length > 10000)
@@ -339,6 +351,8 @@ async function analyzeReceivedInspection(
     );
   const captured = parsed.success ? parsed.data.photos : [];
   for (const photo of captured) {
+    // Gallery times and locations are verified from the original file, not the browser claim.
+    if (photo.source === "gallery") continue;
     const time = Date.parse(photo.capturedAt),
       receiptTime = new Date(row.received_at).getTime(),
       delta = receiptTime - time;

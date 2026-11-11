@@ -9,6 +9,7 @@ import {
   type UploadSession,
   type Receipt,
   type PhotoKind,
+  type PhotoVerification,
 } from "../../../../packages/domain/src/inspection";
 import { getDb, type Database } from "./db";
 import { ApiError, audit } from "./service";
@@ -20,6 +21,16 @@ import {
 } from "../field/location-policy";
 import { activeLocationException } from "./location-exceptions";
 import { assessFieldCapture, insertFieldCapture } from "./location-capture";
+import {
+  decideGalleryPhoto,
+  detectFormat,
+  readExif,
+  SITE_TIMEZONE,
+  VERIFIER_VERSION,
+  type Decision,
+  type ImageFormat,
+  type RawExif,
+} from "./gallery-verification";
 
 const hash = (bytes: Buffer | string) =>
   createHash("sha256").update(bytes).digest("hex");
@@ -44,7 +55,20 @@ type Media = {
   receipt_id: string | null;
   object_key: string | null;
   server_hash: string | null;
+  source?: "camera" | "gallery";
+  original_format?: ImageFormat | null;
+  superseded_at?: Date | string | null;
 };
+const EXIF_KEEP = [
+  "DateTimeOriginal",
+  "OffsetTimeOriginal",
+  "GPSLatitude",
+  "GPSLatitudeRef",
+  "GPSLongitude",
+  "GPSLongitudeRef",
+  "GPSDateStamp",
+  "GPSTimeStamp",
+] as const;
 async function task(db: Database, actor: Actor, id: string) {
   if (actor.role !== "worker")
     throw new ApiError(403, "Worker access required");
@@ -133,8 +157,10 @@ function receipt(row: Inspection): Receipt | null {
     : null;
 }
 async function session(db: Database, row: Inspection): Promise<UploadSession> {
-  const photos = await db.query<Media>(
-    "SELECT * FROM media_evidence WHERE inspection_id=$1 ORDER BY kind",
+  const photos = await db.query<
+    Media & { verification_status: string | null; verification_reasons: unknown }
+  >(
+    "SELECT m.*, v.status AS verification_status, v.reason_codes AS verification_reasons FROM media_evidence m LEFT JOIN media_verification v ON v.media_id=m.id WHERE m.inspection_id=$1 AND m.superseded_at IS NULL ORDER BY m.kind",
     [row.id],
   );
   const result = [];
@@ -147,6 +173,14 @@ async function session(db: Database, row: Inspection): Promise<UploadSession> {
       kind: photo.kind,
       receivedParts: parts.map((p) => p.part),
       receiptId: photo.receipt_id,
+      sha256: photo.expected_hash,
+      source: photo.source ?? "camera",
+      verification: photo.verification_status
+        ? {
+            status: photo.verification_status as PhotoVerification["status"],
+            reasons: (photo.verification_reasons ?? []) as PhotoVerification["reasons"],
+          }
+        : null,
     });
   }
   return {
@@ -187,11 +221,10 @@ export async function beginInspection(actor: Actor, input: InspectionInput) {
       [actor.id, payload.operationId],
     );
     if (existing) {
-      if (
-        existing.organization_id !== actor.organizationId ||
-        existing.payload_hash !== digest
-      )
+      if (existing.organization_id !== actor.organizationId)
         throw new ApiError(409, "Idempotency key payload conflict");
+      if (existing.payload_hash !== digest)
+        return replaceRejectedGalleryPhotos(db, actor, existing, bound, payload, digest);
       return session(db, existing);
     }
     if (bound.face_id !== payload.faceId || bound.code !== payload.faceCode)
@@ -219,7 +252,9 @@ export async function beginInspection(actor: Actor, input: InspectionInput) {
       );
       if (!c) throw new ApiError(422, "Challenge does not belong to this task");
     }
-    await enforcePhotoLocations(db, actor, bound, payload.photos);
+    // Gallery originals are judged by the server from their EXIF, so only camera photos use the device location gate.
+    const cameraPhotos = payload.photos.filter((p) => p.source !== "gallery");
+    if (cameraPhotos.length) await enforcePhotoLocations(db, actor, bound, cameraPhotos);
     const id = randomUUID();
     await db.query(
       "INSERT INTO inspections(id,organization_id,assignment_id,face_id,worker_id,operation_id,payload_hash,metadata,challenge_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)",
@@ -237,8 +272,8 @@ export async function beginInspection(actor: Actor, input: InspectionInput) {
     );
     for (const photo of payload.photos)
       await db.query(
-        "INSERT INTO media_evidence(id,inspection_id,kind,expected_bytes,expected_hash) VALUES($1,$2,$3,$4,$5)",
-        [randomUUID(), id, photo.kind, photo.bytes, photo.sha256],
+        "INSERT INTO media_evidence(id,inspection_id,kind,expected_bytes,expected_hash,source) VALUES($1,$2,$3,$4,$5,$6)",
+        [randomUUID(), id, photo.kind, photo.bytes, photo.sha256, photo.source ?? "camera"],
       );
     if (payload.brand)
       await db.query(
@@ -273,7 +308,7 @@ export async function uploadPart(
     const row = await owned(db, actor, id, true);
     await task(db, actor, row.assignment_id);
     const [photo] = await db.query<Media>(
-      "SELECT * FROM media_evidence WHERE inspection_id=$1 AND kind=$2",
+      "SELECT * FROM media_evidence WHERE inspection_id=$1 AND kind=$2 AND superseded_at IS NULL",
       [id, kind],
     );
     if (!photo) throw new ApiError(404, "Photo not found");
@@ -314,11 +349,12 @@ export async function completePhoto(actor: Actor, id: string, kind: PhotoKind) {
     const row = await owned(db, actor, id, true);
     await task(db, actor, row.assignment_id);
     const [photo] = await db.query<Media>(
-      "SELECT * FROM media_evidence WHERE inspection_id=$1 AND kind=$2",
+      "SELECT * FROM media_evidence WHERE inspection_id=$1 AND kind=$2 AND superseded_at IS NULL",
       [id, kind],
     );
     if (!photo) throw new ApiError(404, "Photo not found");
-    if (photo.receipt_id) return { receiptId: photo.receipt_id };
+    if (photo.receipt_id)
+      return { receiptId: photo.receipt_id, verification: await storedVerification(db, photo.id) };
     const parts = await db.query<{
       part: number;
       object_key: string;
@@ -344,6 +380,8 @@ export async function completePhoto(actor: Actor, id: string, kind: PhotoKind) {
       hash(bytes) !== photo.expected_hash
     )
       throw new ApiError(422, "Photo integrity check failed");
+    if (photo.source === "gallery")
+      return completeGalleryPhoto(db, actor, row, photo, bytes);
     let dimensions;
     try {
       if (bytes[0] !== 255 || bytes[1] !== 216)
@@ -381,7 +419,7 @@ export async function completePhoto(actor: Actor, id: string, kind: PhotoKind) {
         photo.id,
       ],
     );
-    return { receiptId };
+    return { receiptId, verification: null };
   });
 }
 export async function submitInspection(actor: Actor, id: string) {
@@ -400,20 +438,35 @@ export async function submitInspection(actor: Actor, id: string) {
         409,
         "Assignment changed; submission retained for investigation",
       );
-    const locationAssessment = await enforcePhotoLocations(
-      db,
-      actor,
-      bound,
-      row.metadata.photos,
-    );
+    const cameraPhotos = row.metadata.photos.filter((p) => p.source !== "gallery");
+    const locationAssessment = cameraPhotos.length
+      ? await enforcePhotoLocations(db, actor, bound, cameraPhotos)
+      : { failures: [], exception: null, fieldCapture: null };
     const media = await db.query<Media>(
-      "SELECT * FROM media_evidence WHERE inspection_id=$1",
+      "SELECT * FROM media_evidence WHERE inspection_id=$1 AND superseded_at IS NULL",
       [id],
     );
     if (media.length !== row.metadata.photos.length || media.some((p) => !p.receipt_id))
       throw new ApiError(
         409,
         "Every photograph must have a server receipt before submission",
+      );
+    // Gallery photos must each be approved by server verification before the visit can be received.
+    const notApproved = await db.query<{ kind: string; status: string | null; reasons: unknown }>(
+      "SELECT m.kind, v.status, v.reason_codes AS reasons FROM media_evidence m LEFT JOIN media_verification v ON v.media_id=m.id WHERE m.inspection_id=$1 AND m.superseded_at IS NULL AND m.source='gallery' AND (v.status IS DISTINCT FROM 'approved')",
+      [id],
+    );
+    if (notApproved.length)
+      throw new ApiError(
+        422,
+        "Some gallery photos did not pass verification. Replace them, then submit again.",
+        {
+          verification: notApproved.map((r) => ({
+            kind: r.kind,
+            status: r.status ?? "pending",
+            reasons: r.reasons ?? [],
+          })),
+        },
       );
     if (new Set(media.map((p) => p.server_hash)).size !== media.length)
       throw new ApiError(
@@ -431,6 +484,11 @@ export async function submitInspection(actor: Actor, id: string) {
         flags.add(`location_${failure.kind}_${failure.status}`);
     }
     for (const p of row.metadata.photos) {
+      // Gallery time and location come from the verified original, not from browser claims.
+      if (p.source === "gallery") {
+        flags.add("gallery_exif_checked_by_server");
+        continue;
+      }
       if (p.captureMode === "offline")
         flags.add("offline_capture_device_claim");
       if (p.captureMode === "online_unchallenged")
@@ -490,7 +548,7 @@ export async function submitInspection(actor: Actor, id: string) {
     )
       flags.add("challenge_claim_missing");
     const duplicates = await db.query(
-      "SELECT m.id FROM media_evidence m JOIN inspections i ON i.id=m.inspection_id WHERE m.inspection_id<>$1 AND m.server_hash=ANY($2::text[]) AND i.organization_id=$3",
+      "SELECT m.id FROM media_evidence m JOIN inspections i ON i.id=m.inspection_id WHERE m.inspection_id<>$1 AND m.server_hash=ANY($2::text[]) AND i.organization_id=$3 AND m.superseded_at IS NULL",
       [id, media.map((m) => m.server_hash), actor.organizationId],
     );
     if (duplicates.length) flags.add("duplicate_photo_candidate");
@@ -549,10 +607,187 @@ export async function evidenceAccess(
 ) {
   const db = await getDb();
   const [photo] = await db.query<Media>(
-    `SELECT m.* FROM media_evidence m JOIN inspections i ON i.id=m.inspection_id WHERE i.id=$1 AND m.kind=$2 AND i.organization_id=$3 AND ($4='admin' OR i.worker_id=$5)`,
+    `SELECT m.* FROM media_evidence m JOIN inspections i ON i.id=m.inspection_id WHERE i.id=$1 AND m.kind=$2 AND i.organization_id=$3 AND ($4='admin' OR i.worker_id=$5) AND m.superseded_at IS NULL`,
     [id, kind, actor.organizationId, actor.role, actor.id],
   );
   if (!photo?.receipt_id || !photo.object_key)
     throw new ApiError(404, "Evidence not found");
   return readPrivate(photo.object_key);
+}
+
+// ----- Gallery originals: server-side EXIF verification -----
+
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      .filter((k) => record[k] !== undefined)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canonical(record[k])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function whitelistExif(exif: RawExif) {
+  const kept: Record<string, unknown> = {};
+  for (const key of EXIF_KEEP) {
+    const value = exif[key];
+    if (value !== undefined && value !== null) kept[key] = value;
+  }
+  return kept;
+}
+
+async function storedVerification(db: Database, mediaId: string) {
+  const [row] = await db.query<{ status: string; reasons: unknown }>(
+    "SELECT status, reason_codes AS reasons FROM media_verification WHERE media_id=$1",
+    [mediaId],
+  );
+  return row
+    ? { status: row.status as PhotoVerification["status"], reasons: row.reasons as PhotoVerification["reasons"] }
+    : null;
+}
+
+// Verifies one gallery original after its bytes are complete. The original is stored unchanged first;
+// the decision is then appended. A rejected original stays as evidence, but it blocks submission.
+async function completeGalleryPhoto(
+  db: Database,
+  actor: Actor,
+  row: Inspection,
+  photo: Media,
+  bytes: Buffer,
+) {
+  const bound = await task(db, actor, row.assignment_id);
+  const detected = detectFormat(bytes);
+  let format: ImageFormat | null = null;
+  let exif: RawExif = {};
+  if (detected) {
+    try {
+      exif = await readExif(bytes);
+      format = detected;
+    } catch {
+      format = null;
+    }
+  }
+  // Visit window: from the assignment's start (site calendar date) to its due date.
+  const [visit] = await db.query<{ start_date: string; end_date: string }>(
+    "SELECT to_char(created_at AT TIME ZONE $2,'YYYY-MM-DD') AS start_date, due_date::text AS end_date FROM assignments WHERE id=$1",
+    [bound.id, SITE_TIMEZONE],
+  );
+  const [duplicate] = await db.query<{ id: string }>(
+    "SELECT m.id FROM media_evidence m JOIN inspections i ON i.id=m.inspection_id WHERE m.id<>$1 AND m.expected_hash=$2 AND i.organization_id=$3 AND m.superseded_at IS NULL AND i.status='server_received' LIMIT 1",
+    [photo.id, photo.expected_hash, actor.organizationId],
+  );
+  const uploadedAtMs = Date.now();
+  const decision: Decision = decideGalleryPhoto({
+    format,
+    exif,
+    uploadedAtMs,
+    nowMs: uploadedAtMs,
+    visitWindow: { startDate: visit.start_date, endDate: visit.end_date },
+    site: { latitude: bound.latitude, longitude: bound.longitude, uncertaintyM: bound.uncertainty_m },
+    ownership: {
+      workerMatches: row.worker_id === actor.id,
+      assignmentMatches: row.assignment_id === bound.id,
+    },
+    duplicate: duplicate ? "exact" : "none",
+  });
+  const key = `${row.id}/${photo.kind}/original-${photo.expected_hash}`;
+  await putPrivate(key, bytes);
+  const receiptId = randomUUID();
+  await db.query(
+    "UPDATE media_evidence SET server_hash=$1,object_key=$2,receipt_id=$3,received_at=now(),original_format=$4 WHERE id=$5",
+    [photo.expected_hash, key, receiptId, format, photo.id],
+  );
+  await db.query(
+    "INSERT INTO media_verification(id,media_id,organization_id,verifier_version,status,reason_codes,exif,capture_local_date,capture_local_time,capture_offset,capture_timezone,capture_at,photo_latitude,photo_longitude,site_latitude,site_longitude,site_coordinate_source,distance_m,uploaded_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)",
+    [
+      randomUUID(),
+      photo.id,
+      actor.organizationId,
+      VERIFIER_VERSION,
+      decision.status,
+      JSON.stringify(decision.reasons),
+      JSON.stringify(whitelistExif(exif)),
+      decision.capture.localDate,
+      decision.capture.localTime,
+      decision.capture.offset,
+      decision.capture.timezone,
+      decision.capture.instant,
+      decision.photo.latitude,
+      decision.photo.longitude,
+      bound.latitude,
+      bound.longitude,
+      bound.latitude !== null ? "effective_source_coordinates" : null,
+      decision.distanceM,
+      new Date(uploadedAtMs).toISOString(),
+    ],
+  );
+  await audit(db, actor, "gallery.verified", photo.id, {
+    kind: photo.kind,
+    status: decision.status,
+    reasons: decision.reasons.map((r) => r.code),
+  });
+  return {
+    receiptId,
+    verification: { status: decision.status, reasons: decision.reasons } as PhotoVerification,
+  };
+}
+
+// Same assignment, same visit, but the worker replaced a gallery photo the server rejected (or has not
+// yet judged). Accepted photos cannot be changed. Old rows are kept and marked superseded.
+async function replaceRejectedGalleryPhotos(
+  db: Database,
+  actor: Actor,
+  existing: Inspection,
+  bound: Awaited<ReturnType<typeof task>>,
+  payload: InspectionInput,
+  digest: string,
+) {
+  if (existing.receipt_id || existing.status !== "uploading")
+    throw new ApiError(409, "Idempotency key payload conflict");
+  if (
+    bound.version !== existing.metadata.assignmentVersion ||
+    !["assigned", "resurvey_requested"].includes(bound.status)
+  )
+    throw new ApiError(409, "Assignment changed; keep local evidence and contact administrator");
+  const strip = (value: InspectionInput | InspectionInput["photos"] | object) => ({
+    ...(value as object),
+    photos: undefined,
+  });
+  if (canonical(strip(payload)) !== canonical(strip(existing.metadata)))
+    throw new ApiError(409, "Idempotency key payload conflict");
+  const current = await db.query<Media & { verification_status: string | null }>(
+    "SELECT m.*, v.status AS verification_status FROM media_evidence m LEFT JOIN media_verification v ON v.media_id=m.id WHERE m.inspection_id=$1 AND m.superseded_at IS NULL",
+    [existing.id],
+  );
+  const byKind = new Map(current.map((m) => [m.kind, m]));
+  const replaced: string[] = [];
+  for (const photo of payload.photos) {
+    const old = byKind.get(photo.kind);
+    if (!old) throw new ApiError(409, "Photo kinds cannot change after upload began");
+    if (old.expected_hash === photo.sha256) continue;
+    if (
+      old.source !== "gallery" ||
+      photo.source !== "gallery" ||
+      old.verification_status === "approved"
+    )
+      throw new ApiError(409, `The ${photo.kind} photo was already accepted and cannot be replaced`);
+    await db.query("UPDATE media_evidence SET superseded_at=now() WHERE id=$1", [old.id]);
+    await db.query(
+      "INSERT INTO media_evidence(id,inspection_id,kind,expected_bytes,expected_hash,source) VALUES($1,$2,$3,$4,$5,'gallery')",
+      [randomUUID(), existing.id, photo.kind, photo.bytes, photo.sha256],
+    );
+    replaced.push(photo.kind);
+  }
+  if (replaced.length) {
+    await db.query("UPDATE inspections SET metadata=$1,payload_hash=$2 WHERE id=$3", [
+      JSON.stringify(payload),
+      digest,
+      existing.id,
+    ]);
+    await audit(db, actor, "inspection.gallery_photo_replaced", existing.id, { kinds: replaced });
+  }
+  return session(db, await owned(db, actor, existing.id));
 }

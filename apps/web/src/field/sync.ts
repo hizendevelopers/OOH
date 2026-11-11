@@ -1,5 +1,5 @@
 import type { Actor } from "@ibvs/domain";
-import { FieldStore, capturedKinds, metadata } from "./store";
+import { FieldStore, capturedKinds, metadata, type Draft } from "./store";
 import {
   retryDelay,
   type UploadSession,
@@ -10,6 +10,7 @@ export class SyncError extends Error {
   constructor(
     public status: number,
     message: string,
+    public details?: unknown,
   ) {
     super(message);
   }
@@ -41,7 +42,7 @@ export async function fieldRequest<T>(
     const error = await response
       .json()
       .catch(() => ({ error: "Request failed" }));
-    throw new SyncError(response.status, error.error || "Request failed");
+    throw new SyncError(response.status, error.error || "Request failed", error.details);
   }
   return response.json();
 }
@@ -120,8 +121,23 @@ export async function syncDraft(
     draft = await store.drafts.get(id);
     if (!draft || draft.state === "server_received") return;
     const status = error instanceof SyncError ? error.status : 0;
+    // Server verification rejected a gallery photo. Every original stays on the device. The worker replaces
+    // the rejected photo, queues the visit again, and the server keeps the rejected original as evidence.
+    const details = error instanceof SyncError ? (error.details as { verification?: unknown } | undefined) : undefined;
+    if (status === 422 && Array.isArray(details?.verification)) {
+      await store.drafts.update(id, {
+        state: "local_draft",
+        verification: details.verification as Draft["verification"],
+        lastError: "verification_failed",
+        nextAttemptAt: 0,
+        progress: 0,
+      });
+      return;
+    }
+    // 401 means the session expired while offline. The visit stays queued: after the worker
+    // signs in again, the next replay resumes it without a manual step.
     const retryable =
-      status === 0 || status === 408 || status === 429 || status >= 500;
+      status === 0 || status === 401 || status === 408 || status === 429 || status >= 500;
     const attempts = draft.attempts + 1;
     await store.drafts.update(id, {
       state: retryable ? "queued" : "blocked",
