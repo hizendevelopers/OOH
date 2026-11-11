@@ -28,6 +28,7 @@ import { fieldStrings, type FieldText } from "./strings";
 import Capture from "./capture";
 import { storageError } from "../../../../packages/domain/src/inspection";
 import { Nearby } from "./nearby";
+import NewSite, { type RegisteredSite } from "./new-site";
 import {
   assessPhotoLocation,
   locationMessages,
@@ -55,6 +56,8 @@ export default function FieldWorkspace() {
     [busy, setBusy] = useState(false),
     [shell, setShell] = useState(false),
     [install, setInstall] = useState<InstallEvent | null>(null),
+    [persistNote, setPersistNote] = useState<"granted" | "denied" | null>(null),
+    [newSite, setNewSite] = useState(false),
     [storage, setStorage] = useState<{
       usage: number;
       quota: number;
@@ -202,8 +205,8 @@ export default function FieldWorkspace() {
     const timer = setInterval(sync, 10000);
     return () => clearInterval(timer);
   }, [store, online]);
-  async function download() {
-    if (!store) return;
+  async function download(): Promise<Assignment[] | undefined> {
+    if (!store) return undefined;
     setBusy(true);
     setError(null);
     try {
@@ -218,8 +221,10 @@ export default function FieldWorkspace() {
       setTasks(current);
       setCachedIds(current.map((task) => task.assignment_id));
       await diagnostics();
+      return current;
     } catch (e) {
       setError(e instanceof SyncError ? "downloadError" : storageError(e));
+      return undefined;
     } finally {
       setBusy(false);
     }
@@ -518,6 +523,30 @@ export default function FieldWorkspace() {
                     {t.download}
                   </button>
                 </section>
+                {newSite ? (
+                  <NewSite
+                    arabic={locale === "ar"}
+                    onCancel={() => setNewSite(false)}
+                    onRegistered={async (site: RegisteredSite) => {
+                      setNewSite(false);
+                      const list = await download();
+                      const task = list?.find((a) => a.assignment_id === site.assignmentId);
+                      if (task) await openTask(task);
+                      else setError("storage_unavailable");
+                    }}
+                  />
+                ) : (
+                  <p className="field-caption">
+                    <button
+                      className="secondary"
+                      disabled={!online || busy || !store}
+                      onClick={() => setNewSite(true)}
+                    >
+                      {t.registerSite}
+                    </button>{" "}
+                    {t.registerSiteNote}
+                  </p>
+                )}
                 <CityTabs
                   label={locale === "ar" ? "المدن" : "Cities"}
                   allLabel={locale === "ar" ? "كل المواقع المكلّف بها" : "All assigned locations"}
@@ -874,7 +903,8 @@ export default function FieldWorkspace() {
                 className="secondary"
                 onClick={async () => {
                   try {
-                    await navigator.storage?.persist();
+                    const granted = await navigator.storage?.persist();
+                    setPersistNote(granted ? "granted" : "denied");
                     await diagnostics();
                   } catch {
                     setError("storageError");
@@ -883,6 +913,9 @@ export default function FieldWorkspace() {
               >
                 {t.persist}
               </button>
+              {persistNote === "denied" && !storage?.persistent && (
+                <p className="notice warning" role="status">{t.persistDenied}</p>
+              )}
               {storage &&
                 storage.quota > 0 &&
                 storage.usage / storage.quota > 0.8 && (
