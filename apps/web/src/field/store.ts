@@ -23,6 +23,8 @@ export type Draft = {
   photos: Partial<Record<PhotoKind, LocalPhoto>>;
   challenge: { id: string; nonce: string; expiresAt: string } | null;
   brand?: BrandEntry | null;
+  // Latest server verification of gallery originals, shown so the worker can replace rejected photos.
+  verification?: { kind: PhotoKind; status: string; reasons: { code: string; severity: string; detail?: string }[] }[] | null;
   state: "local_draft" | "queued" | "uploading" | "blocked" | "server_received";
   attempts: number;
   nextAttemptAt: number;
@@ -82,6 +84,8 @@ export class FieldStore extends Dexie {
         throw new Error("Draft is locked for synchronization");
       await this.drafts.update(id, {
         photos: { ...draft.photos, [photo.kind]: photo },
+        // A replaced photo no longer has the verdict its rejection was based on.
+        verification: draft.verification?.filter((v) => v.kind !== photo.kind) ?? null,
         updatedAt: new Date().toISOString(),
       });
     });
@@ -133,6 +137,8 @@ export class FieldStore extends Dexie {
         Date.parse(exception.expires_at) > Date.now();
       if (!hasException)
         for (const photo of Object.values(draft.photos)) {
+          // Gallery originals are judged by the server from their EXIF, not by the device location gate.
+          if (photo.source === "gallery") continue;
           const result = assessPhotoLocation(photo, draft.task);
           // first_capture: no verified location yet. The reading is valid and the server checks the whole visit.
           if (result.status !== "within_area" && result.status !== "first_capture")

@@ -114,6 +114,20 @@ export const fieldStrings = {
       "Task changed or upload conflict. Keep originals and contact your administrator.",
     validation_failed:
       "Server validation failed. Keep originals and contact your administrator.",
+    verification_failed:
+      "The server rejected a gallery photo. Replace it with the original from your gallery, then queue again.",
+    chooseGallery: "Choose from gallery",
+    galleryChecked:
+      "Gallery original. After upload the server checks its date, GPS and distance from the billboard.",
+    galleryHeic:
+      "HEIC original saved. This browser cannot preview it; the server reads its metadata.",
+    galleryNote:
+      "Use an original photo from your phone gallery, not a screenshot or an edited copy.",
+    verificationTitle: "Server verification",
+    verificationApproved: "Approved",
+    verificationRejected: "Rejected",
+    verificationReview: "Needs supervisor review",
+    verificationPending: "Waiting for server verification",
     connection_interrupted:
       "Connection interrupted. Your saved photos will retry with backoff.",
     safe: "Do not photograph while driving. GPS alone cannot distinguish adjacent faces.",
@@ -248,6 +262,20 @@ export const fieldStrings = {
     task_conflict:
       "تغيّرت المهمة أو تعارض الرفع. احتفظ بالأصول وتواصل مع المشرف.",
     validation_failed: "فشل تحقق الخادم. احتفظ بالأصول وتواصل مع المشرف.",
+    verification_failed:
+      "رفض الخادم صورة من المعرض. استبدلها بالصورة الأصلية من معرض هاتفك ثم أعد الإرسال إلى الطابور.",
+    chooseGallery: "اختر من المعرض",
+    galleryChecked:
+      "نسخة أصلية من المعرض. بعد الرفع يتحقق الخادم من تاريخ الالتقاط والموقع والمسافة عن اللوحة.",
+    galleryHeic:
+      "حُفظت النسخة الأصلية بصيغة HEIC. هذا المتصفح لا يعرض معاينتها؛ ويقرأ الخادم بياناتها.",
+    galleryNote:
+      "استخدم صورة أصلية من معرض هاتفك، وليس لقطة شاشة أو نسخة معدّلة.",
+    verificationTitle: "تحقق الخادم",
+    verificationApproved: "مقبولة",
+    verificationRejected: "مرفوضة",
+    verificationReview: "تحتاج مراجعة المشرف",
+    verificationPending: "بانتظار تحقق الخادم",
     connection_interrupted:
       "انقطع الاتصال. ستُعاد محاولة إرسال الصور المحفوظة تدريجياً.",
     safe: "لا تلتقط الصور أثناء القيادة. GPS وحده لا يميّز الواجهات المتجاورة.",

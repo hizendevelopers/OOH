@@ -526,7 +526,7 @@ export async function promoteFieldCapture(
     if (existing) throw new ApiError(409, "This location already has a source coordinate; it was not changed");
     // Supporting field evidence: the visit was received by the server, and its front and wide photos have receipts.
     const evidence = await tx.query<{ kind: string }>(
-      "SELECT DISTINCT m.kind FROM media_evidence m WHERE m.inspection_id=$1 AND m.receipt_id IS NOT NULL",
+      "SELECT DISTINCT m.kind FROM media_evidence m WHERE m.inspection_id=$1 AND m.receipt_id IS NOT NULL AND m.superseded_at IS NULL",
       [capture.inspection_id],
     );
     const kinds = new Set(evidence.map((row) => row.kind));

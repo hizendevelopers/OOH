@@ -30,8 +30,11 @@ export const photoMetadata = z.object({
   bytes: z.number().int().min(1).max(PHOTO_LIMIT),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
   capturedAt: z.iso.datetime(),
-  captureMode: z.enum(["offline", "online_challenged", "online_unchallenged"]),
+  captureMode: z.enum(["offline", "online_challenged", "online_unchallenged", "gallery_original"]),
   gps: gpsSchema,
+  // Camera photos are checked by the device-side rules. Gallery originals are judged only by the
+  // server, from the EXIF inside the original bytes; the browser's capturedAt and gps are advisory.
+  source: z.enum(["camera", "gallery"]).optional(),
 });
 export const inspectionInput = z.object({
   operationId: z.uuid(),
@@ -57,6 +60,10 @@ export const inspectionInput = z.object({
     .refine(
       (photos) => photos.some((p) => (angleKinds as readonly string[]).includes(p.kind)),
       "At least one additional angle photograph is required",
+    )
+    .refine(
+      (photos) => photos.every((p) => (p.source === "gallery") === (p.captureMode === "gallery_original")),
+      "Gallery photos and gallery capture mode must go together",
     ),
 });
 export type InspectionInput = z.infer<typeof inspectionInput>;
@@ -67,6 +74,11 @@ export type Receipt = {
   status: "server_received";
   flags: string[];
 };
+export type VerificationReason = { code: string; severity: "reject" | "review"; detail?: string };
+export type PhotoVerification = {
+  status: "approved" | "rejected" | "needs_review";
+  reasons: VerificationReason[];
+};
 export type UploadSession = {
   inspectionId: string;
   chunkSize: number;
@@ -74,6 +86,9 @@ export type UploadSession = {
     kind: PhotoKind;
     receivedParts: number[];
     receiptId: string | null;
+    sha256?: string;
+    source?: "camera" | "gallery";
+    verification?: PhotoVerification | null;
   }[];
   receipt: Receipt | null;
 };

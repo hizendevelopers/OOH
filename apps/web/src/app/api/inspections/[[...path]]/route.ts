@@ -131,7 +131,12 @@ async function handle(request: Request) {
     throw new ApiError(404, "Endpoint not found");
   } catch (e) {
     if (e instanceof ApiError)
-      return json({ error: e.message, requestId }, e.status);
+      return json(
+        e.details === undefined
+          ? { error: e.message, requestId }
+          : { error: e.message, requestId, details: e.details },
+        e.status,
+      );
     if (e instanceof z.ZodError)
       return json({ error: "Invalid inspection request", requestId }, 422);
     console.error(
