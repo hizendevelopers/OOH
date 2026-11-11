@@ -17,6 +17,7 @@ export const REQUIRED_MIGRATIONS = [
   "012_security_hardening.sql",
   "013_app_role_grants.sql",
   "014_gallery_verification.sql",
+  "015_site_registration.sql",
 ] as const;
 
 export type MigrationStatus = {
