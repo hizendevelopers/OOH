@@ -29,6 +29,12 @@ import {
 } from "./location-policy";
 import { LocationMap } from "./location-map";
 import { verificationReason } from "./verification-messages";
+import {
+  advisoryGalleryCheck,
+  platformOf,
+  withGalleryType,
+  type GalleryWarning,
+} from "./gallery-file";
 
 function Photo({ photo, label }: { photo: LocalPhoto; label: string }) {
   const [url, setUrl] = useState("");
@@ -79,7 +85,8 @@ export default function Capture({
     [locating, setLocating] = useState(false),
     [error, setError] = useState<keyof FieldText | null>(null),
     [now, setNow] = useState(0),
-    [pending, setPending] = useState<LocalPhoto | null>(null);
+    [pending, setPending] = useState<LocalPhoto | null>(null),
+    [galleryNotice, setGalleryNotice] = useState<{ kind: PhotoKind; warnings: GalleryWarning[] } | null>(null);
   const stop = () => {
     requestVersion.current++;
     stream.current?.getTracks().forEach((track) => track.stop());
@@ -243,17 +250,21 @@ export default function Capture({
     }
     setBusy(true);
     try {
+      const blob = withGalleryType(file);
       const now = new Date().toISOString();
       const photo: LocalPhoto = {
         kind,
-        blob: file,
-        bytes: file.size,
-        sha256: await digestBlob(file),
+        blob,
+        bytes: blob.size,
+        sha256: await digestBlob(blob),
         capturedAt: now,
         captureMode: "gallery_original",
         gps: { status: "unavailable", observedAt: now },
         source: "gallery",
       };
+      // Advisory check only: the worker can re-pick now, while still at the site. The server still decides.
+      const warnings = await advisoryGalleryCheck(blob);
+      setGalleryNotice({ kind, warnings });
       await save(photo);
     } catch {
       setError("storage_unavailable");
@@ -346,7 +357,7 @@ export default function Capture({
             <input
               ref={fileInput}
               type="file"
-              accept="image/jpeg,image/heic,image/heif,.jpg,.jpeg,.heic,.heif"
+              accept="image/*,.heic,.heif,.jpg,.jpeg"
               hidden
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -356,6 +367,32 @@ export default function Capture({
             />
           </div>
           <p className="field-caption">{t.galleryNote}</p>
+          {galleryNotice && galleryNotice.kind === kind && (
+            <div
+              className={"notice " + (galleryNotice.warnings.length ? "warning" : "")}
+              role="status"
+            >
+              {galleryNotice.warnings.length === 0 ? (
+                <p>{t.galleryWarnOk}</p>
+              ) : (
+                <>
+                  {galleryNotice.warnings.includes("no_location") && (
+                    <p>
+                      {platformOf(navigator.userAgent) === "ios"
+                        ? t.galleryWarnNoLocationIos
+                        : platformOf(navigator.userAgent) === "android"
+                          ? t.galleryWarnNoLocationAndroid
+                          : t.galleryWarnNoLocation}
+                    </p>
+                  )}
+                  {galleryNotice.warnings.includes("no_date") && <p>{t.galleryWarnNoDate}</p>}
+                  {galleryNotice.warnings.includes("unreadable") && (
+                    <p>{t.galleryWarnUnreadable}</p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
           <p className="field-caption">{t.gpsWarning}</p>
         </section>
       )}

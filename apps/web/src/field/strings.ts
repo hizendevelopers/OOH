@@ -128,6 +128,15 @@ export const fieldStrings = {
     verificationRejected: "Rejected",
     verificationReview: "Needs supervisor review",
     verificationPending: "Waiting for server verification",
+    galleryWarnNoLocationIos:
+      "This photo has no location. On iPhone: Settings → Privacy & Security → Location Services → Camera → While Using, then take or choose the original photo again.",
+    galleryWarnNoLocationAndroid:
+      "This photo has no location. On Android: turn on location tags in the Camera app, or allow this browser to read photo locations (Settings → Apps → your browser → Photos and videos), then choose the original photo again.",
+    galleryWarnNoLocation:
+      "This photo has no location. Choose the original photo from your gallery with location turned on.",
+    galleryWarnNoDate: "This photo has no capture date. Choose the original photo from your gallery.",
+    galleryWarnUnreadable: "This photo's metadata cannot be read. Choose the original photo from your gallery.",
+    galleryWarnOk: "Original photo selected. Location and date are checked by the server after upload.",
     connection_interrupted:
       "Connection interrupted. Your saved photos will retry with backoff.",
     safe: "Do not photograph while driving. GPS alone cannot distinguish adjacent faces.",
@@ -276,6 +285,15 @@ export const fieldStrings = {
     verificationRejected: "مرفوضة",
     verificationReview: "تحتاج مراجعة المشرف",
     verificationPending: "بانتظار تحقق الخادم",
+    galleryWarnNoLocationIos:
+      "هذه الصورة لا تحتوي على موقع. على آيفون: الإعدادات ← الخصوصية والأمان ← خدمات الموقع ← الكاميرا ← أثناء الاستخدام، ثم التقط الصورة الأصلية أو اخترها مرة أخرى.",
+    galleryWarnNoLocationAndroid:
+      "هذه الصورة لا تحتوي على موقع. على أندرويد: فعّل وسوم الموقع في تطبيق الكاميرا، أو اسمح للمتصفح بقراءة مواقع الصور (الإعدادات ← التطبيقات ← المتصفح ← الصور والفيديو)، ثم اختر الصورة الأصلية مرة أخرى.",
+    galleryWarnNoLocation:
+      "هذه الصورة لا تحتوي على موقع. اختر الصورة الأصلية من معرض هاتفك مع تفعيل الموقع.",
+    galleryWarnNoDate: "هذه الصورة لا تحتوي على تاريخ التقاط. اختر الصورة الأصلية من معرض هاتفك.",
+    galleryWarnUnreadable: "لا يمكن قراءة بيانات هذه الصورة. اختر الصورة الأصلية من معرض هاتفك.",
+    galleryWarnOk: "تم اختيار الصورة الأصلية. يتحقق الخادم من الموقع والتاريخ بعد الرفع.",
     connection_interrupted:
       "انقطع الاتصال. ستُعاد محاولة إرسال الصور المحفوظة تدريجياً.",
     safe: "لا تلتقط الصور أثناء القيادة. GPS وحده لا يميّز الواجهات المتجاورة.",
