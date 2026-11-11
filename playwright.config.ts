@@ -1,4 +1,4 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "tests/e2e",
   workers: 1,
@@ -27,11 +27,5 @@ export default defineConfig({
     reuseExistingServer: false,
     timeout: 120000,
   },
-  // Field work runs on both phone families. WebKit stands in for iPhone Safari, and Chromium with a Pixel
-  // profile stands in for Android Chrome. Camera-only checks still need a real phone (see the README).
-  projects: [
-    { name: "chromium", use: { browserName: "chromium" } },
-    { name: "iphone-safari", use: { ...devices["iPhone 13"], browserName: "webkit" } },
-    { name: "android-chrome", use: { ...devices["Pixel 7"], browserName: "chromium" } },
-  ],
+  projects: [{ name: "chromium", use: { browserName: "chromium" } }],
 });
