@@ -2474,3 +2474,10 @@ td small {
 @media (max-width: 380px) {
   .visit-details { grid-template-columns: 1fr; }
 }
+
+/* Worker assignment cards on the main page: address and coordinates. */
+.worker-card-details { display: grid; gap: 6px; margin: 8px 0 0; font-size: 0.9rem; }
+.worker-card-details div { display: grid; gap: 1px; }
+.worker-card-details dt { font-size: 0.78rem; color: var(--muted, #5b6472); }
+.worker-card-details dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.worker-map-link { min-height: 44px; display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; }
