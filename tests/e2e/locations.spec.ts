@@ -164,7 +164,7 @@ test("admin creates GPS test location, corrects coordinates, worker finds it and
       .getByRole("button", { name: "Open assigned visit", exact: true })
       .click();
     await workerPage
-      .getByRole("button", { name: "Start live camera", exact: true })
+      .getByRole("button", { name: "Open camera", exact: true })
       .click();
     await expect
       .poll(() =>

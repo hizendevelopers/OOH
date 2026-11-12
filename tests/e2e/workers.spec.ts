@@ -156,15 +156,15 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
     .click();
   await expect(worker).toHaveURL(/\/field\?assignment=/);
   await expect(
-    worker.getByRole("button", { name: "Start live camera", exact: true }),
+    worker.getByRole("button", { name: "Open camera", exact: true }),
   ).toBeVisible();
   await expect(
-    worker.getByRole("button", { name: "Start live camera", exact: true }),
+    worker.getByRole("button", { name: "Open camera", exact: true }),
   ).toBeInViewport();
   // Workers may pick gallery photos, but never import a CSV inventory file.
   await expect(worker.locator('input[type="file"][accept*="csv"]')).toHaveCount(0);
   await worker
-    .getByRole("button", { name: "Start live camera", exact: true })
+    .getByRole("button", { name: "Open camera", exact: true })
     .click();
   await expect
     .poll(() =>

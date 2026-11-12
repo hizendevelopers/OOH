@@ -102,9 +102,7 @@ test("admin imports, assigns, worker sees authorized visit; CSRF and scope are e
     worker.getByRole("heading", { name: face, exact: true }),
   ).toBeVisible();
   await expect(
-    worker.getByText("Open the field workspace for live capture", {
-      exact: false,
-    }),
+    worker.getByRole("link", { name: "Capture live photos", exact: true }),
   ).toBeVisible();
   expect((await worker.request.get("/api/inventory")).status()).toBe(403);
   await context.close();

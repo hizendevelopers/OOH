@@ -48,7 +48,7 @@ async function field(page: Page, code: string) {
 }
 async function camera(page: Page) {
   await page
-    .getByRole("button", { name: "Start live camera", exact: true })
+    .getByRole("button", { name: "Open camera", exact: true })
     .click();
   await expect
     .poll(async () =>
@@ -97,7 +97,7 @@ test("offline camera evidence survives reload and interrupted upload; server rec
     .getByRole("button", { name: "Record location fix", exact: true })
     .click();
   await expect(
-    page.getByText("Location permission denied.", { exact: false }),
+    page.getByText("Location is off.", { exact: false }),
   ).toBeVisible();
   await context.grantPermissions(["camera", "geolocation"]);
   await context.setGeolocation({ latitude: 33.3102, longitude: 44.4351, accuracy: 10 });
@@ -127,7 +127,7 @@ test("offline camera evidence survives reload and interrupted upload; server rec
     .getByRole("button", { name: "Submit visit", exact: true })
     .click();
   await expect(
-    page.getByText("Queued — no server receipt", { exact: true }),
+    page.getByText("Waiting to send", { exact: true }),
   ).toBeVisible();
   await page.reload();
   await expect(
@@ -143,7 +143,7 @@ test("offline camera evidence survives reload and interrupted upload; server rec
     page.getByText("Photo saved", { exact: true }),
   ).toHaveCount(3);
   await expect(
-    page.getByText("Queued — no server receipt", { exact: true }),
+    page.getByText("Waiting to send", { exact: true }),
   ).toBeVisible();
   await page.route("**/api/inspections/*/parts/wide/*", (route) =>
     route.abort("internetdisconnected"),
@@ -151,7 +151,7 @@ test("offline camera evidence survives reload and interrupted upload; server rec
   await context.setOffline(false);
   await expect(
     page.getByText(
-      "Connection interrupted. Your saved photos will retry with backoff.",
+      "Connection lost. Your photos will send automatically when you are back online.",
       { exact: true },
     ),
   ).toBeVisible();
@@ -167,7 +167,7 @@ test("offline camera evidence survives reload and interrupted upload; server rec
   expect(upload.receipt).toBeNull();
   await page.unroute("**/api/inspections/*/parts/wide/*");
   await page
-    .getByRole("button", { name: "Retry synchronization", exact: true })
+    .getByRole("button", { name: "Try sending again", exact: true })
     .click();
   await expect(
     page.getByText("Submitted — waiting for review", { exact: true }),
@@ -317,7 +317,7 @@ test("GPS success, simulated storage exhaustion and denied camera preserve hones
     });
   });
   await page
-    .getByRole("button", { name: "Start live camera", exact: true })
+    .getByRole("button", { name: "Open camera", exact: true })
     .click();
   await expect(
     page.getByText("Camera permission denied.", { exact: false }),

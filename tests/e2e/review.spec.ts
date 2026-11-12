@@ -436,7 +436,7 @@ test("supervisors review adjacent faces, explicitly version references and reque
   await page.context().grantPermissions(["camera", "geolocation"]);
   await page.context().setGeolocation({ latitude: task!.latitude!, longitude: task!.longitude!, accuracy: 10 });
   await page
-    .getByRole("button", { name: "Start live camera", exact: true })
+    .getByRole("button", { name: "Open camera", exact: true })
     .click();
   await expect
     .poll(() =>
@@ -467,11 +467,11 @@ test("supervisors review adjacent faces, explicitly version references and reque
     .click();
   // A click starts an IndexedDB transaction; wait for its durable acknowledgement.
   await expect(
-    page.getByText("Queued — no server receipt", { exact: true }).first(),
+    page.getByText("Waiting to send", { exact: true }).first(),
   ).toBeVisible();
   await page.reload();
   await expect(
-    page.getByText("Queued — no server receipt", { exact: true }).first(),
+    page.getByText("Waiting to send", { exact: true }).first(),
   ).toBeVisible();
   await page.context().setOffline(false);
   await expect(
