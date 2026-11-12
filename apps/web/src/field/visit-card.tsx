@@ -34,8 +34,7 @@ const copy = {
     deviceMaps: "Other map app",
     due: "Due",
     visit: "Visit",
-    savedOnDevice: "Saved on this device",
-    notSavedOnDevice: "Download to use offline",
+    pendingGps: "Pending GPS",
     offlineHint: "No connection. Showing saved details.",
   },
   ar: {
@@ -58,8 +57,7 @@ const copy = {
     deviceMaps: "تطبيق خرائط آخر",
     due: "الاستحقاق",
     visit: "الزيارة",
-    savedOnDevice: "محفوظة على هذا الجهاز",
-    notSavedOnDevice: "نزّلها لاستخدامها دون اتصال",
+    pendingGps: "GPS معلّق",
     offlineHint: "لا يوجد اتصال. تُعرض التفاصيل المحفوظة.",
   },
 } as const;
@@ -71,6 +69,8 @@ export default function VisitCard({
   online,
   platform,
   onAddressSaved,
+  downloaded,
+  downloadFirst,
 }: {
   task: Assignment;
   ar: boolean;
@@ -78,6 +78,8 @@ export default function VisitCard({
   online: boolean;
   platform: "ios" | "android" | "other";
   onAddressSaved: (assignmentId: string, address: string) => void;
+  downloaded: string;
+  downloadFirst: string;
 }) {
   const t = ar ? copy.ar : copy.en;
   const lang = ar ? "ar" : "en";
@@ -209,7 +211,10 @@ export default function VisitCard({
                 </div>
               </>
             ) : (
-              <p className="visit-caption">{t.notPinned}</p>
+              <>
+                <span className="badge">{t.pendingGps}</span>
+                <p className="visit-caption">{t.notPinned}</p>
+              </>
             )}
           </dd>
         </div>
@@ -228,7 +233,7 @@ export default function VisitCard({
         <span>
           {t.visit}: {statusLabel(task.status, lang)}
         </span>
-        <span>{cached ? t.savedOnDevice : t.notSavedOnDevice}</span>
+        <span>{cached ? downloaded : downloadFirst}</span>
         {!online && !cached && (
           <span>
             <WifiOff size={14} /> {t.offlineHint}

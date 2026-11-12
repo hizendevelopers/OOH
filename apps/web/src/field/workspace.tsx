@@ -620,6 +620,8 @@ export default function FieldWorkspace() {
                             cached={cachedIds.includes(task.assignment_id)}
                             online={online}
                             platform={platformOf(navigator.userAgent)}
+                            downloaded={t.downloaded}
+                            downloadFirst={t.downloadFirst}
                             onAddressSaved={(assignmentId, address) =>
                               setTasks((list) =>
                                 list.map((item) =>
