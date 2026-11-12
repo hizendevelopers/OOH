@@ -2484,3 +2484,14 @@ td small {
 .worker-card-details dt { font-size: 0.78rem; color: var(--muted, #5b6472); }
 .worker-card-details dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 .worker-map-link { min-height: 44px; display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; }
+
+/* Admin overview: progress by city. */
+.progress-list { display: grid; gap: 14px; }
+.progress-total { margin: 0 0 4px; color: var(--muted); }
+.progress-row { display: grid; gap: 6px; }
+.progress-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; font-variant-numeric: tabular-nums; }
+.progress-head span { color: var(--muted); font-size: 0.9rem; }
+.progress-track { height: 12px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 999px; background: var(--green); min-width: 0; transition: width 0.4s ease; }
+.progress-row small { color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .progress-fill { transition: none; } }

@@ -50,7 +50,7 @@ type Summary = {
   pending: number;
   verified: number;
   rejected: number;
-  cities: { city: string; faces: number; assigned: number }[];
+  cities: { city: string; faces: number; assigned: number; submitted: number; pinned: number }[];
 };
 type Event = {
   id: string;
@@ -739,34 +739,41 @@ export default function Workspace({
                         </span>
                       </div>
                       {summary.cities.length ? (
-                        <div className="city-chart">
-                          {summary.cities.map((c, i) => (
-                            <div className="city-row" key={c.city}>
-                              <span className="city-number">0{i + 1}</span>
-                              <div className="city-bar">
-                                <div>
+                        <div className="progress-list">
+                          <p className="progress-total">
+                            {locale === "ar" ? "أُرسلت" : "Submitted"}:{" "}
+                            <strong>
+                              {summary.cities.reduce((sum, c) => sum + c.submitted, 0)} /{" "}
+                              {summary.cities.reduce((sum, c) => sum + c.faces, 0)}
+                            </strong>
+                          </p>
+                          {summary.cities.map((c) => {
+                            const pct = c.faces ? Math.round((c.submitted / c.faces) * 100) : 0;
+                            const pinPct = c.faces ? Math.round((c.pinned / c.faces) * 100) : 0;
+                            return (
+                              <div className="progress-row" key={c.city}>
+                                <div className="progress-head">
                                   <strong>{c.city}</strong>
                                   <span>
-                                    {c.faces}{" "}
-                                    {locale === "ar" ? "واجهة" : "faces"}
+                                    {c.submitted} / {c.faces} · {pct}%
                                   </span>
                                 </div>
-                                <meter
-                                  min={0}
-                                  max={Math.max(
-                                    ...summary.cities.map((c) => c.faces),
-                                    1,
-                                  )}
-                                  value={c.faces}
-                                  aria-label={c.city}
-                                />
+                                <div
+                                  className="progress-track"
+                                  role="progressbar"
+                                  aria-label={`${c.city}: ${pct}% ${locale === "ar" ? "مُرسلة" : "submitted"}`}
+                                  aria-valuemin={0}
+                                  aria-valuemax={100}
+                                  aria-valuenow={pct}
+                                >
+                                  <div className="progress-fill" style={{ width: `${pct}%` }} />
+                                </div>
+                                <small>
+                                  {locale === "ar" ? "مثبّتة بالإحداثيات" : "Pinned"}: {c.pinned} ({pinPct}%)
+                                </small>
                               </div>
-                              <span className="city-assigned">
-                                {c.assigned}{" "}
-                                {locale === "ar" ? "مكلّفة" : "assigned"}
-                              </span>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ) : (
                         <Empty title={t.empty} text={t.emptySub} />
