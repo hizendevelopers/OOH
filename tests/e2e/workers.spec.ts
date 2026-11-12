@@ -94,6 +94,8 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
     .getByRole("button", { name: "Inventory", exact: true })
     .first()
     .click();
+  // Selection and row details live in the table view; the inventory opens by city.
+  await page.getByRole("button", { name: "Table", exact: true }).click();
   await page
     .getByRole("checkbox", { name: `Select ${code}`, exact: true })
     .check();
@@ -125,7 +127,7 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
     worker.getByRole("heading", { name: "My assignments", exact: true }),
   ).toBeVisible();
   await expect(
-    worker.getByRole("heading", { name: code, exact: true }),
+    worker.locator("article.site-card").filter({ hasText: code }),
   ).toBeVisible();
   expect((await worker.request.get("/api/workers")).status()).toBe(403);
   expect(
@@ -148,7 +150,7 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
     fullPage: true,
   });
   await worker
-    .locator(".task-card-group")
+    .locator("article.site-card")
     .filter({ hasText: code })
     .getByRole("link", { name: "Capture live photos", exact: true })
     .click();

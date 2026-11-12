@@ -2526,3 +2526,32 @@ td small {
 :root:not([data-theme="dark"]) .trust-card p { color: var(--muted); }
 :root:not([data-theme="dark"]) .user { border-top-color: var(--line); color: var(--ink); }
 :root:not([data-theme="dark"]) .user small { color: var(--muted); }
+
+/* City-wise inventory (shared by Inventory and the worker page). */
+.view-switch { display: flex; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
+.view-switch button { min-height: 40px; }
+.city-inventory { display: grid; gap: 12px; }
+.city-inventory-empty { padding: 16px 0; }
+.city-card { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.city-card > summary {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 14px 16px; cursor: pointer; list-style: none; min-height: 52px;
+}
+.city-card > summary::-webkit-details-marker { display: none; }
+.city-card > summary:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; border-radius: 12px; }
+.city-card-name { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--ink); }
+.city-card-count { font-size: 0.85rem; color: var(--muted); background: var(--surface2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-variant-numeric: tabular-nums; }
+.city-card[open] > summary { border-bottom: 1px solid var(--line); }
+.site-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; padding: 14px; }
+.site-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 8px; background: var(--surface2); min-width: 0; }
+.site-name { margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.site-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin: 0; }
+.site-facts > div { min-width: 0; }
+.site-fact-wide { grid-column: 1 / -1; }
+.site-facts dt { font-size: 0.75rem; color: var(--muted); }
+.site-facts dd { margin: 1px 0 0; font-size: 0.88rem; color: var(--ink); overflow-wrap: anywhere; }
+.site-code { margin: 0; font-size: 0.75rem; color: var(--muted); }
+.site-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.site-actions > * { min-height: 40px; }
+@media (max-width: 420px) { .site-facts { grid-template-columns: 1fr; } .site-grid { padding: 10px; } }
+.site-chips { display: flex; flex-wrap: wrap; gap: 6px; font-size: 0.8rem; }

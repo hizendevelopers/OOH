@@ -66,6 +66,8 @@ test("admin imports, assigns, worker sees authorized visit; CSRF and scope are e
     .getByRole("button", { name: "Inventory", exact: true })
     .first()
     .click();
+  // Selection and row details live in the table view; the inventory opens by city.
+  await page.getByRole("button", { name: "Table", exact: true }).click();
   await page
     .getByRole("checkbox", { name: `Select ${face}`, exact: true })
     .check();
@@ -90,9 +92,11 @@ test("admin imports, assigns, worker sees authorized visit; CSRF and scope are e
   const context = await browser.newContext();
   const worker = await context.newPage();
   await login(worker, "worker@demo.ibvs.test");
+  // The worker page lists sites by city; open this site's details from its card.
   await worker
-    .getByRole("button")
-    .filter({ has: worker.getByRole("heading", { name: face, exact: true }) })
+    .locator("article.site-card")
+    .filter({ hasText: face })
+    .getByRole("button", { name: "Details", exact: true })
     .click();
   await expect(
     worker.getByRole("heading", { name: face, exact: true }),

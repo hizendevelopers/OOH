@@ -93,6 +93,8 @@ test("admin creates GPS test location, corrects coordinates, worker finds it and
     .getByRole("button", { name: "Inventory", exact: true })
     .first()
     .click();
+  // Selection and row details live in the table view; the inventory opens by city.
+  await page.getByRole("button", { name: "Table", exact: true }).click();
   const row = page.getByRole("row").filter({ hasText: code });
   await expect(row.getByText("Test", { exact: true })).toBeVisible();
   await row.getByRole("button", { name: "Map / correct", exact: true }).click();
