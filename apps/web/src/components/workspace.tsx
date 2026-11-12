@@ -39,6 +39,8 @@ import { LocationEditor } from "./location-editor";
 import { LocationMap } from "./location-map";
 import { WorkerManagement } from "./worker-management";
 import { CityTabs, LocationFlags, cityCounts, needsLocationAttention } from "./city-tabs";
+import { addressFor, cityLine, coordinatePair } from "@ibvs/domain";
+import { platformOf } from "../field/gallery-file";
 type Tab = "overview" | "inventory" | "assignments" | "workers" | "audit";
 type Summary = {
   faces: number;
@@ -1144,10 +1146,34 @@ export default function Workspace({
                             <h3>
                               <bdi>{a.code}</bdi>
                             </h3>
-                            <p>
-                              {a.city} · {a.zone}
-                            </p>
-                            <LocationFlags item={a} ar={locale === "ar"} />
+                            <p>{cityLine(a.city, a.zone)}</p>
+                            {isAdmin ? (
+                              <LocationFlags item={a} ar={locale === "ar"} />
+                            ) : (
+                              <dl className="worker-card-details">
+                                <div>
+                                  <dt>{locale === "ar" ? "العنوان" : "Address"}</dt>
+                                  <dd>
+                                    {addressFor(a.worker_address, a.description).text ??
+                                      (locale === "ar"
+                                        ? "لا يوجد عنوان. أدخله في الزيارة."
+                                        : "No address. Enter it on the visit.")}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt>{locale === "ar" ? "الإحداثيات" : "Coordinates"}</dt>
+                                  <dd>
+                                    {a.latitude !== null && a.longitude !== null ? (
+                                      <bdi className="mono">{coordinatePair(a.latitude, a.longitude)}</bdi>
+                                    ) : (
+                                      <span className="pending-gps">
+                                        {locale === "ar" ? "بانتظار الموقع GPS" : "Pending GPS"}
+                                      </span>
+                                    )}
+                                  </dd>
+                                </div>
+                              </dl>
+                            )}
                             <div className="task-bottom">
                               <span>
                                 <Clock size={14} />
@@ -1171,6 +1197,21 @@ export default function Workspace({
                                   : "Capture live photos"}
                               </Link>
                             )}
+                          {!isAdmin && a.latitude !== null && a.longitude !== null && (
+                            <a
+                              className="text-button worker-map-link"
+                              href={
+                                platformOf(navigator.userAgent) === "android"
+                                  ? `geo:${a.latitude},${a.longitude}?q=${a.latitude},${a.longitude}`
+                                  : `https://www.google.com/maps/search/?api=1&query=${a.latitude},${a.longitude}`
+                              }
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Navigation size={14} />
+                              {locale === "ar" ? "فتح في الخرائط" : "Open in maps"}
+                            </a>
+                          )}
                         </div>
                       ))}
                     </div>

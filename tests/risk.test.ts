@@ -1,6 +1,5 @@
 import { it, expect } from "vitest";
 import sharp from "sharp";
-import { randomBytes } from "node:crypto";
 import { imageAnalysis } from "../apps/web/src/server/image-analysis";
 import {
   geoDistance,
@@ -79,7 +78,12 @@ it("requires a reason and precise resurvey instructions", () => {
   ).toBe(true);
 });
 it("computes genuine DCT perceptual hashes for compressed visual variants", async () => {
-  const original = await sharp(randomBytes(640 * 480 * 3), {
+  // Deterministic smooth image: random noise made the hash distance vary between runs.
+  const pixels = Buffer.alloc(640 * 480 * 3);
+  for (let y = 0; y < 480; y++)
+    for (let x = 0; x < 640; x++)
+      for (let c = 0; c < 3; c++) pixels[(y * 640 + x) * 3 + c] = (x * 0.2 + y * 0.3 + c * 40) & 255;
+  const original = await sharp(pixels, {
     raw: { width: 640, height: 480, channels: 3 },
   })
     .jpeg({ quality: 95 })
