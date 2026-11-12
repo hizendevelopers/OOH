@@ -14,7 +14,7 @@ Run `npm run dev` and open http://localhost:3000. `/api/health` checks connectiv
 
 The direct endpoint requires IPv6, but this machine currently has no usable IPv6 route. The app now uses the project's **Session pooler** at `aws-0-ap-northeast-1.pooler.supabase.com:5432`, copied from the Connect dialog. Keep the restricted role and certificate verification. App-to-pooler TLS 1.3 and certificate validation were verified; `pg_stat_ssl` describes the pooler's separate backend connection and does not measure the app's TLS socket. [Supabase connection modes](https://supabase.com/docs/guides/database/connecting-to-postgres) describes the alternatives.
 
-Photo originals remain in the existing private evidence directory specified by `IBVS_EVIDENCE_DIR`; switching the metadata database does not migrate files to Supabase Storage.
+Hosted production stores photo originals in the database table `evidence_objects` (migration 017) by default. Set `IBVS_EVIDENCE_STORE=s3` with the `IBVS_EVIDENCE_S3_*` settings to use an S3-compatible bucket instead, or `IBVS_EVIDENCE_STORE=filesystem` with `IBVS_EVIDENCE_DIR` on a single host with a persistent disk. Database storage counts against the database size: up to 6 MB per photo, and upload chunks are kept as well as the assembled original. Photos already written to a bucket or folder are not moved.
 
 ## Vercel Docker runtime settings
 
@@ -31,7 +31,7 @@ The ignored local environment file is not uploaded to GitHub or copied into the 
 
 The Docker image includes the public Supabase Root 2021 CA at `/app/db/certs/supabase-ca.crt` and loads it with `NODE_EXTRA_CA_CERTS`. It contains no private key. This keeps certificate and hostname verification enabled without depending on a certificate stored on the developer's Windows machine. The current CA expires on April 26, 2031; refresh it from Supabase's database SSL settings before expiry.
 
-Docker supplies `IBVS_EVIDENCE_DIR=/var/lib/ibvs/evidence`. This directory still needs persistent storage for production photo evidence; local container files are not a durable evidence archive across container replacement.
+Docker supplies `IBVS_EVIDENCE_DIR=/var/lib/ibvs/evidence`. It is used only when `IBVS_EVIDENCE_STORE=filesystem`; local container files are not a durable evidence archive across container replacement.
 
 `GET /api/health` must return HTTP 200, `database: postgresql`, and migration 006 before the deployed workspace is considered connected. A successful build alone does not verify these runtime settings. Configuration failures log setting names only, without values.
 

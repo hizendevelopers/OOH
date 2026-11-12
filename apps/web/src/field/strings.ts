@@ -7,7 +7,7 @@ export const fieldStrings = {
     theme: "Switch theme",
     signout: "Sign out / lock device",
     online: "Online",
-    offline: "Offline device copy",
+    offline: "Offline",
     loading: "Opening your field workspace…",
     signin: "Sign in to open your downloaded assignments.",
     workerOnly: "A worker account is required for field capture.",
@@ -26,14 +26,12 @@ export const fieldStrings = {
     structure: "Structure / face",
     due: "Due",
     start: "Start inspection",
-    local: "Saved on this device, not uploaded yet",
+    local: "Not sent yet",
     registerSite: "Register a new site",
     registerSiteNote: "For a billboard that is not in the inventory. Needs a connection.",
-    persistDenied:
-      "The browser did not grant saved storage. Send your visits as soon as there is a connection.",
-    queued: "Queued — no server receipt",
+    queued: "Waiting to send",
     uploading: "Uploading — not submitted",
-    blocked: "Needs attention — originals retained",
+    blocked: "Needs attention",
     received: "Server received — awaiting human review",
     receipt: "Server receipt",
     deviceTime: "Device-claimed capture time",
@@ -93,23 +91,17 @@ export const fieldStrings = {
       "Phone storage is full. Free some space and try again. The current photo is not saved yet.",
     storage_unavailable:
       "The browser cannot save photos right now. Keep this page open until the photo is saved.",
-    queue: "Queue for upload",
+    queue: "Submit photos",
     queueNote:
-      "Both photographs are required. Queuing locks this evidence version; original blobs stay on this device until a confirmed receipt.",
-    retry: "Retry synchronization",
-    storage: "Device storage",
-    persist: "Request persistent storage",
-    persistent: "Persistent storage granted",
-    evictable: "Your browser may delete unsent photos if storage runs low. Send them as soon as you can.",
-    storageNote:
-      "Private browsing, clearing site data or losing the device can erase unsent photos. Download tasks first and check receipts before leaving.",
+      "Front, wide and one angle photo are required. Submitting sends them to the server; they are removed from this phone once the server receives them.",
+    retry: "Send again",
     shellReady: "Offline shell ready",
     shellPending: "Offline shell not ready — stay online",
     install: "Install field app",
     installGuide:
       "On supported browsers, install this app from the browser menu. On iPhone use Share → Add to Home Screen.",
     retained:
-      "Original local photos are retained after receipt. Browser keys cannot protect a compromised device.",
+      "Photos are removed from this phone as soon as the server confirms it has received them.",
     session_expired:
       "Session expired. Sign in as the original worker, then retry.",
     account_mismatch:
@@ -149,17 +141,15 @@ export const fieldStrings = {
       "Assignments could not be downloaded. Existing local copies remain available.",
     challengeExpired:
       "Challenge has expired; capture will be labeled unchallenged.",
-    quota: "used / available quota",
     ready: "Ready for capture",
     removeNone: "No photos have been saved yet.",
     continue: "Continue inspection",
-    history: "Saved inspections",
+    history: "Submitted visits",
     refresh: "Refresh assignments",
     localReceiptWarning:
-      "Local saving is not server receipt. Keep this browser data until synchronization succeeds.",
+      "Not sent yet. Keep this page open until the visit is sent.",
     photoTooLarge:
       "Photo exceeds the 6 MB limit. Retake with a lower camera resolution.",
-    storageError: "Storage diagnostics unavailable.",
     privacy:
       "Location is collected only when you request a fix; there is no background tracking.",
   },
@@ -171,7 +161,7 @@ export const fieldStrings = {
     theme: "تغيير المظهر",
     signout: "خروج / قفل الجهاز",
     online: "متصل",
-    offline: "نسخة الجهاز دون اتصال",
+    offline: "غير متصل",
     loading: "جارٍ فتح مساحة العمل الميداني…",
     signin: "سجّل الدخول لفتح المهام المحمّلة.",
     workerOnly: "يلزم حساب موظف ميداني للالتقاط.",
@@ -189,14 +179,12 @@ export const fieldStrings = {
     structure: "الهيكل / الاتجاه",
     due: "الاستحقاق",
     start: "بدء المعاينة",
-    local: "محفوظة على هذا الجهاز، ولم تُرفع بعد",
+    local: "لم تُرسل بعد",
     registerSite: "تسجيل موقع جديد",
     registerSiteNote: "للوحة غير موجودة في النظام. يحتاج إلى اتصال.",
-    persistDenied:
-      "لم يمنح المتصفح التخزين الدائم. أرسل الزيارات فور توفر الاتصال.",
-    queued: "في الانتظار — لا يوجد إيصال خادم",
+    queued: "بانتظار الإرسال",
     uploading: "جارٍ الرفع — لم تُسلّم بعد",
-    blocked: "تحتاج إلى إجراء — الأصول محفوظة",
+    blocked: "تحتاج إلى إجراء",
     received: "استلمها الخادم — بانتظار المراجعة البشرية",
     receipt: "إيصال الخادم",
     deviceTime: "وقت الالتقاط حسب الجهاز",
@@ -255,23 +243,17 @@ export const fieldStrings = {
       "مساحة الهاتف ممتلئة. احذف بعض الملفات ثم حاول مرة أخرى. الصورة الحالية غير محفوظة بعد.",
     storage_unavailable:
       "المتصفح لا يستطيع حفظ الصور الآن. ابقَ على هذه الصفحة مفتوحة حتى تُحفظ الصورة.",
-    queue: "إضافة إلى قائمة الرفع",
+    queue: "إرسال الصور",
     queueNote:
-      "الصورتان مطلوبتان. إضافة الأدلة تثبّت هذه النسخة. تبقى الأصول على الجهاز حتى تأكيد الإيصال.",
-    retry: "إعادة المزامنة",
-    storage: "تخزين الجهاز",
-    persist: "طلب تخزين دائم",
-    persistent: "التخزين الدائم ممنوح",
-    evictable: "قد يحذف المتصفح الصور غير المرسلة إذا قلّت المساحة. أرسلها في أقرب وقت.",
-    storageNote:
-      "التصفح الخاص أو مسح بيانات الموقع أو فقدان الجهاز قد يمحو الصور غير المرسلة. نزّل المهام أولاً وتأكد من الإيصالات قبل المغادرة.",
+      "الصورة الأمامية والواسعة وصورة زاوية واحدة مطلوبة. الإرسال ينقلها إلى الخادم، وتُحذف من هذا الهاتف فور استلامها.",
+    retry: "إعادة الإرسال",
     shellReady: "واجهة عدم الاتصال جاهزة",
     shellPending: "واجهة عدم الاتصال غير جاهزة — ابقَ متصلاً",
     install: "تثبيت التطبيق الميداني",
     installGuide:
       "ثبّت التطبيق من قائمة المتصفح. على آيفون: مشاركة ← إضافة إلى الشاشة الرئيسية.",
     retained:
-      "تبقى الصور الأصلية محلياً بعد الإيصال. مفاتيح المتصفح لا تحمي جهازاً مخترقاً.",
+      "تُحذف الصور من هذا الهاتف فور تأكيد الخادم استلامها.",
     session_expired:
       "انتهت الجلسة. سجّل الدخول بحساب الموظف الأصلي ثم أعد المحاولة.",
     account_mismatch:
@@ -308,16 +290,14 @@ export const fieldStrings = {
     missing: "احفظ الصورة الأمامية والسياق الواسع قبل الإرسال.",
     downloadError: "تعذّر تنزيل المهام. النسخ المحلية السابقة ما زالت متاحة.",
     challengeExpired: "انتهت صلاحية التحدي؛ سيُوسم الالتقاط بأنه دون تحدٍ.",
-    quota: "المستخدم / الحصة المتاحة",
     ready: "جاهز للالتقاط",
     removeNone: "لم تُحفظ صور بعد.",
     continue: "متابعة المعاينة",
-    history: "المعاينات المحفوظة",
+    history: "الزيارات المُرسلة",
     refresh: "تحديث المهام",
     localReceiptWarning:
-      "الحفظ المحلي ليس إيصال خادم. احتفظ ببيانات المتصفح حتى نجاح المزامنة.",
+      "لم تُرسل بعد. أبقِ هذه الصفحة مفتوحة حتى تُرسل الزيارة.",
     photoTooLarge: "تجاوزت الصورة حد ٦ ميغابايت. أعد الالتقاط بدقة أقل.",
-    storageError: "تعذّر فحص مساحة التخزين.",
     privacy: "يُجمع الموقع فقط عند طلب القراءة؛ لا يوجد تتبّع في الخلفية.",
   },
 };

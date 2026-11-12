@@ -39,10 +39,11 @@ import { LocationEditor } from "./location-editor";
 import { LocationMap } from "./location-map";
 import { WorkerManagement } from "./worker-management";
 import { CityInventory } from "./city-inventory";
+import { Submissions } from "./submissions";
 import { CityTabs, LocationFlags, cityCounts, needsLocationAttention } from "./city-tabs";
 import { addressFor, cityLine, coordinatePair } from "@ibvs/domain";
 import { platformOf } from "../field/gallery-file";
-type Tab = "overview" | "inventory" | "assignments" | "workers" | "audit";
+type Tab = "overview" | "inventory" | "assignments" | "submissions" | "workers" | "audit";
 type Summary = {
   faces: number;
   structures: number;
@@ -428,6 +429,11 @@ export default function Workspace({
       icon: ClipboardList,
       label: isAdmin ? t.assignments : t.my,
     },
+    {
+      id: "submissions" as Tab,
+      icon: Camera,
+      label: locale === "ar" ? "الزيارات المكتملة" : "Submissions",
+    },
     { id: "audit" as Tab, icon: ScrollText, label: t.audit },
   ].filter((n) => isAdmin || n.id === "assignments");
   const openCount = tasks.filter((a) =>
@@ -598,7 +604,11 @@ export default function Workspace({
                       ? t.workerIntro
                       : tab === "audit"
                         ? t.activitySub
-                        : t.phase}
+                        : tab === "submissions"
+                          ? locale === "ar"
+                            ? "الزيارات التي أرسلها الموظفون مع صورها. افتح أي زيارة لمراجعتها."
+                            : "Visits workers have completed, with their photos. Open one to review it."
+                          : t.phase}
               </p>
             </div>
             <div className="heading-actions">
@@ -650,6 +660,7 @@ export default function Workspace({
             </div>
           ) : (
             <>
+              {tab === "submissions" && isAdmin && <Submissions ar={locale === "ar"} />}
               {tab === "workers" && isAdmin && (
                 <WorkerManagement
                   workers={workers}

@@ -17,7 +17,7 @@ Existing installations: run `npm ci` and `npm run db:migrate` to apply all outst
 
 Synchronization retries in the foreground with backoff and resumes persisted server parts. **Saved locally / queued / uploading are not server receipts.** A received inspection has a backend receipt ID and server-received timestamp after both files pass byte/hash/image checks. This is not human approval or proof of genuine capture. GPS denial is retained as a review flag, not hidden. Device-claimed timestamps and offline/online challenge labels remain separate from receipt time.
 
-Local private evidence defaults to ignored `.local/evidence/`, outside public assets. Production requires absolute `IBVS_EVIDENCE_DIR` on a persistent private volume. Original JPEGs and intermediate chunks must be backed up alongside PostgreSQL. No R2/S3 service is configured; the chosen backend supports one persistent application host. See [Phase 2 API](docs/PHASE2_API.md), [offline behavior](docs/OFFLINE_SYNC.md) and [deployment](docs/DEPLOYMENT.md).
+Local private evidence defaults to ignored `.local/evidence/`, outside public assets. Hosted production stores originals and upload chunks in the `evidence_objects` database table (migration 017), so database backups include the photos. An S3-compatible bucket (`IBVS_EVIDENCE_STORE=s3`) or a persistent single-host directory (`IBVS_EVIDENCE_STORE=filesystem` with absolute `IBVS_EVIDENCE_DIR`) can be chosen instead. The field app removes a visit's photos from the phone once the server confirms receipt. See [Phase 2 API](docs/PHASE2_API.md), [offline behavior](docs/OFFLINE_SYNC.md) and [deployment](docs/DEPLOYMENT.md).
 
 Database lifecycle commands load the same `apps/web/.env*` files as Next.js; shell environment values take precedence. Automated unit tests use isolated embedded databases, and browser checks explicitly override the hosted URL. `.env.example` documents settings and contains no working credentials. Apply new hosted migrations with administrative credentials; the runtime role deliberately lacks schema creation permissions.
 
@@ -54,7 +54,7 @@ Integration tests use isolated embedded PostgreSQL databases, never DATABASE_URL
 
 ## Production PostgreSQL / PostGIS
 
-Set DATABASE_URL, BETTER_AUTH_SECRET (32+ random characters), BETTER_AUTH_URL (exact HTTPS origin) and IBVS_EVIDENCE_DIR (private persistent absolute directory). Production refuses the embedded development database unless explicitly overridden for an isolated test. See [deployment instructions](docs/DEPLOYMENT.md). Docker/PostGIS verification is separate from embedded tests.
+Set DATABASE_URL, BETTER_AUTH_SECRET (32+ random characters), BETTER_AUTH_URL (exact HTTPS origin) Photos are stored in the database by default (migration 017); IBVS_EVIDENCE_DIR is needed only with IBVS_EVIDENCE_STORE=filesystem. Production refuses the embedded development database unless explicitly overridden for an isolated test. See [deployment instructions](docs/DEPLOYMENT.md). Docker/PostGIS verification is separate from embedded tests.
 
 Source layout: `apps/web` Next.js UI/API/auth/services, `packages/domain` validation and policy helpers, `db` migrations, `scripts` migration/provisioning/fixtures, `tests` domain/database/browser acceptance.
 

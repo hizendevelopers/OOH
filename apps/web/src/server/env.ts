@@ -44,6 +44,7 @@ const schema = z.object({
   IBVS_REQUIRE_SIGN_IN: z.enum(["true", "false"]).default("false"),
   IBVS_WORKSPACE_ID: z.string().min(1).optional(),
   IBVS_EVIDENCE_DIR: z.string().min(1).optional(),
+  IBVS_EVIDENCE_STORE: z.enum(["database", "s3", "filesystem"]).optional(),
 });
 export function environment() {
   const result = schema.safeParse(process.env);
@@ -67,12 +68,14 @@ export function environment() {
         "Production requires an HTTPS BETTER_AUTH_URL",
         ["BETTER_AUTH_URL"],
       );
-    if (!env.IBVS_EVIDENCE_DIR)
+    // Photos live in the database or a bucket by default. A folder is needed only when the
+    // filesystem store is chosen explicitly, and any folder given must be absolute.
+    if (env.IBVS_EVIDENCE_STORE === "filesystem" && !env.IBVS_EVIDENCE_DIR)
       throw new ConfigurationError(
-        "Production requires IBVS_EVIDENCE_DIR for private persistent evidence",
+        "Production filesystem evidence requires IBVS_EVIDENCE_DIR on a private persistent disk",
         ["IBVS_EVIDENCE_DIR"],
       );
-    if (!path.isAbsolute(env.IBVS_EVIDENCE_DIR))
+    if (env.IBVS_EVIDENCE_DIR && !path.isAbsolute(env.IBVS_EVIDENCE_DIR))
       throw new ConfigurationError(
         "Production requires an absolute IBVS_EVIDENCE_DIR",
         ["IBVS_EVIDENCE_DIR"],

@@ -208,6 +208,30 @@ it("recovers from lost final response using the stable operation key", async () 
   expect(draft.receipt).toEqual(receipt);
   expect(draft.state).toBe("server_received");
   expect(parts).toBe(3);
+  // The server holds the photos now; none stay on the phone.
+  expect(draft.photos).toEqual({});
+});
+it("removes photos of visits received earlier and keeps their receipts", async () => {
+  const store = await prepared();
+  const receipt: Receipt = {
+    inspectionId: crypto.randomUUID(),
+    receiptId: crypto.randomUUID(),
+    receivedAt: new Date().toISOString(),
+    status: "server_received",
+    flags: [],
+  };
+  // A visit received by a previous version of the app, which kept the photos.
+  await store.drafts.update(task.assignment_id, { state: "server_received", serverId: receipt.inspectionId, receipt });
+  expect(await store.releaseReceived()).toBe(1);
+  const draft = (await store.drafts.get(task.assignment_id))!;
+  expect(draft).toMatchObject({ state: "server_received", receipt });
+  expect(draft.photos).toEqual({});
+  expect(await store.releaseReceived()).toBe(0);
+});
+it("keeps photos of visits the server has not received", async () => {
+  const store = await prepared();
+  expect(await store.releaseReceived()).toBe(0);
+  expect((await store.drafts.get(task.assignment_id))!.photos.front!.blob.size).toBeGreaterThan(0);
 });
 it("task conflicts pause retry without losing originals", async () => {
   for (const status of [409, 422]) {

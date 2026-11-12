@@ -16,7 +16,7 @@ import {
   ArrowRight,
   ShieldCheck,
   RefreshCw,
-  HardDrive,
+  Clock,
   CheckCircle,
 } from "lucide-react";
 import type { Actor } from "@ibvs/domain";
@@ -59,17 +59,11 @@ export default function FieldWorkspace() {
     [busy, setBusy] = useState(false),
     [shell, setShell] = useState(false),
     [install, setInstall] = useState<InstallEvent | null>(null),
-    [persistNote, setPersistNote] = useState<"granted" | "denied" | null>(null),
     [newSite, setNewSite] = useState(false),
     [visitSort, setVisitSort] = useState<"due" | "nearest">("due"),
     [origin, setOrigin] = useState<{ latitude: number; longitude: number } | null>(null),
     [locatingVisits, setLocatingVisits] = useState(false),
-    [sortNotice, setSortNotice] = useState<string | null>(null),
-    [storage, setStorage] = useState<{
-      usage: number;
-      quota: number;
-      persistent: boolean;
-    } | null>(null);
+    [sortNotice, setSortNotice] = useState<string | null>(null);
   const t = fieldStrings[locale];
   const messages = locale === "ar" ? locationMessagesAr : locationMessages;
   useEffect(() => {
@@ -178,31 +172,14 @@ export default function FieldWorkspace() {
   useEffect(() => {
     if (!store) return;
     void store.reopenIncomplete().catch(() => setError("storage_unavailable"));
+    // Visits the server already holds keep only their receipt on this phone.
+    void store.releaseReceived().catch(() => setError("storage_unavailable"));
     const subscription = liveQuery(() => store.drafts.toArray()).subscribe({
       next: setDrafts,
       error: () => setError("storage_unavailable"),
     });
     return () => subscription.unsubscribe();
   }, [store]);
-  const diagnostics = useCallback(async () => {
-    try {
-      const [estimate, persistent] = await Promise.all([
-        navigator.storage?.estimate(),
-        navigator.storage?.persisted(),
-      ]);
-      if (estimate)
-        setStorage({
-          usage: estimate.usage || 0,
-          quota: estimate.quota || 0,
-          persistent: !!persistent,
-        });
-    } catch {
-      setError("storageError");
-    }
-  }, []);
-  useEffect(() => {
-    void diagnostics();
-  }, [diagnostics, drafts.length]);
   useEffect(() => {
     if (!store || !online) return;
     const sync = () => {
@@ -227,7 +204,6 @@ export default function FieldWorkspace() {
       await store.download(current);
       setTasks(current);
       setCachedIds(current.map((task) => task.assignment_id));
-      await diagnostics();
       return current;
     } catch (e) {
       setError(e instanceof SyncError ? "downloadError" : storageError(e));
@@ -352,7 +328,7 @@ export default function FieldWorkspace() {
       role="status"
     >
       <strong>
-        {d.receipt ? <CheckCircle size={18} /> : <HardDrive size={18} />}{" "}
+        {d.receipt ? <CheckCircle size={18} /> : <Clock size={18} />}{" "}
         {stateText(d)}
       </strong>
       {d.state === "uploading" && (
@@ -841,7 +817,7 @@ export default function FieldWorkspace() {
                           const message =
                             e instanceof Error
                               ? e.message
-                              : "Unable to queue photos. Photos remain saved on this device.";
+                              : "Unable to send the photos. Try again.";
                           const known = Object.entries(locationMessages).find(
                             ([, text]) => text === message,
                           )?.[0] as keyof typeof locationMessages | undefined;
@@ -890,53 +866,6 @@ export default function FieldWorkspace() {
             ) : (
               <p role="status">{t.loading}</p>
             )}
-            <section className="panel field-storage">
-              <div>
-                <h2>
-                  <HardDrive size={19} />
-                  {t.storage}
-                </h2>
-                <p>
-                  {storage ? (
-                    <>
-                      <bdi>
-                        {(storage.usage / 1048576).toFixed(1)} MB /{" "}
-                        {(storage.quota / 1048576).toFixed(0)} MB
-                      </bdi>{" "}
-                      · {t.quota}
-                    </>
-                  ) : (
-                    t.storageError
-                  )}
-                </p>
-                <strong>
-                  {storage?.persistent ? t.persistent : t.evictable}
-                </strong>
-              </div>
-              <button
-                className="secondary"
-                onClick={async () => {
-                  try {
-                    const granted = await navigator.storage?.persist();
-                    setPersistNote(granted ? "granted" : "denied");
-                    await diagnostics();
-                  } catch {
-                    setError("storageError");
-                  }
-                }}
-              >
-                {t.persist}
-              </button>
-              {persistNote === "denied" && !storage?.persistent && (
-                <p className="notice warning" role="status">{t.persistDenied}</p>
-              )}
-              {storage &&
-                storage.quota > 0 &&
-                storage.usage / storage.quota > 0.8 && (
-                  <p className="notice warning">{t.storage_full}</p>
-                )}
-              <p>{t.storageNote}</p>
-            </section>
             <p className="field-caption">{t.installGuide}</p>
             <Link className="text-button" href="/">
               {t.home}

@@ -121,8 +121,8 @@ export async function syncDraft(
     draft = await store.drafts.get(id);
     if (!draft || draft.state === "server_received") return;
     const status = error instanceof SyncError ? error.status : 0;
-    // Server verification rejected a gallery photo. Every original stays on the device. The worker replaces
-    // the rejected photo, queues the visit again, and the server keeps the rejected original as evidence.
+    // Server verification rejected a gallery photo. The visit's photos stay on the device until it is
+    // received. The worker replaces the rejected photo and sends again; the server keeps the rejected original.
     const details = error instanceof SyncError ? (error.details as { verification?: unknown } | undefined) : undefined;
     if (status === 422 && Array.isArray(details?.verification)) {
       await store.drafts.update(id, {
@@ -165,8 +165,10 @@ async function acknowledge(store: FieldStore, id: string, result: Receipt) {
     !result.receivedAt
   )
     throw new SyncError(503, "Missing server receipt");
+  // The server holds the photos now; the phone keeps only the receipt.
   await store.drafts.update(id, {
     state: "server_received",
+    photos: {},
     receipt: result,
     progress: 100,
     lastError: null,

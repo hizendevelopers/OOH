@@ -124,10 +124,10 @@ test("offline camera evidence survives reload and interrupted upload; server rec
   ).toHaveCount(3);
   await page.getByRole("button", { name: "Blank face", exact: true }).click();
   await page
-    .getByRole("button", { name: "Queue for upload", exact: true })
+    .getByRole("button", { name: "Submit photos", exact: true })
     .click();
   await expect(
-    page.getByText("Queued — no server receipt", { exact: true }),
+    page.getByText("Waiting to send", { exact: true }),
   ).toBeVisible();
   await page.reload();
   await expect(
@@ -143,7 +143,7 @@ test("offline camera evidence survives reload and interrupted upload; server rec
     page.getByText("Photo saved locally", { exact: true }),
   ).toHaveCount(3);
   await expect(
-    page.getByText("Queued — no server receipt", { exact: true }),
+    page.getByText("Waiting to send", { exact: true }),
   ).toBeVisible();
   await page.route("**/api/inspections/*/parts/wide/*", (route) =>
     route.abort("internetdisconnected"),
@@ -167,7 +167,7 @@ test("offline camera evidence survives reload and interrupted upload; server rec
   expect(upload.receipt).toBeNull();
   await page.unroute("**/api/inspections/*/parts/wide/*");
   await page
-    .getByRole("button", { name: "Retry synchronization", exact: true })
+    .getByRole("button", { name: "Send again", exact: true })
     .click();
   await expect(
     page.getByText("Server received — awaiting human review", { exact: true }),
@@ -296,7 +296,7 @@ test("GPS success, simulated storage exhaustion and denied camera preserve hones
     page.getByText("Photo is not saved.", { exact: false }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Queue for upload", exact: true }),
+    page.getByRole("button", { name: "Submit photos", exact: true }),
   ).toBeDisabled();
   await page.evaluate(() =>
     window.dispatchEvent(new Event("test-clear-quota")),

@@ -5,6 +5,7 @@ import { distanceM, locationFlag, normalizeBrandKey } from "@ibvs/domain";
 import {
   inspectionInput,
   CHUNK_SIZE,
+  allPhotoKinds,
   type InspectionInput,
   type UploadSession,
   type Receipt,
@@ -336,7 +337,7 @@ export async function uploadPart(
     if (row.status !== "uploading" || photo.receipt_id)
       throw new ApiError(409, "Photo is already complete");
     const key = `${id}/${kind}/${part}-${digest}`;
-    await putPrivate(key, data);
+    await putPrivate(key, data, db);
     await db.query(
       "INSERT INTO evidence_parts(media_id,part,hash,bytes,object_key) VALUES($1,$2,$3,$4,$5)",
       [photo.id, part, digest, data.length, key],
@@ -369,7 +370,7 @@ export async function completePhoto(actor: Actor, id: string, kind: PhotoKind) {
       throw new ApiError(409, "Photo upload is incomplete");
     const buffers = [];
     for (const p of parts) {
-      const b = await readPrivate(p.object_key);
+      const b = await readPrivate(p.object_key, db);
       if (hash(b) !== p.hash)
         throw new ApiError(409, "Stored part integrity check failed");
       buffers.push(b);
@@ -406,7 +407,7 @@ export async function completePhoto(actor: Actor, id: string, kind: PhotoKind) {
       );
     }
     const key = `${id}/${kind}/original-${photo.expected_hash}`;
-    await putPrivate(key, bytes);
+    await putPrivate(key, bytes, db);
     const receiptId = randomUUID();
     await db.query(
       "UPDATE media_evidence SET server_hash=$1,object_key=$2,width=$3,height=$4,receipt_id=$5,received_at=now() WHERE id=$6",
@@ -600,6 +601,43 @@ export async function inspectionHistory(actor: Actor) {
     [actor.organizationId, actor.role, actor.id],
   );
 }
+// Completed visits for the admin dashboard: who submitted what, where and when, with the photo kinds the
+// server holds. Admins only; it reads nothing a reviewer cannot already open in the review center.
+export type Submission = {
+  id: string;
+  received_at: string;
+  worker_id: string;
+  worker_name: string;
+  code: string;
+  description: string;
+  city: string | null;
+  review_state: string;
+  kinds: PhotoKind[];
+};
+export async function submissions(actor: Actor): Promise<Submission[]> {
+  if (actor.role !== "admin") throw new ApiError(403, "Admin access required");
+  const rows = await (await getDb()).query<Submission>(
+    `SELECT i.id, i.received_at, i.worker_id, u.name worker_name, f.code, f.description, s.city,
+       COALESCE(r.state, 'pending') review_state,
+       (SELECT COALESCE(jsonb_agg(m.kind), '[]'::jsonb) FROM media_evidence m
+          WHERE m.inspection_id = i.id AND m.superseded_at IS NULL AND m.receipt_id IS NOT NULL) kinds
+     FROM inspections i
+     JOIN billboard_faces f ON f.id = i.face_id
+     JOIN billboard_structures s ON s.id = f.structure_id
+     JOIN "user" u ON u.id = i.worker_id
+     LEFT JOIN review_cases r ON r.inspection_id = i.id
+     WHERE i.organization_id = $1 AND i.status = 'server_received'
+     ORDER BY i.received_at DESC, i.id
+     LIMIT 500`,
+    [actor.organizationId],
+  );
+  // Front, wide, then angles, whatever order the database returned.
+  return rows.map((row) => ({
+    ...row,
+    received_at: new Date(row.received_at).toISOString(),
+    kinds: allPhotoKinds.filter((kind) => row.kinds.includes(kind)),
+  }));
+}
 export async function evidenceAccess(
   actor: Actor,
   id: string,
@@ -694,7 +732,7 @@ async function completeGalleryPhoto(
     duplicate: duplicate ? "exact" : "none",
   });
   const key = `${row.id}/${photo.kind}/original-${photo.expected_hash}`;
-  await putPrivate(key, bytes);
+  await putPrivate(key, bytes, db);
   const receiptId = randomUUID();
   await db.query(
     "UPDATE media_evidence SET server_hash=$1,object_key=$2,receipt_id=$3,received_at=now(),original_format=$4 WHERE id=$5",
