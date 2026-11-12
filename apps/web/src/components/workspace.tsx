@@ -38,6 +38,7 @@ import type { Face, Assignment } from "@/server/service";
 import { LocationEditor } from "./location-editor";
 import { LocationMap } from "./location-map";
 import { WorkerManagement } from "./worker-management";
+import { CityInventory } from "./city-inventory";
 import { CityTabs, LocationFlags, cityCounts, needsLocationAttention } from "./city-tabs";
 import { addressFor, cityLine, coordinatePair } from "@ibvs/domain";
 import { platformOf } from "../field/gallery-file";
@@ -274,6 +275,7 @@ export default function Workspace({
     [toast, setToast] = useState(""),
     [search, setSearch] = useState(""),
     [city, setCity] = useState(""),
+    [inventoryView, setInventoryView] = useState<"cities" | "table">("cities"),
     [selected, setSelected] = useState<string[]>([]),
     [modal, setModal] = useState<"import" | "assign" | null>(null),
     [detail, setDetail] = useState<Assignment | null>(null);
@@ -406,12 +408,12 @@ export default function Workspace({
       (locationKind === "all" ||
         (locationKind === "test" ? f.is_test : !f.is_test)) &&
       (!city || f.city === city) &&
-      matchesFilter(`${f.code} ${f.city} ${f.zone}`, search),
+      matchesFilter(`${f.code} ${f.city} ${f.zone} ${f.description}`, search),
   );
   const filteredTasks = tasks.filter(
     (f) =>
       (!city || f.city === city) &&
-      matchesFilter(`${f.code} ${f.city} ${f.zone} ${f.worker_name}`, search),
+      matchesFilter(`${f.code} ${f.city} ${f.zone} ${f.description} ${f.worker_name}`, search),
   );
   const nav = [
     { id: "overview" as Tab, icon: LayoutDashboard, label: t.overview },
@@ -901,6 +903,24 @@ export default function Workspace({
                     ar={locale === "ar"}
                   />
                   </div>
+                  {tab === "inventory" && (
+                    <div className="view-switch" role="group" aria-label={locale === "ar" ? "طريقة العرض" : "View"}>
+                      <button
+                        className={inventoryView === "cities" ? "primary" : "secondary"}
+                        aria-pressed={inventoryView === "cities"}
+                        onClick={() => setInventoryView("cities")}
+                      >
+                        {locale === "ar" ? "حسب المدينة" : "By city"}
+                      </button>
+                      <button
+                        className={inventoryView === "table" ? "primary" : "secondary"}
+                        aria-pressed={inventoryView === "table"}
+                        onClick={() => setInventoryView("table")}
+                      >
+                        {locale === "ar" ? "جدول" : "Table"}
+                      </button>
+                    </div>
+                  )}
                   <div className="table-toolbar">
                     <label className="search-field">
                       <Search size={17} />
@@ -958,7 +978,14 @@ export default function Workspace({
                       </button>
                     </div>
                   )}
-                  {tab === "inventory" ? (
+                  {tab === "inventory" && inventoryView === "cities" ? (
+                    <CityInventory
+                      sites={filteredFaces}
+                      ar={locale === "ar"}
+                      keyOf={(site) => site.id}
+                      emptyText={t.emptySub}
+                    />
+                  ) : tab === "inventory" ? (
                     filteredFaces.length ? (
                       <div className="table-scroll">
                         <table>
@@ -1118,6 +1145,38 @@ export default function Workspace({
                     ) : (
                       <Empty title={t.empty} text={t.emptySub} />
                     )
+                  ) : !isAdmin ? (
+                    <CityInventory
+                      sites={filteredTasks}
+                      ar={locale === "ar"}
+                      keyOf={(site) => site.assignment_id}
+                      emptyText={t.noTasksSub}
+                      renderActions={(a) => (
+                        <div className="site-actions">
+                          <button
+                            className="secondary"
+                            onClick={async () => {
+                              try {
+                                setDetail(await api<Assignment>("assignments/" + a.assignment_id));
+                              } catch (e) {
+                                setToast((e as Error).message);
+                              }
+                            }}
+                          >
+                            {locale === "ar" ? "التفاصيل" : "Details"}
+                          </button>
+                          {["assigned", "resurvey_requested"].includes(a.status) && (
+                            <Link
+                              className="primary"
+                              href={`/field?assignment=${encodeURIComponent(a.assignment_id)}`}
+                            >
+                              <Camera size={17} />
+                              {locale === "ar" ? "التقاط صور مباشرة" : "Capture live photos"}
+                            </Link>
+                          )}
+                        </div>
+                      )}
+                    />
                   ) : filteredTasks.length ? (
                     <div className="task-grid">
                       {filteredTasks.map((a) => (
