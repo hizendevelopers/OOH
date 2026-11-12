@@ -2495,3 +2495,34 @@ td small {
 .progress-fill { height: 100%; border-radius: 999px; background: var(--green); min-width: 0; transition: width 0.4s ease; }
 .progress-row small { color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .progress-fill { transition: none; } }
+
+/* Light admin sidebar, matching the worker view. Applies to the light theme only; the dark theme keeps the
+   slate sidebar, and --nav (still used by the photo viewer) is unchanged. */
+:root:not([data-theme="dark"]) .sidebar {
+  background: var(--surface);
+  color: var(--muted);
+  border-inline-end: 1px solid var(--line);
+}
+:root:not([data-theme="dark"]) .brand { color: var(--ink); }
+:root:not([data-theme="dark"]) .brand-icon { background: var(--blue); color: #fff; box-shadow: none; }
+:root:not([data-theme="dark"]) .brand-sub { color: var(--muted); }
+:root:not([data-theme="dark"]) .workspace-switch { border-color: var(--line); color: var(--ink); background: var(--surface2); }
+:root:not([data-theme="dark"]) .org-monogram { background: var(--blue-soft); border-color: var(--line); color: var(--ink); }
+:root:not([data-theme="dark"]) .workspace-switch small { color: var(--muted); }
+:root:not([data-theme="dark"]) .nav-label { color: var(--muted); }
+:root:not([data-theme="dark"]) .sidebar nav button { color: var(--ink); }
+:root:not([data-theme="dark"]) .sidebar nav button:hover { background: var(--surface2); }
+:root:not([data-theme="dark"]) .sidebar nav button.active,
+:root:not([data-theme="dark"]) .sidebar nav button.active:hover {
+  color: var(--ink);
+  background: var(--blue-soft);
+  box-shadow: inset 3px 0 var(--blue);
+}
+:root[dir="rtl"]:not([data-theme="dark"]) .sidebar nav button.active { box-shadow: inset -3px 0 var(--blue); }
+:root:not([data-theme="dark"]) .nav-count { background: var(--surface2); border: 1px solid var(--line); color: var(--ink); }
+:root:not([data-theme="dark"]) .trust-card { border-color: var(--line); background: var(--surface2); }
+:root:not([data-theme="dark"]) .trust-card > svg { color: var(--blue); }
+:root:not([data-theme="dark"]) .trust-card strong { color: var(--ink); }
+:root:not([data-theme="dark"]) .trust-card p { color: var(--muted); }
+:root:not([data-theme="dark"]) .user { border-top-color: var(--line); color: var(--ink); }
+:root:not([data-theme="dark"]) .user small { color: var(--muted); }
