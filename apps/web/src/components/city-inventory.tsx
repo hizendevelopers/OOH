@@ -77,7 +77,8 @@ export function CityInventory<T extends InventorySite>({
   return (
     <div className="city-inventory">
       {groups.map((group) => (
-        <details className="city-card" key={group.city} open={groups.length === 1}>
+        // Small lists (a worker's own sites) open fully; the large admin inventory starts collapsed.
+        <details className="city-card" key={group.city} open={groups.length === 1 || sites.length <= 20}>
           <summary>
             <span className="city-card-name">
               <MapPin size={16} aria-hidden="true" />

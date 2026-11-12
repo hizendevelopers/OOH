@@ -92,9 +92,11 @@ test("admin imports, assigns, worker sees authorized visit; CSRF and scope are e
   const context = await browser.newContext();
   const worker = await context.newPage();
   await login(worker, "worker@demo.ibvs.test");
+  // The worker page lists sites by city; open this site's details from its card.
   await worker
-    .getByRole("button")
-    .filter({ has: worker.getByRole("heading", { name: face, exact: true }) })
+    .locator("article.site-card")
+    .filter({ hasText: face })
+    .getByRole("button", { name: "Details", exact: true })
     .click();
   await expect(
     worker.getByRole("heading", { name: face, exact: true }),

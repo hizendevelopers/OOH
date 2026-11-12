@@ -127,7 +127,7 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
     worker.getByRole("heading", { name: "My assignments", exact: true }),
   ).toBeVisible();
   await expect(
-    worker.getByRole("heading", { name: code, exact: true }),
+    worker.locator("article.site-card").filter({ hasText: code }),
   ).toBeVisible();
   expect((await worker.request.get("/api/workers")).status()).toBe(403);
   expect(
