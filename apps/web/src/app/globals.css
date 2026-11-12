@@ -2554,3 +2554,4 @@ td small {
 .site-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .site-actions > * { min-height: 40px; }
 @media (max-width: 420px) { .site-facts { grid-template-columns: 1fr; } .site-grid { padding: 10px; } }
+.site-chips { display: flex; flex-wrap: wrap; gap: 6px; font-size: 0.8rem; }

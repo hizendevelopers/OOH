@@ -66,6 +66,8 @@ test("admin imports, assigns, worker sees authorized visit; CSRF and scope are e
     .getByRole("button", { name: "Inventory", exact: true })
     .first()
     .click();
+  // Selection and row details live in the table view; the inventory opens by city.
+  await page.getByRole("button", { name: "Table", exact: true }).click();
   await page
     .getByRole("checkbox", { name: `Select ${face}`, exact: true })
     .check();

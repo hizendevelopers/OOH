@@ -21,6 +21,7 @@ export type InventorySite = {
   height_m?: number | null;
   latitude: number | null;
   longitude: number | null;
+  is_test?: boolean;
 };
 
 const text = {
@@ -35,6 +36,8 @@ const text = {
     longitude: "Longitude",
     landmark: "Nearest landmark",
     code: "Site code",
+    pendingGps: "Pending GPS",
+    test: "Test",
   },
   ar: {
     unassigned: "مدينة غير محددة",
@@ -47,6 +50,8 @@ const text = {
     longitude: "خط الطول",
     landmark: "أقرب معلم",
     code: "رمز الموقع",
+    pendingGps: "بانتظار الموقع GPS",
+    test: "تجريبي",
   },
 };
 
@@ -86,6 +91,14 @@ export function CityInventory<T extends InventorySite>({
               return (
                 <article className="site-card" key={keyOf(site)}>
                   <h4 className="site-name">{value(site.description)}</h4>
+                  {(site.latitude === null || site.longitude === null || site.is_test) && (
+                    <div className="site-chips">
+                      {(site.latitude === null || site.longitude === null) && (
+                        <span className="pending-gps">{t.pendingGps}</span>
+                      )}
+                      {site.is_test && <span className="status-pill location-test">{t.test}</span>}
+                    </div>
+                  )}
                   <dl className="site-facts">
                     <div className="site-fact-wide">
                       <dt>{t.address}</dt>
