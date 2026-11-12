@@ -150,7 +150,7 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
     fullPage: true,
   });
   await worker
-    .locator(".task-card-group")
+    .locator("article.site-card")
     .filter({ hasText: code })
     .getByRole("link", { name: "Capture live photos", exact: true })
     .click();
