@@ -274,27 +274,10 @@ export default function Capture({
   }
   return (
     <section className="field-capture">
-      <div className="notice warning">
-        <AlertTriangle size={18} />
-        {t.safe}
-      </div>
+      <p className="field-caption">
+        <AlertTriangle size={16} aria-hidden="true" /> {t.safe}
+      </p>
       <BrandPanel store={store} draft={draft} t={t} locked={locked} />
-      {draft.challenge ? (
-        <div className="field-challenge">
-          <strong>
-            {t.challenge}: <bdi>{draft.challenge.nonce}</bdi>
-          </strong>
-          <p>{t.challengeInfo}</p>
-          <small>
-            {new Date(draft.challenge.expiresAt).toLocaleTimeString()} ·{" "}
-            {Date.parse(draft.challenge.expiresAt) < now
-              ? t.challengeExpired
-              : t.challenge}
-          </small>
-        </div>
-      ) : (
-        <p className="field-caption">{t.noChallenge}</p>
-      )}
       {!locked && (
         <section className="panel field-live">
           <div className="panel-heading">
@@ -393,7 +376,6 @@ export default function Capture({
               )}
             </div>
           )}
-          <p className="field-caption">{t.gpsWarning}</p>
         </section>
       )}
       {error && (
@@ -439,9 +421,6 @@ export default function Capture({
             t.gpsNone
           )}
         </p>
-        <small>
-          {t.gpsAge} {t.privacy}
-        </small>
         {shownGps?.status === "ok" && (
           <>
             <p>

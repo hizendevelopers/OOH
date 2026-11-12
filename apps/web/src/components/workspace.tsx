@@ -27,7 +27,6 @@ import {
   Upload,
   LoaderCircle,
   Navigation,
-  LockKeyhole,
   ArrowLeft,
   Radio,
   Camera,
@@ -40,8 +39,7 @@ import { LocationMap } from "./location-map";
 import { WorkerManagement } from "./worker-management";
 import { CityInventory } from "./city-inventory";
 import { CityTabs, LocationFlags, cityCounts, needsLocationAttention } from "./city-tabs";
-import { addressFor, cityLine, coordinatePair } from "@ibvs/domain";
-import { platformOf } from "../field/gallery-file";
+import { cityLine } from "@ibvs/domain";
 type Tab = "overview" | "inventory" | "assignments" | "workers" | "audit";
 type Summary = {
   faces: number;
@@ -67,9 +65,6 @@ const words = {
     inventory: "Inventory",
     assignments: "Assignments",
     audit: "Audit trail",
-    workspace: "OPERATIONS WORKSPACE",
-    title: "A clearer view of the field.",
-    intro: "Your billboard network, from assignment to accountability.",
     import: "Import inventory",
     total: "Billboard faces",
     structures: "Physical structures",
@@ -77,9 +72,9 @@ const words = {
     verified: "Verified baselines",
     pending: "Pending review",
     coverage: "Network coverage",
-    coverageSub: "Imported faces by city. Coordinates remain unverified.",
+    coverageSub: "Submitted visits by city.",
     activity: "Recent activity",
-    activitySub: "An accountable record of every operation.",
+    activitySub: "Latest imports, assignments and accounts.",
     all: "All cities",
     search: "Search face ID, city or zone…",
     empty: "No records yet",
@@ -94,17 +89,12 @@ const words = {
     orientation: "Face",
     unassigned: "Unassigned",
     my: "My assignments",
-    workerIntro:
-      "Your fieldwork, organized. Open a visit for its locked location details.",
     signout: "Sign out",
     offline:
       "You are offline. This operations view requires a connection. Use downloaded tasks in the field workspace for offline capture.",
     detail: "Assignment details",
-    locked: "Locked face identity",
     uncertainty: "Coordinate uncertainty",
     navigation: "Navigate to location",
-    notCapture:
-      "Open the field workspace for live capture and offline drafts. Server receipt does not verify billboard identity.",
     close: "Close",
     preview: "Validate & preview",
     commit: "Import valid rows",
@@ -116,13 +106,10 @@ const words = {
     loading: "Loading workspace…",
     error: "Could not load records. Check your connection.",
     retry: "Try again",
-    scope: "FIELD OPERATIONS",
-    baselineNote: "First baselines require human review.",
     noActivity: "Activity appears here after an import or assignment.",
     export: "Export CSV",
     selected: "selected",
     demo: "DEMO WORKSPACE · illustrative coordinates, no verified evidence",
-    phase: "Phase 1 · Inventory & assignment",
     noTasks: "No assignments yet",
     noTasksSub: "Your administrator will assign visits here.",
     back: "Back to assignments",
@@ -132,9 +119,6 @@ const words = {
     inventory: "المخزون",
     assignments: "المهام",
     audit: "سجل التدقيق",
-    workspace: "مساحة العمليات",
-    title: "رؤية أوضح للميدان.",
-    intro: "شبكة لوحاتك من التكليف إلى التحقق.",
     import: "استيراد المخزون",
     total: "واجهات اللوحات",
     structures: "الهياكل",
@@ -142,9 +126,9 @@ const words = {
     verified: "مراجع موثّقة",
     pending: "بانتظار المراجعة",
     coverage: "تغطية الشبكة",
-    coverageSub: "الواجهات المستوردة حسب المدينة. الإحداثيات غير موثّقة.",
+    coverageSub: "الزيارات المرسلة حسب المدينة.",
     activity: "النشاط الأخير",
-    activitySub: "سجل مسؤول لكل عملية.",
+    activitySub: "آخر عمليات الاستيراد والتكليف والحسابات.",
     all: "كل المدن",
     search: "ابحث بالرمز أو المدينة أو المنطقة…",
     empty: "لا توجد سجلات بعد",
@@ -159,17 +143,12 @@ const words = {
     orientation: "الاتجاه",
     unassigned: "غير مكلّفة",
     my: "مهامي",
-    workerIntro:
-      "عملك الميداني منظّم. افتح الزيارة لعرض تفاصيل الموقع الثابتة.",
     signout: "تسجيل الخروج",
     offline:
       "أنت غير متصل. مساحة العمليات تتطلب الاتصال. استخدم المهام المحمّلة في مساحة العمل الميداني للالتقاط دون اتصال.",
     detail: "تفاصيل المهمة",
-    locked: "هوية الواجهة الثابتة",
     uncertainty: "عدم دقة الإحداثيات",
     navigation: "الاتجاه إلى الموقع",
-    notCapture:
-      "افتح مساحة العمل الميداني للالتقاط المباشر والمسودات دون اتصال. إيصال الخادم لا يثبت هوية الواجهة.",
     close: "إغلاق",
     preview: "تحقق ومعاينة",
     commit: "استيراد الصفوف الصالحة",
@@ -181,13 +160,10 @@ const words = {
     loading: "جارٍ تحميل مساحة العمل…",
     error: "تعذر تحميل السجلات. تحقق من الاتصال.",
     retry: "حاول مجدداً",
-    scope: "العمليات الميدانية",
-    baselineNote: "المراجع الأولى تتطلب مراجعة بشرية.",
     noActivity: "يظهر النشاط بعد الاستيراد أو التكليف.",
     export: "تصدير CSV",
     selected: "محددة",
     demo: "مساحة تجريبية · إحداثيات توضيحية دون أدلة موثّقة",
-    phase: "المرحلة الأولى · المخزون والتكليف",
     noTasks: "لا توجد مهام بعد",
     noTasksSub: "سيقوم المشرف بتكليفك بزيارات هنا.",
     back: "العودة للمهام",
@@ -454,14 +430,6 @@ export default function Workspace({
             IBVS<span className="brand-sub">IRAQ BILLBOARD VERIFICATION</span>
           </span>
         </Link>
-        <div className="workspace-switch">
-          <span className="org-monogram">IQ</span>
-          <span>
-            Iraq operations<small>{t.workspace}</small>
-          </span>
-          <span className="online-dot" />
-        </div>
-        <span className="nav-label">{t.scope}</span>
         <nav>
           {nav.map((n) => (
             <button
@@ -478,15 +446,6 @@ export default function Workspace({
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="trust-card">
-            <ShieldCheck size={22} />
-            <strong>
-              {locale === "ar"
-                ? "الثقة تبدأ بالتحقق"
-                : "Trust starts with verification"}
-            </strong>
-            <p>{t.baselineNote}</p>
-          </div>
           <div className="user">
             <span className="avatar">{actor.name.slice(0, 1)}</span>
             <span>
@@ -527,9 +486,6 @@ export default function Workspace({
             >
               <Menu size={21} />
             </button>
-            <span>Iraq operations</span>
-            <ChevronRight size={13} />
-            <strong>{nav.find((n) => n.id === tab)?.label}</strong>
           </div>
           <div className="top-actions">
             {actor.role === "admin" && (
@@ -581,25 +537,7 @@ export default function Workspace({
           )}
           <div className="page-heading">
             <div>
-              <span className="eyebrow">{t.workspace}</span>
-              <h1>
-                {tab === "overview"
-                  ? t.title
-                  : tab === "assignments" && !isAdmin
-                    ? t.my
-                    : nav.find((n) => n.id === tab)?.label}
-              </h1>
-              <p>
-                {tab === "overview"
-                  ? t.intro
-                  : tab === "inventory"
-                    ? t.importIntro
-                    : tab === "assignments" && !isAdmin
-                      ? t.workerIntro
-                      : tab === "audit"
-                        ? t.activitySub
-                        : t.phase}
-              </p>
+              <h1>{nav.find((n) => n.id === tab)?.label}</h1>
             </div>
             <div className="heading-actions">
               {!isAdmin && (
@@ -671,11 +609,6 @@ export default function Workspace({
               )}
               {tab === "overview" && summary && (
                 <>
-                  <p className="muted">
-                    {locale === "ar"
-                      ? "الإجماليات التشغيلية لا تشمل المواقع التجريبية."
-                      : "Operational totals exclude test locations."}
-                  </p>
                   <section className="metric-grid">
                     {[
                       {
@@ -701,15 +634,18 @@ export default function Workspace({
                         icon: Clock,
                         caption:
                           locale === "ar"
-                            ? "المراجعة بعد استلام الدليل"
-                            : "Review follows evidence receipt",
+                            ? "بانتظار المشرف"
+                            : "Waiting for a supervisor",
                         tone: "amber",
                       },
                       {
                         label: t.verified,
                         value: summary.verified,
                         icon: ShieldCheck,
-                        caption: t.baselineNote,
+                        caption:
+                          locale === "ar"
+                            ? "وافق عليها المشرف"
+                            : "Approved by a supervisor",
                         tone: "green",
                       },
                     ].map((m) => (
@@ -782,10 +718,9 @@ export default function Workspace({
                       )}
                       <div className="panel-footer">
                         <span>
-                          <span className="legend-dot" />
                           {locale === "ar"
-                            ? "المخزون المستورد"
-                            : "Imported inventory"}
+                            ? "لا تشمل المواقع التجريبية"
+                            : "Test locations not included"}
                         </span>
                         <button
                           className="text-button"
@@ -867,24 +802,6 @@ export default function Workspace({
                       </div>
                     </section>
                   </div>
-                  <section className="field-note">
-                    <span className="field-note-icon">
-                      <ShieldCheck size={25} />
-                    </span>
-                    <div>
-                      <h3>
-                        {locale === "ar"
-                          ? "الدليل أولاً. الثقة تُكتسب."
-                          : "Evidence first. Confidence earned."}
-                      </h3>
-                      <p>
-                        {locale === "ar"
-                          ? "الإحداثيات المستوردة هي نقطة البداية. التحقق البشري يثبت هوية الواجهة."
-                          : "Imported coordinates are a starting point. Human review establishes a verified face identity."}
-                      </p>
-                    </div>
-                    <span className="phase-chip">{t.phase}</span>
-                  </section>
                 </>
               )}
               {(tab === "inventory" || tab === "assignments") && !detail && (
@@ -1213,33 +1130,7 @@ export default function Workspace({
                               <bdi>{a.code}</bdi>
                             </h3>
                             <p>{cityLine(a.city, a.zone)}</p>
-                            {isAdmin ? (
-                              <LocationFlags item={a} ar={locale === "ar"} />
-                            ) : (
-                              <dl className="worker-card-details">
-                                <div>
-                                  <dt>{locale === "ar" ? "العنوان" : "Address"}</dt>
-                                  <dd>
-                                    {addressFor(a.worker_address, a.description).text ??
-                                      (locale === "ar"
-                                        ? "لا يوجد عنوان. أدخله في الزيارة."
-                                        : "No address. Enter it on the visit.")}
-                                  </dd>
-                                </div>
-                                <div>
-                                  <dt>{locale === "ar" ? "الإحداثيات" : "Coordinates"}</dt>
-                                  <dd>
-                                    {a.latitude !== null && a.longitude !== null ? (
-                                      <bdi className="mono">{coordinatePair(a.latitude, a.longitude)}</bdi>
-                                    ) : (
-                                      <span className="pending-gps">
-                                        {locale === "ar" ? "بانتظار الموقع GPS" : "Pending GPS"}
-                                      </span>
-                                    )}
-                                  </dd>
-                                </div>
-                              </dl>
-                            )}
+                            <LocationFlags item={a} ar={locale === "ar"} />
                             <div className="task-bottom">
                               <span>
                                 <Clock size={14} />
@@ -1247,37 +1138,8 @@ export default function Workspace({
                               </span>
                               <ChevronRight size={17} />
                             </div>
-                            {isAdmin && <small>{a.worker_name}</small>}
+                            <small>{a.worker_name}</small>
                           </button>
-                          {!isAdmin &&
-                            ["assigned", "resurvey_requested"].includes(
-                              a.status,
-                            ) && (
-                              <Link
-                                className="primary"
-                                href={`/field?assignment=${encodeURIComponent(a.assignment_id)}`}
-                              >
-                                <Camera size={17} />
-                                {locale === "ar"
-                                  ? "التقاط صور مباشرة"
-                                  : "Capture live photos"}
-                              </Link>
-                            )}
-                          {!isAdmin && a.latitude !== null && a.longitude !== null && (
-                            <a
-                              className="text-button worker-map-link"
-                              href={
-                                platformOf(navigator.userAgent) === "android"
-                                  ? `geo:${a.latitude},${a.longitude}?q=${a.latitude},${a.longitude}`
-                                  : `https://www.google.com/maps/search/?api=1&query=${a.latitude},${a.longitude}`
-                              }
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <Navigation size={14} />
-                              {locale === "ar" ? "فتح في الخرائط" : "Open in maps"}
-                            </a>
-                          )}
                         </div>
                       ))}
                     </div>
@@ -1294,7 +1156,6 @@ export default function Workspace({
                         : filteredTasks.length}{" "}
                       {locale === "ar" ? "سجلاً" : "records"}
                     </span>
-                    <span>{t.phase}</span>
                   </div>
                 </section>
               )}
@@ -1308,10 +1169,6 @@ export default function Workspace({
                     {t.back}
                   </button>
                   <div className="detail-header">
-                    <span className="small-icon">
-                      <LockKeyhole />
-                    </span>
-                    <span className="eyebrow">{t.locked}</span>
                     <h2>
                       <bdi>{detail.code}</bdi>
                     </h2>
@@ -1395,12 +1252,6 @@ export default function Workspace({
                           : "Authorize location exception"}
                       </button>
                     )}
-                  <div className="notice warning">
-                    <TriangleAlert size={18} />
-                    {locale === "ar"
-                      ? "قد توجد عدة واجهات على هيكل واحد. تحقق من الرمز والاتجاه."
-                      : "Several faces may share a structure. Check the face code and orientation; GPS alone does not prove identity."}
-                  </div>
                   <a
                     className="primary"
                     href={`https://www.google.com/maps/dir/?api=1&destination=${detail.latitude},${detail.longitude}`}
@@ -1424,7 +1275,6 @@ export default function Workspace({
                           : "Capture live photos"}
                       </Link>
                     )}
-                  <p className="muted">{t.notCapture}</p>
                 </section>
               )}
               {tab === "audit" && (
@@ -1482,15 +1332,6 @@ export default function Workspace({
               )}
             </>
           )}
-          <footer className="workspace-footer">
-            <span>
-              IBVS <span className="footer-dot">·</span> Iraq Billboard
-              Verification System
-            </span>
-            <span>
-              <LockKeyhole size={12} /> {t.phase}
-            </span>
-          </footer>
         </main>
       </div>
       {toast && (

@@ -48,7 +48,7 @@ test("pending-GPS location: capture, interrupted upload, server acceptance and s
   await workerContext.setGeolocation({ latitude: 33.31, longitude: 44.13, accuracy: 10 });
   await login(field, "worker@demo.ibvs.test");
   await field.getByRole("link", { name: "Open field workspace" }).click();
-  await expect(field.getByText("Offline shell ready", { exact: true })).toBeVisible();
+  await expect(field.locator('[data-offline-ready="true"]')).toBeAttached();
   const card = field.locator("article.field-visit").filter({ has: field.getByRole("heading", { name: code, exact: true }) });
   await field.getByRole("button", { name: "Download assignments", exact: true }).click();
   await expect(card.getByText("Downloaded for this device", { exact: true })).toBeVisible();
@@ -59,27 +59,27 @@ test("pending-GPS location: capture, interrupted upload, server acceptance and s
   await field.getByRole("button", { name: "Record location fix", exact: true }).click();
   await camera(field);
   await field.getByRole("button", { name: "Capture", exact: true }).click();
-  await expect(field.getByText("Photo saved locally", { exact: true })).toHaveCount(1);
+  await expect(field.getByText("Photo saved", { exact: true })).toHaveCount(1);
   await field.getByRole("button", { name: "Capture", exact: true }).click();
-  await expect(field.getByText("Photo saved locally", { exact: true })).toHaveCount(2);
+  await expect(field.getByText("Photo saved", { exact: true })).toHaveCount(2);
   await field.getByRole("button", { name: "Add an angle photo", exact: true }).click();
   await field.getByRole("button", { name: "Capture", exact: true }).click();
-  await expect(field.getByText("Photo saved locally", { exact: true })).toHaveCount(3);
+  await expect(field.getByText("Photo saved", { exact: true })).toHaveCount(3);
 
   // Upload is interrupted on the wide photo. Saved photos must survive and the visit must not show a receipt.
   await field.route("**/api/inspections/*/parts/wide/*", (route) => route.abort("internetdisconnected"));
   await field.getByRole("button", { name: "Blank face", exact: true }).click();
-  await field.getByRole("button", { name: "Queue for upload", exact: true }).click();
+  await field.getByRole("button", { name: "Submit visit", exact: true }).click();
   await expect(field.getByText("Connection interrupted. Your saved photos will retry with backoff.", { exact: true })).toBeVisible();
   await field.reload();
   await field.locator("article.field-visit").filter({ has: field.getByRole("heading", { name: code, exact: true }) })
     .getByRole("button", { name: "Continue inspection", exact: true }).click();
-  await expect(field.getByText("Photo saved locally", { exact: true })).toHaveCount(3);
+  await expect(field.getByText("Photo saved", { exact: true })).toHaveCount(3);
 
   // Connection restored: the retry succeeds and the server accepts the visit, validating every GPS reading.
   await field.unroute("**/api/inspections/*/parts/wide/*");
   await field.getByRole("button", { name: "Retry synchronization", exact: true }).click();
-  await expect(field.getByText("Server received — awaiting human review", { exact: true })).toBeVisible();
+  await expect(field.getByText("Submitted — waiting for review", { exact: true })).toBeVisible();
 
   // Supervisor review: the captured position is listed for review and is not yet a verified coordinate.
   const admin = await (await page.request.get("/api/inventory")).json();

@@ -25,8 +25,8 @@ async function field(page: Page, code: string) {
     page.getByRole("heading", { name: "Field workspace", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText("Offline shell ready", { exact: true }),
-  ).toBeVisible();
+    page.locator('[data-offline-ready="true"]'),
+  ).toBeAttached();
   const card = page
     .locator("article.field-visit")
     .filter({ has: page.getByRole("heading", { name: code, exact: true }) });
@@ -105,26 +105,26 @@ test("offline camera evidence survives reload and interrupted upload; server rec
   await context.setOffline(true);
   await page.getByRole("button", { name: "Capture", exact: true }).click();
   await expect(
-    page.getByText("Photo saved locally", { exact: true }),
+    page.getByText("Photo saved", { exact: true }),
   ).toHaveCount(1);
   await page.getByRole("button", { name: "Capture", exact: true }).click();
   await expect(
-    page.getByText("Photo saved locally", { exact: true }),
+    page.getByText("Photo saved", { exact: true }),
   ).toHaveCount(2);
   await expect(
-    page.getByText("Offline capture • device claim", { exact: true }),
+    page.getByText("Taken offline", { exact: true }),
   ).toHaveCount(2);
   await page.getByRole("button", { name: "Add an angle photo", exact: true }).click();
   await page.getByRole("button", { name: "Capture", exact: true }).click();
   await expect(
-    page.getByText("Photo saved locally", { exact: true }),
+    page.getByText("Photo saved", { exact: true }),
   ).toHaveCount(3);
   await expect(
-    page.getByText("Offline capture • device claim", { exact: true }),
+    page.getByText("Taken offline", { exact: true }),
   ).toHaveCount(3);
   await page.getByRole("button", { name: "Blank face", exact: true }).click();
   await page
-    .getByRole("button", { name: "Queue for upload", exact: true })
+    .getByRole("button", { name: "Submit visit", exact: true })
     .click();
   await expect(
     page.getByText("Queued — no server receipt", { exact: true }),
@@ -140,7 +140,7 @@ test("offline camera evidence survives reload and interrupted upload; server rec
     .getByRole("button", { name: "Continue inspection", exact: true })
     .click();
   await expect(
-    page.getByText("Photo saved locally", { exact: true }),
+    page.getByText("Photo saved", { exact: true }),
   ).toHaveCount(3);
   await expect(
     page.getByText("Queued — no server receipt", { exact: true }),
@@ -170,7 +170,7 @@ test("offline camera evidence survives reload and interrupted upload; server rec
     .getByRole("button", { name: "Retry synchronization", exact: true })
     .click();
   await expect(
-    page.getByText("Server received — awaiting human review", { exact: true }),
+    page.getByText("Submitted — waiting for review", { exact: true }),
   ).toBeVisible();
   const receipt = await (
     await page.request.get("/api/inspections/" + row.id)
@@ -290,13 +290,13 @@ test("GPS success, simulated storage exhaustion and denied camera preserve hones
     page.getByText("Phone storage is full.", { exact: false }),
   ).toBeVisible();
   await expect(
-    page.getByText("Photo saved locally", { exact: true }),
+    page.getByText("Photo saved", { exact: true }),
   ).toHaveCount(0);
   await expect(
     page.getByText("Photo is not saved.", { exact: false }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Queue for upload", exact: true }),
+    page.getByRole("button", { name: "Submit visit", exact: true }),
   ).toBeDisabled();
   await page.evaluate(() =>
     window.dispatchEvent(new Event("test-clear-quota")),
@@ -305,7 +305,7 @@ test("GPS success, simulated storage exhaustion and denied camera preserve hones
     .getByRole("button", { name: "Retry saving photo", exact: true })
     .click();
   await expect(
-    page.getByText("Photo saved locally", { exact: true }),
+    page.getByText("Photo saved", { exact: true }),
   ).toHaveCount(1);
   await page.getByRole("button", { name: "Stop camera", exact: true }).click();
   await page.evaluate(() => {
@@ -351,7 +351,7 @@ test("same-browser logout locks offline access and separates workers without del
   await camera(page);
   await page.getByRole("button", { name: "Capture", exact: true }).click();
   await expect(
-    page.getByText("Photo saved locally", { exact: true }),
+    page.getByText("Photo saved", { exact: true }),
   ).toHaveCount(1);
   const originalOwner = await page.evaluate(() =>
     JSON.parse(localStorage.getItem("ibvs-field-owner-v2")!),
@@ -427,7 +427,7 @@ test("same-browser logout locks offline access and separates workers without del
       .first(),
   ).toBeVisible();
   await expect(
-    page.getByText("Photo saved locally", { exact: true }),
+    page.getByText("Photo saved", { exact: true }),
   ).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "DEMO-BGD-003", exact: true }),
@@ -488,7 +488,7 @@ test("same-browser logout locks offline access and separates workers without del
     page.getByRole("heading", { name: "DEMO-BGD-003", exact: true }),
   ).toHaveCount(0);
   await expect(
-    page.getByText("Photo saved locally", { exact: true }),
+    page.getByText("Photo saved", { exact: true }),
   ).toHaveCount(0);
   expect(await snapshot()).toEqual(saved);
   expect(evidenceWrites).toBe(0);
@@ -506,7 +506,7 @@ test("same-browser logout locks offline access and separates workers without del
     .getByRole("button", { name: "Continue inspection", exact: true })
     .click();
   await expect(
-    page.getByText("Photo saved locally", { exact: true }),
+    page.getByText("Photo saved", { exact: true }),
   ).toHaveCount(1);
   expect(await snapshot()).toEqual(saved);
   expect(evidenceWrites).toBe(0);

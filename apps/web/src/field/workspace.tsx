@@ -14,7 +14,6 @@ import {
   LogOut,
   ArrowLeft,
   ArrowRight,
-  ShieldCheck,
   RefreshCw,
   HardDrive,
   CheckCircle,
@@ -434,7 +433,6 @@ export default function FieldWorkspace() {
           <div>
             <span className="eyebrow">{actor?.name || "IBVS"}</span>
             <h1>{t.title}</h1>
-            <p>{t.subtitle}</p>
           </div>
           {actor && (
             <button
@@ -460,11 +458,13 @@ export default function FieldWorkspace() {
             </button>
           )}
         </div>
-        <div className="field-readiness">
-          <span className={shell ? "ready" : "not-ready"}>
-            {shell ? <ShieldCheck size={16} /> : <RefreshCw size={16} />}{" "}
-            {shell ? t.shellReady : t.shellPending}
-          </span>
+        {/* Offline readiness is shown only while it is not ready; the marker lets tests wait for it. */}
+        <div className="field-readiness" data-offline-ready={shell ? "true" : "false"}>
+          {!shell && (
+            <span className="not-ready">
+              <RefreshCw size={16} /> {t.shellPending}
+            </span>
+          )}
           {install && (
             <button
               className="text-button"
@@ -752,9 +752,7 @@ export default function FieldWorkspace() {
                     </div>
                     <div>
                       <dt>{t.unverified}</dt>
-                      <dd>
-                        ± {draft.task.uncertainty_m} m {t.uncertainty}
-                      </dd>
+                      <dd>± {draft.task.uncertainty_m} m</dd>
                     </div>
                   </dl>
                 </section>
@@ -884,7 +882,6 @@ export default function FieldWorkspace() {
                       </button>
                     )
                   )}
-                  <p className="field-caption">{t.retained}</p>
                 </section>
               </>
             ) : (
@@ -937,7 +934,6 @@ export default function FieldWorkspace() {
                 )}
               <p>{t.storageNote}</p>
             </section>
-            <p className="field-caption">{t.installGuide}</p>
             <Link className="text-button" href="/">
               {t.home}
               <ArrowRight size={16} />

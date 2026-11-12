@@ -185,7 +185,7 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
   });
   await worker.getByRole("button", { name: "Capture", exact: true }).click();
   await expect(
-    worker.getByText("Photo saved locally", { exact: true }),
+    worker.getByText("Photo saved", { exact: true }),
   ).toHaveCount(1);
   await context.setGeolocation({
     latitude: 33.3,
@@ -196,15 +196,15 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
   await worker.getByRole("button", { name: "Add an angle photo", exact: true }).click();
   await worker.getByRole("button", { name: "Capture", exact: true }).click();
   await expect(
-    worker.getByText("Photo saved locally", { exact: true }),
+    worker.getByText("Photo saved", { exact: true }),
   ).toHaveCount(3);
   await worker.getByRole("button", { name: "Blank face", exact: true }).click();
   await worker
-    .getByRole("button", { name: "Queue for upload", exact: true })
+    .getByRole("button", { name: "Submit visit", exact: true })
     .click();
   await expect(
     worker
-      .getByText("Server received — awaiting human review", { exact: true })
+      .getByText("Submitted — waiting for review", { exact: true })
       .first(),
   ).toBeVisible();
   await context.close();

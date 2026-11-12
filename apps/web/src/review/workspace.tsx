@@ -319,18 +319,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
       <main id="review-main" className="review-main">
         <div className="review-title">
           <div>
-            <p className="eyebrow">
-              {t("HUMAN VERIFICATION", "التحقق البشري")}
-            </p>
-            <h1>
-              {t("Evidence, in perspective.", "الأدلة، في سياقها الصحيح.")}
-            </h1>
-            <p>
-              {t(
-                "Confirm the exact billboard face. Investigate signals with context.",
-                "تحقق من وجه اللوحة المحدد. راجع المؤشرات في سياقها.",
-              )}
-            </p>
+            <h1>{t("Review center", "مركز المراجعة")}</h1>
           </div>
           <button
             className="secondary"
@@ -533,12 +522,6 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                   : t("Load more inspections", "تحميل المزيد من المعاينات")}
               </button>
             )}
-            <p className="review-footnote">
-              {t(
-                "J / K navigate · A / R / S / M select action",
-                "J / K للتنقل · A / R / S / M لاختيار القرار",
-              )}
-            </p>
           </aside>
           <section
             className="review-content"
@@ -552,12 +535,6 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                     ? t("Loading evidence…", "جارٍ تحميل الأدلة…")
                     : t("Select an inspection", "اختر معاينة")}
                 </h2>
-                <p>
-                  {t(
-                    "Evidence remains provisional until reviewed. References require explicit enrollment.",
-                    "تبقى الأدلة مؤقتة حتى المراجعة. اعتماد المراجع إجراء منفصل وصريح.",
-                  )}
-                </p>
               </div>
             ) : (
               <>

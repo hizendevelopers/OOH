@@ -140,8 +140,8 @@ test("admin creates GPS test location, corrects coordinates, worker finds it and
       .getByRole("link", { name: "Open field workspace" })
       .click();
     await expect(
-      workerPage.getByText("Offline shell ready", { exact: true }),
-    ).toBeVisible();
+      workerPage.locator('[data-offline-ready="true"]'),
+    ).toBeAttached();
     await workerPage
       .getByRole("button", { name: "Find nearby billboards", exact: true })
       .click();
@@ -177,7 +177,7 @@ test("admin creates GPS test location, corrects coordinates, worker finds it and
       .getByRole("button", { name: "Capture", exact: true })
       .click();
     await expect(
-      workerPage.getByText("Photo saved locally", { exact: true }),
+      workerPage.getByText("Photo saved", { exact: true }),
     ).toHaveCount(1);
     await expect(
       workerPage.getByText("Location at capture:", { exact: false }),

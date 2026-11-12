@@ -2555,3 +2555,8 @@ td small {
 .site-actions > * { min-height: 40px; }
 @media (max-width: 420px) { .site-facts { grid-template-columns: 1fr; } .site-grid { padding: 10px; } }
 .site-chips { display: flex; flex-wrap: wrap; gap: 6px; font-size: 0.8rem; }
+
+/* The workspace switcher above the sidebar menu was removed; keep the menu's spacing below the logo. */
+.sidebar > .brand + nav {
+  margin-top: 36px;
+}

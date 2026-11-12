@@ -35,7 +35,7 @@ async function login(page: import("@playwright/test").Page, email: string) {
     return;
   }
   await expect(
-    page.getByRole("heading", { name: "A clearer view of the field." }),
+    page.getByRole("heading", { name: "Overview", level: 1 }),
   ).toBeVisible();
   await expect(
     page.getByText("Billboard faces", { exact: true }),
@@ -127,7 +127,7 @@ test("responsive widths, RTL, themes, offline warning and CSV validation", async
   for (const width of [360, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await expect(
-      page.getByRole("heading", { name: "A clearer view of the field." }),
+      page.getByRole("heading", { name: "Overview", level: 1 }),
     ).toBeVisible();
     if (width < 700) await expect(page.locator("aside")).toBeHidden();
     expect(
