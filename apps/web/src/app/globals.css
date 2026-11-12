@@ -1,31 +1,33 @@
 @import "tailwindcss";
+/* Signal palette. --blue is the accent (amber) and keeps its name so every existing rule picks it up.
+   Light accent is darkened so white text on it passes WCAG AA (about 4.9:1). */
 :root {
-  --bg: #f5f7fa;
+  --bg: #f4f5f0;
   --surface: #fff;
-  --surface2: #f8fafc;
-  --ink: #16233a;
-  --muted: #64748b;
-  --line: #e6ebf1;
-  --blue: #1769e8;
-  --blue-soft: #eaf2ff;
-  --shadow: 0 3px 14px #15284404;
-  --nav: #101d32;
-  --green: #087f68;
-  --amber: #96610e;
+  --surface2: #f8f8f4;
+  --ink: #15212b;
+  --muted: #4f5e6a;
+  --line: #dde2dc;
+  --blue: #a85f00;
+  --blue-soft: #fbf0de;
+  --shadow: 0 3px 14px #15212b14;
+  --nav: #0e1a24;
+  --green: #0e7c6b;
+  --amber: #8a5a00;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --bg: #0e1726;
-  --surface: #152236;
-  --surface2: #192940;
-  --ink: #e5edf8;
-  --muted: #a4b4ca;
-  --line: #293a50;
-  --blue: #75acff;
-  --blue-soft: #213b5c;
-  --shadow: 0 3px 14px #0002;
-  --green: #62d6b5;
-  --amber: #edbf70;
+  --bg: #0e1a24;
+  --surface: #162635;
+  --surface2: #1b2e40;
+  --ink: #eaf1f3;
+  --muted: #9fb3be;
+  --line: #24384a;
+  --blue: #ffb020;
+  --blue-soft: #3a2a10;
+  --shadow: 0 3px 14px #0006;
+  --green: #4fd1b8;
+  --amber: #ffc861;
   color-scheme: dark;
 }
 * {
@@ -33,7 +35,8 @@
 }
 body {
   margin: 0;
-  font-family: Inter, "Segoe UI", Tahoma, Arial, sans-serif;
+  /* System fonts only: they cover Arabic and Kurdish on phones, and avoid loosening the Content Security Policy. */
+  font-family: "Segoe UI", system-ui, -apple-system, "Noto Sans Arabic", "Noto Sans", Tahoma, Arial, sans-serif;
   background: var(--bg);
   color: var(--ink);
   font-size: 14px;
