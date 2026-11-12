@@ -284,8 +284,10 @@ export async function overview(actor: Actor) {
     city: string;
     faces: number;
     assigned: number;
+    submitted: number;
+    pinned: number;
   }>(
-    `SELECT s.city,count(f.id)::int faces,count(a.id)::int assigned FROM billboard_structures s JOIN billboard_faces f ON f.structure_id=s.id LEFT JOIN assignments a ON a.face_id=f.id AND a.status IN ('assigned','pending_review','server_received','resurvey_requested','ambiguous') WHERE s.organization_id=$1 AND f.is_test=false GROUP BY s.city ORDER BY faces DESC`,
+    `SELECT s.city,count(DISTINCT f.id)::int faces,count(a.id)::int assigned,count(DISTINCT f.id) FILTER (WHERE sub.id IS NOT NULL)::int submitted,count(DISTINCT f.id) FILTER (WHERE c.latitude IS NOT NULL)::int pinned FROM billboard_structures s JOIN billboard_faces f ON f.structure_id=s.id LEFT JOIN assignments a ON a.face_id=f.id AND a.status IN ('assigned','pending_review','server_received','resurvey_requested','ambiguous') LEFT JOIN assignments sub ON sub.face_id=f.id AND sub.status IN ('server_received','approved','baseline_verified','pending_review') LEFT JOIN effective_source_coordinates c ON c.face_id=f.id WHERE s.organization_id=$1 AND f.is_test=false GROUP BY s.city ORDER BY faces DESC`,
     [actor.organizationId],
   );
   return { ...totals[0], cities };
