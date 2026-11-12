@@ -2451,3 +2451,26 @@ td small {
     padding: 12px 16px 0;
   }
 }
+
+/* Worker visit card: details grid, address entry, coordinates and map actions. */
+.visit-card { display: grid; gap: 10px; }
+.visit-card-city { margin: 0; color: var(--muted, #5b6472); }
+.visit-details { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin: 0; }
+.visit-details > div { min-width: 0; }
+.visit-details-wide { grid-column: 1 / -1; }
+.visit-details dt { font-size: 0.8rem; color: var(--muted, #5b6472); display: flex; align-items: center; gap: 4px; }
+.visit-details dd { margin: 2px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.visit-source { font-weight: 400; }
+.visit-coords { display: block; font-family: ui-monospace, monospace; direction: ltr; }
+.visit-missing, .visit-caption { margin: 2px 0; font-weight: 400; color: var(--muted, #5b6472); font-size: 0.9rem; }
+.visit-address-form { display: grid; gap: 8px; margin-top: 6px; }
+.visit-address-form input { min-height: 44px; padding: 8px 10px; border-radius: 10px; border: 1px solid #c9d1dc; font: inherit; }
+.visit-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.visit-actions a { min-height: 44px; display: inline-flex; align-items: center; gap: 4px; }
+.visit-actions button { min-height: 44px; }
+.visit-footer { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 0.85rem; color: var(--muted, #5b6472); }
+.visit-sort { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.visit-sort button { min-height: 44px; flex: 1 1 140px; }
+@media (max-width: 380px) {
+  .visit-details { grid-template-columns: 1fr; }
+}

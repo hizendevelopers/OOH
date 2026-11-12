@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { liveQuery } from "dexie";
-import { CityTabs, LocationFlags, cityCounts, needsLocationAttention } from "../components/city-tabs";
+import { CityTabs, cityCounts, needsLocationAttention } from "../components/city-tabs";
 import Link from "next/link";
 import {
   Compass,
@@ -12,7 +12,6 @@ import {
   Moon,
   Sun,
   LogOut,
-  MapPin,
   ArrowLeft,
   ArrowRight,
   ShieldCheck,
@@ -28,6 +27,10 @@ import { fieldStrings, type FieldText } from "./strings";
 import Capture from "./capture";
 import { storageError } from "../../../../packages/domain/src/inspection";
 import { Nearby } from "./nearby";
+import VisitCard from "./visit-card";
+import { platformOf } from "./gallery-file";
+import { getLocation } from "./device";
+import { sortVisits } from "../../../../packages/domain/src/worker-visit";
 import NewSite, { type RegisteredSite } from "./new-site";
 import {
   assessPhotoLocation,
@@ -58,6 +61,10 @@ export default function FieldWorkspace() {
     [install, setInstall] = useState<InstallEvent | null>(null),
     [persistNote, setPersistNote] = useState<"granted" | "denied" | null>(null),
     [newSite, setNewSite] = useState(false),
+    [visitSort, setVisitSort] = useState<"due" | "nearest">("due"),
+    [origin, setOrigin] = useState<{ latitude: number; longitude: number } | null>(null),
+    [locatingVisits, setLocatingVisits] = useState(false),
+    [sortNotice, setSortNotice] = useState<string | null>(null),
     [storage, setStorage] = useState<{
       usage: number;
       quota: number;
@@ -556,9 +563,49 @@ export default function FieldWorkspace() {
                   onChange={setCityFilter}
                   ar={locale === "ar"}
                 />
+                <div className="visit-sort" role="group" aria-label={locale === "ar" ? "ترتيب الزيارات" : "Sort visits"}>
+                  <button
+                    className={visitSort === "due" ? "primary" : "secondary"}
+                    aria-pressed={visitSort === "due"}
+                    onClick={() => {
+                      setVisitSort("due");
+                      setSortNotice(null);
+                    }}
+                  >
+                    {locale === "ar" ? "حسب الاستحقاق" : "By due date"}
+                  </button>
+                  <button
+                    className={visitSort === "nearest" ? "primary" : "secondary"}
+                    aria-pressed={visitSort === "nearest"}
+                    disabled={locatingVisits}
+                    onClick={async () => {
+                      setLocatingVisits(true);
+                      const fix = await getLocation();
+                      setLocatingVisits(false);
+                      if (fix.status === "ok") {
+                        setOrigin({ latitude: fix.latitude, longitude: fix.longitude });
+                        setVisitSort("nearest");
+                        setSortNotice(null);
+                      } else {
+                        setSortNotice(
+                          locale === "ar"
+                            ? "تعذّر تحديد موقعك، فالترتيب حسب الاستحقاق."
+                            : "Your location is unavailable, so visits stay sorted by due date.",
+                        );
+                      }
+                    }}
+                  >
+                    {locatingVisits ? "…" : locale === "ar" ? "الأقرب إليّ" : "Nearest to me"}
+                  </button>
+                </div>
+                {sortNotice && <p className="notice" role="status">{sortNotice}</p>}
                 <div className="field-visits">
                   {tasks.length ? (
-                    tasks.filter((task) => !cityFilter || task.city === cityFilter).map((task) => {
+                    sortVisits(
+                      tasks.filter((task) => !cityFilter || task.city === cityFilter),
+                      visitSort,
+                      visitSort === "nearest" ? origin : null,
+                    ).map((task) => {
                       const saved = drafts.find(
                         (d) => d.id === task.assignment_id,
                       );
@@ -567,55 +614,22 @@ export default function FieldWorkspace() {
                           className="panel field-visit"
                           key={task.assignment_id}
                         >
-                          <div className="field-visit-title">
-                            <span className="task-pin">
-                              <MapPin size={21} />
-                            </span>
-                            <span className="badge">
-                              {task.review_state === "pending" &&
-                              task.status === "approved"
-                                ? locale === "ar"
-                                  ? "أُعيد فتح المراجعة"
-                                  : "Review reopened"
-                                : locale === "ar"
-                                  ? (
-                                      {
-                                        assigned: "مكلّف",
-                                        resurvey_requested:
-                                          "إعادة معاينة مطلوبة",
-                                        rejected: "مرفوض",
-                                        superseded: "استُبدلت المهمة",
-                                        approved: "معتمدة",
-                                        ambiguous: "ملتبسة",
-                                        server_received: "استلمها الخادم",
-                                      } as Record<string, string>
-                                    )[task.status] || task.status
-                                  : task.status.replaceAll("_", " ")}
-                            </span>
-                          </div>
-                          <h3>
-                            <bdi>{task.code}</bdi>
-                          </h3>
-                          <p>
-                            {task.city} · {task.zone}
-                          </p>
-                          <LocationFlags item={task} ar={locale === "ar"} />
-                          <div className="field-task-meta">
-                            <span>
-                              {t.due}: <bdi>{task.due_date}</bdi>
-                            </span>
-                            <span>
-                              {locale === "ar" ? "الزيارة: " : "Visit: "}
-                              {["assigned", "resurvey_requested"].includes(task.status)
-                                ? locale === "ar" ? "لم تُرسل بعد" : "not submitted yet"
-                                : locale === "ar" ? "أُرسلت" : "submitted"}
-                            </span>
-                            <span>
-                              {cachedIds.includes(task.assignment_id)
-                                ? t.downloaded
-                                : t.downloadFirst}
-                            </span>
-                          </div>
+                          <VisitCard
+                            task={task}
+                            ar={locale === "ar"}
+                            cached={cachedIds.includes(task.assignment_id)}
+                            online={online}
+                            platform={platformOf(navigator.userAgent)}
+                            downloaded={t.downloaded}
+                            downloadFirst={t.downloadFirst}
+                            onAddressSaved={(assignmentId, address) =>
+                              setTasks((list) =>
+                                list.map((item) =>
+                                  item.assignment_id === assignmentId ? { ...item, worker_address: address } : item,
+                                ),
+                              )
+                            }
+                          />
                           {task.instructions && (
                             <div className="review-alert">
                               <strong>

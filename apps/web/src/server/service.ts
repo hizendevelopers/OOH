@@ -80,6 +80,7 @@ export type Face = {
   worker_id: string | null;
 };
 export type Assignment = Face & {
+  worker_address?: string | null;
   location_exception?: import("./location-exceptions").LocationException | null;
   assignment_id: string;
   worker_name: string;
@@ -93,7 +94,7 @@ export type Assignment = Face & {
 };
 export async function assignments(actor: Actor, id?: string) {
   return (await getDb()).query<Assignment>(
-    `SELECT f.id,f.code,f.orientation,f.description,f.is_test,s.code structure_code,s.city,s.zone,c.latitude,c.longitude,c.uncertainty_m,c.original_latitude,c.original_longitude,c.original_uncertainty_m,${importColumns},a.id assignment_id,a.parent_inspection_id,a.instructions,(SELECT r.state FROM review_cases r JOIN inspections i ON i.id=r.inspection_id WHERE i.assignment_id=a.id) review_state,(SELECT d.reason FROM review_decisions d JOIN inspections i ON i.id=d.inspection_id WHERE i.assignment_id=a.id ORDER BY d.version DESC LIMIT 1) review_reason,a.status,a.worker_id,a.due_date::text,a.version,u.name worker_name,(SELECT jsonb_build_object('id',e.id,'reason',e.reason,'authorized_by',e.authorized_by,'expires_at',e.expires_at,'assignment_version',e.assignment_version) FROM location_exceptions e WHERE e.assignment_id=a.id AND e.organization_id=a.organization_id AND e.assignment_version=a.version AND e.expires_at>now() ORDER BY e.created_at DESC,e.id DESC LIMIT 1) location_exception FROM assignments a JOIN billboard_faces f ON f.id=a.face_id JOIN billboard_structures s ON s.id=f.structure_id LEFT JOIN effective_source_coordinates c ON c.face_id=f.id ${importJoin} JOIN "user" u ON u.id=a.worker_id WHERE a.organization_id=$1 AND ($2::text='admin' OR a.worker_id=$3) AND ($4::text IS NULL OR a.id=$4) ORDER BY a.due_date,a.created_at DESC LIMIT 10000`,
+    `SELECT f.id,f.code,f.orientation,f.description,(SELECT wa.address FROM face_addresses wa WHERE wa.face_id=f.id ORDER BY wa.recorded_at DESC, wa.id DESC LIMIT 1) AS worker_address,f.is_test,s.code structure_code,s.city,s.zone,c.latitude,c.longitude,c.uncertainty_m,c.original_latitude,c.original_longitude,c.original_uncertainty_m,${importColumns},a.id assignment_id,a.parent_inspection_id,a.instructions,(SELECT r.state FROM review_cases r JOIN inspections i ON i.id=r.inspection_id WHERE i.assignment_id=a.id) review_state,(SELECT d.reason FROM review_decisions d JOIN inspections i ON i.id=d.inspection_id WHERE i.assignment_id=a.id ORDER BY d.version DESC LIMIT 1) review_reason,a.status,a.worker_id,a.due_date::text,a.version,u.name worker_name,(SELECT jsonb_build_object('id',e.id,'reason',e.reason,'authorized_by',e.authorized_by,'expires_at',e.expires_at,'assignment_version',e.assignment_version) FROM location_exceptions e WHERE e.assignment_id=a.id AND e.organization_id=a.organization_id AND e.assignment_version=a.version AND e.expires_at>now() ORDER BY e.created_at DESC,e.id DESC LIMIT 1) location_exception FROM assignments a JOIN billboard_faces f ON f.id=a.face_id JOIN billboard_structures s ON s.id=f.structure_id LEFT JOIN effective_source_coordinates c ON c.face_id=f.id ${importJoin} JOIN "user" u ON u.id=a.worker_id WHERE a.organization_id=$1 AND ($2::text='admin' OR a.worker_id=$3) AND ($4::text IS NULL OR a.id=$4) ORDER BY a.due_date,a.created_at DESC LIMIT 10000`,
     [actor.organizationId, actor.role, actor.id, id ?? null],
   );
 }

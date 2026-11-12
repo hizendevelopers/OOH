@@ -159,7 +159,8 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
   await expect(
     worker.getByRole("button", { name: "Start live camera", exact: true }),
   ).toBeInViewport();
-  await expect(worker.locator('input[type="file"]')).toHaveCount(0);
+  // Workers may pick gallery photos, but never import a CSV inventory file.
+  await expect(worker.locator('input[type="file"][accept*="csv"]')).toHaveCount(0);
   await worker
     .getByRole("button", { name: "Start live camera", exact: true })
     .click();
