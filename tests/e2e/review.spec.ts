@@ -400,7 +400,7 @@ test("supervisors review adjacent faces, explicitly version references and reque
     .getByRole("button", { name: "Switch language", exact: true })
     .click();
   await second
-    .getByRole("button", { name: "Toggle theme", exact: true })
+    .getByRole("button", { name: "تبديل المظهر", exact: true })
     .click();
   await second.getByRole("tab", { name: "المراجع", exact: true }).focus();
   await second.keyboard.press("ArrowRight");
