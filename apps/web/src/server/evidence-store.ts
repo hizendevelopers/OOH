@@ -22,6 +22,9 @@ export interface EvidenceStore {
   // so a photo row is written and rolled back together with the visit records around it.
   put(key: string, data: Buffer, db?: Database): Promise<void>;
   get(key: string, db?: Database): Promise<Buffer>;
+  // Optional bulk read. A photo is stored in 256 KB parts, so assembling one otherwise costs a
+  // separate round trip per part, which is slow when the store is far from this server.
+  getMany?(keys: string[], db?: Database): Promise<Buffer[]>;
 }
 
 // Keys come from the server, never from a client path. Anything unexpected is refused.
@@ -205,17 +208,28 @@ export class DatabaseEvidenceStore implements EvidenceStore {
   }
 
   async get(key: string, db?: Database) {
-    validateEvidenceKey(key);
-    const handle = db ?? (await getDb());
-    const [row] = await handle.query<{ data: Uint8Array; sha256: string }>(
-      "SELECT data, sha256 FROM evidence_objects WHERE key=$1",
-      [key],
-    );
-    if (!row) throw new Error("Private evidence not found");
-    const data = Buffer.from(row.data);
-    checkSize(data);
-    if (sha256Hex(data) !== row.sha256) throw new Error("Private evidence integrity check failed");
+    const [data] = await this.getMany([key], db);
     return data;
+  }
+
+  // All the parts of one photo in a single query, checked against their stored digests.
+  async getMany(keys: string[], db?: Database) {
+    keys.forEach(validateEvidenceKey);
+    if (!keys.length) return [];
+    const handle = db ?? (await getDb());
+    const rows = await handle.query<{ key: string; data: Uint8Array; sha256: string }>(
+      `SELECT key, data, sha256 FROM evidence_objects WHERE key IN (${keys.map((_, i) => `$${i + 1}`).join(",")})`,
+      keys,
+    );
+    const byKey = new Map(rows.map((row) => [row.key, row]));
+    return keys.map((key) => {
+      const row = byKey.get(key);
+      if (!row) throw new Error("Private evidence not found");
+      const data = Buffer.from(row.data);
+      checkSize(data);
+      if (sha256Hex(data) !== row.sha256) throw new Error("Private evidence integrity check failed");
+      return data;
+    });
   }
 }
 
@@ -270,4 +284,43 @@ export function evidenceStore(): EvidenceStore {
 // Used by tests and by the one-time migration tool after configuration changes.
 export function resetEvidenceStore(store: EvidenceStore | null = null) {
   configured = store;
+}
+
+export type EvidenceHealth = {
+  kind: EvidenceStore["kind"] | null;
+  usable: boolean;
+  problem: string | null;
+};
+
+// Administrator diagnosis of where photos are being stored and whether that store can accept them.
+// Reports settings and privileges only: it writes nothing and never returns secrets. A photo upload
+// that fails for this reason is otherwise invisible, because the worker only sees "try again".
+export async function evidenceHealth(
+  db: Pick<Database, "query">,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<EvidenceHealth> {
+  let store: EvidenceStore;
+  try {
+    store = createEvidenceStoreFromEnv(env);
+  } catch (error) {
+    // A misconfiguration here fails every upload, so it is the first thing to report.
+    return { kind: null, usable: false, problem: (error as Error).message };
+  }
+  if (store.kind !== "database") return { kind: store.kind, usable: true, problem: null };
+  const [table] = await db.query<{ present: boolean }>(
+    "SELECT to_regclass('evidence_objects') IS NOT NULL AS present",
+  );
+  if (!table?.present)
+    return { kind: "database", usable: false, problem: "The evidence_objects table is missing; run migration 017." };
+  const [grants] = await db.query<{ can_insert: boolean; can_read: boolean }>(
+    `SELECT has_table_privilege(current_user,'evidence_objects','INSERT') AS can_insert,
+            has_table_privilege(current_user,'evidence_objects','SELECT') AS can_read`,
+  );
+  if (!grants?.can_insert || !grants?.can_read)
+    return {
+      kind: "database",
+      usable: false,
+      problem: "This database user cannot read and write evidence_objects; re-run the grants in migration 017.",
+    };
+  return { kind: "database", usable: true, problem: null };
 }

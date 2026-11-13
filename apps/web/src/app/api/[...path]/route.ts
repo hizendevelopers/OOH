@@ -20,9 +20,7 @@ import {
 import { csvCell } from "@ibvs/domain";
 import { assignImportedLocations, correctImportedCity, importLocations, isoCalendarDate, pendingFieldCaptures, promoteFieldCapture } from "@/server/location-import";
 export const dynamic = "force-dynamic";
-// How long this route may run. The database is far from the server, so every query is a round trip;
-// without an explicit limit the platform's short default cut requests off mid-write.
-// Inventory import and bulk assignment: thousands of rows in one request.
+// Imports, exports and site-name translation each take longer than the platform's short default.
 export const maxDuration = 60;
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -52,7 +50,14 @@ async function handle(request: Request) {
       if (route === "admin/health") {
         requireAdmin(actor);
         const { migrationStatus } = await import("@/server/migration-status");
-        return json({ ...(await migrationStatus(await getDb())), database: process.env.DATABASE_URL ? "postgresql" : "local" });
+        const { evidenceHealth } = await import("@/server/evidence-store");
+        const db = await getDb();
+        return json({
+          ...(await migrationStatus(db)),
+          database: process.env.DATABASE_URL ? "postgresql" : "local",
+          // Where photos are stored and whether that store will accept them.
+          evidence: await evidenceHealth(db),
+        });
       }
       if (route === "me") return json({ id: actor.id, organizationId: actor.organizationId, role: actor.role, name: actor.name, email: actor.email, mfa: { enrolled: actor.secondFactor && "enrolled" in actor.secondFactor ? actor.secondFactor.enrolled : null } });
       if (route === "locations/captures") return json(await pendingFieldCaptures(actor));

@@ -14,7 +14,7 @@ import {
 } from "../../../../packages/domain/src/inspection";
 import { getDb, type Database } from "./db";
 import { ApiError, audit } from "./service";
-import { putPrivate, readPrivate } from "./evidence-storage";
+import { putPrivate, readManyPrivate, readPrivate } from "./evidence-storage";
 import { assessInspection } from "./risk-analysis";
 import { afterResponse } from "./background";
 import { errorFacts } from "./error-facts";
@@ -370,13 +370,12 @@ export async function completePhoto(actor: Actor, id: string, kind: PhotoKind) {
       parts.some((p, i) => p.part !== i)
     )
       throw new ApiError(409, "Photo upload is incomplete");
-    const buffers = [];
-    for (const p of parts) {
-      const b = await readPrivate(p.object_key, db);
-      if (hash(b) !== p.hash)
+    // One request for every part of the photo, rather than one per part.
+    const buffers = await readManyPrivate(parts.map((p) => p.object_key), db);
+    parts.forEach((p, i) => {
+      if (hash(buffers[i]) !== p.hash)
         throw new ApiError(409, "Stored part integrity check failed");
-      buffers.push(b);
-    }
+    });
     const bytes = Buffer.concat(buffers);
     if (
       bytes.length !== photo.expected_bytes ||
