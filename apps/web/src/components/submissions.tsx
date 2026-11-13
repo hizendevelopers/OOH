@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Camera } from "lucide-react";
 import type { Submission } from "@/server/inspections";
+import { cityName } from "@ibvs/domain";
+import { localizeError } from "@/lib/server-messages";
 
 const kindLabel: Record<string, [string, string]> = {
   front: ["Front", "أمامية"],
@@ -48,7 +50,7 @@ export function Submissions({ ar }: { ar: boolean }) {
       active = false;
     };
   }, []);
-  if (error) return <p className="notice danger" role="alert">{error}</p>;
+  if (error) return <p className="notice danger" role="alert">{localizeError(error, ar)}</p>;
   if (!rows) return <p className="muted" role="status">{t("Loading submissions…", "جارٍ تحميل الزيارات…")}</p>;
   const workers = [...new Map(rows.map((r) => [r.worker_id, r.worker_name])).entries()].sort((a, b) =>
     a[1].localeCompare(b[1]),
@@ -89,7 +91,7 @@ export function Submissions({ ar }: { ar: boolean }) {
                   <h4>{row.description?.trim() || row.code}</h4>
                   <p className="muted">
                     <bdi>{row.code}</bdi>
-                    {row.city ? " · " + row.city : ""}
+                    {row.city ? " · " + cityName(row.city, ar) : ""}
                   </p>
                 </div>
                 <span className={"badge " + (stateClass[row.review_state] || "pending_review")}>

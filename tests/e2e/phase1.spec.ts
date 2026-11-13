@@ -140,13 +140,14 @@ test("responsive widths, RTL, themes, offline warning and CSV validation", async
   }
   await page.getByRole("button", { name: "Switch language" }).click();
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-  await page.getByRole("button", { name: "Toggle theme" }).click();
+  // In Arabic, the theme and language buttons are labelled in Arabic.
+  await page.getByRole("button", { name: "تبديل المظهر" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.screenshot({
     path: "test-results/arabic-dark.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: "Switch language" }).click();
+  await page.getByRole("button", { name: "تغيير اللغة" }).click();
   await context.setOffline(true);
   await expect(
     page.getByText("You are offline.", { exact: false }),

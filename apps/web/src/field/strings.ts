@@ -216,7 +216,7 @@ export const fieldStrings = {
       "الكاميرا غير متاحة. استخدم متصفحاً مدعوماً عبر HTTPS وتحقق من الجهاز.",
     cameraReady: "انتظر ظهور الصورة المباشرة قبل الالتقاط.",
     gps: "تسجيل الموقع",
-    gpsBusy: "جارٍ الحصول على قراءة GPS حديثة…",
+    gpsBusy: "جارٍ تحديد موقعك الآن…",
     gpsNone: "يُسجَّل الموقع مع كل صورة.",
     gpsDenied:
       "الموقع متوقف. اسمح بالموقع لهذا المتصفح ثم أعد التقاط الصورة، أو تواصل مع المشرف.",
@@ -299,3 +299,11 @@ export const fieldStrings = {
   },
 };
 export type FieldText = typeof fieldStrings.en;
+
+// Times are stored as ISO text. English shows them as stored; Arabic shows a readable local date and time.
+export function fieldTime(iso: string | null | undefined, arabic: boolean) {
+  const value = iso ?? "";
+  if (!arabic || !value) return value;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("ar-IQ");
+}

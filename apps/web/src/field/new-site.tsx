@@ -12,6 +12,7 @@ import {
 import type { GpsObservation } from "../../../../packages/domain/src/inspection";
 import { getLocation } from "./device";
 import { fieldRequest, SyncError } from "./sync";
+import { localizeError } from "@/lib/server-messages";
 
 export type RegisteredSite = { assignmentId: string; code: string; aspectRatio: string };
 
@@ -91,7 +92,7 @@ export default function NewSite({
       const site = await fieldRequest<RegisteredSite>("sites", body);
       onRegistered(site);
     } catch (e) {
-      setError(e instanceof SyncError ? e.message : arabic ? "تعذّر التسجيل. تحقق من الاتصال وأعد المحاولة." : "Registration failed. Check the connection and try again.");
+      setError(e instanceof SyncError ? localizeError(e.message, arabic) : arabic ? "تعذّر التسجيل. تحقق من الاتصال وأعد المحاولة." : "Registration failed. Check the connection and try again.");
     } finally {
       setSaving(false);
     }
@@ -173,7 +174,7 @@ export default function NewSite({
               <bdi>
                 {fix.latitude.toFixed(6)}, {fix.longitude.toFixed(6)}
               </bdi>{" "}
-              · ± {Math.round(fix.accuracy)} m{" "}
+              · ± {Math.round(fix.accuracy)} {arabic ? "م" : "m"}{" "}
               {gpsOk ? <Check size={15} /> : arabic ? "· دقة ضعيفة، أعد القراءة" : "· accuracy too weak, read again"}
             </>
           ) : fix ? (

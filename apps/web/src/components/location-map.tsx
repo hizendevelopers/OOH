@@ -139,7 +139,7 @@ export function LocationMap({
         target="_blank"
         rel="noreferrer"
       >
-        © OpenStreetMap contributors
+        {ar ? "© المساهمون في OpenStreetMap" : "© OpenStreetMap contributors"}
       </a>
       {onSelect && (
         <small>

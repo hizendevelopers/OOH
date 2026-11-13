@@ -1,4 +1,5 @@
 // City-wise inventory: grouping, dimension ratio, and display values. Pure functions; nothing is invented.
+import { cityName } from "./arabic-names";
 
 export const UNASSIGNED_CITY = "__unassigned__";
 
@@ -32,18 +33,18 @@ export function dimensionRatio(widthM: number | null | undefined, heightM: numbe
 }
 
 // "12 × 4 m", with decimals only where the saved value has them.
-export function formatDimensions(widthM: number | null | undefined, heightM: number | null | undefined) {
+export function formatDimensions(widthM: number | null | undefined, heightM: number | null | undefined, ar = false) {
   if (widthM == null || heightM == null || !Number.isFinite(widthM) || !Number.isFinite(heightM)) return null;
   const n = (v: number) => String(Number(v.toFixed(2)));
-  return `${n(widthM)} × ${n(heightM)} m`;
+  return `${n(widthM)} × ${n(heightM)} ${ar ? "م" : "m"}`;
 }
 
 // Address from saved fields only: the worker-entered address, otherwise "Area, City" from the site record.
-export function siteAddress(site: { worker_address?: string | null; zone?: string | null; city?: string | null }) {
+export function siteAddress(site: { worker_address?: string | null; zone?: string | null; city?: string | null }, ar = false) {
   const entered = (site.worker_address ?? "").trim();
   if (entered) return entered;
-  const parts = [site.zone, site.city].map((p) => (p ?? "").trim()).filter(Boolean);
-  return parts.length ? parts.join(", ") : null;
+  const parts = [site.zone, cityName(site.city, ar)].map((p) => (p ?? "").trim()).filter(Boolean);
+  return parts.length ? parts.join(ar ? "، " : ", ") : null;
 }
 
 export function formatCoordinateValue(value: number | null | undefined) {
@@ -64,9 +65,10 @@ export type SiteSummaryInput = {
 
 // Everything a site card shows, decided in one place so the field list, the open visit and the admin
 // inventory always agree. The description names the site; the code is only an identifier.
-export function siteSummary(site: SiteSummaryInput) {
+// With ar, the city and the size unit are shown in Arabic; saved names and addresses stay as entered.
+export function siteSummary(site: SiteSummaryInput, ar = false) {
   const name = (site.description ?? "").trim();
-  const size = formatDimensions(site.width_m, site.height_m);
+  const size = formatDimensions(site.width_m, site.height_m, ar);
   const ratio = dimensionRatio(site.width_m, site.height_m);
   const pinned =
     site.latitude != null && site.longitude != null && Number.isFinite(site.latitude) && Number.isFinite(site.longitude);
@@ -74,7 +76,7 @@ export function siteSummary(site: SiteSummaryInput) {
     name: name || site.code,
     hasName: Boolean(name),
     code: site.code,
-    address: siteAddress(site),
+    address: siteAddress(site, ar),
     addressFromWorker: Boolean((site.worker_address ?? "").trim()),
     // "4 × 3 m · 4:3" on one line; null when the size was never measured.
     size: size ? (ratio ? `${size} · ${ratio}` : size) : null,

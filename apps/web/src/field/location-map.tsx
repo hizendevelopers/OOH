@@ -80,10 +80,10 @@ export function LocationMap({
           );
         })}
         <text x="320" y="22" fill="currentColor">
-          N ↑
+          {arabic ? "ش ↑" : "N ↑"}
         </text>
         <text x="12" y="305" fill="currentColor" fontSize="11">
-          {arabic ? "نصف قطر العرض" : "View radius"} {Math.round(extent)} m
+          {arabic ? "نصف قطر العرض" : "View radius"} {Math.round(extent)} {arabic ? "م" : "m"}
         </text>
       </svg>
       <figcaption>

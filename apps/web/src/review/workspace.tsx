@@ -15,7 +15,8 @@ import {
   X,
   Maximize2,
 } from "lucide-react";
-import type { Actor } from "@ibvs/domain";
+import { cityName, type Actor } from "@ibvs/domain";
+import { localizeError } from "@/lib/server-messages";
 import type { QueueItem, ReviewDetail } from "@/server/review";
 import { allPhotoKinds } from "../../../../packages/domain/src/inspection";
 
@@ -34,6 +35,78 @@ import {
   type RiskReport,
 } from "../../../../packages/domain/src/risk";
 import EvidenceMap from "./map";
+
+// Arabic names for the evidence and audit codes the server sends. English mode shows the code as before.
+const photoKindAr: Record<string, string> = {
+  front: "أمامية",
+  wide: "واسعة",
+  angle_1: "زاوية ١",
+  angle_2: "زاوية ٢",
+  angle_3: "زاوية ٣",
+  angle_4: "زاوية ٤",
+};
+const captureModeAr: Record<string, string> = {
+  offline: "دون اتصال",
+  online_challenged: "متصل مع رمز تحقق",
+  online_unchallenged: "متصل دون رمز تحقق",
+  gallery_original: "صورة أصلية من المعرض",
+};
+const gpsStatusAr: Record<string, string> = {
+  ok: "متاح",
+  denied: "الإذن مرفوض",
+  unavailable: "غير متاح",
+  timeout: "انتهت المهلة",
+};
+const directionAr: Record<string, string> = {
+  N: "شمال",
+  NE: "شمال شرق",
+  E: "شرق",
+  SE: "جنوب شرق",
+  S: "جنوب",
+  SW: "جنوب غرب",
+  W: "غرب",
+  NW: "شمال غرب",
+  unknown: "غير معروف",
+};
+const auditActionAr: Record<string, string> = {
+  "inspection.reviewed": "تمت مراجعة المعاينة",
+  "inspection.review_reopened": "أُعيد فتح المراجعة",
+  "inspection.risk_assessed": "تم تقييم المخاطر",
+  "baseline.enrolled": "تم اعتماد المرجع",
+  "baseline.withdrawn": "تم سحب المرجع",
+  "advertiser.confirm": "تم تأكيد المعلن",
+  "assignment.create": "تم إنشاء المهمة",
+  "face.address_recorded": "تم تسجيل العنوان",
+  "face.dimensions.record": "تم تسجيل الأبعاد",
+  "location.create": "تم إنشاء الموقع",
+  "location.coordinates.correct": "تم تصحيح الإحداثيات",
+  "locations.city_corrected": "تم تصحيح المدينة",
+  "locations.gps_verified": "تم توثيق الموقع",
+  "locations.import_assign": "تم التكليف من الاستيراد",
+  "inventory.import": "تم استيراد المواقع",
+  "site.registered": "تم تسجيل الموقع",
+};
+// Review messages the shared server-messages map does not cover yet.
+const reviewErrorAr: Record<string, string> = {
+  "Another supervisor must provide the next approval":
+    "يجب أن يقدم مشرف آخر الموافقة التالية.",
+  "Withdraw the active reference before changing its review outcome":
+    "اسحب المرجع الفعال قبل تغيير قرار المراجعة.",
+  "Fresh supervisor approvals required for this assessment":
+    "يتطلب هذا التقييم موافقات جديدة من المشرفين.",
+  "Invalid review request": "طلب المراجعة غير صالح. تحقق من الحقول المطلوبة.",
+  "Review unavailable. Refresh and retry.":
+    "المراجعة غير متاحة. حدّث الصفحة وأعد المحاولة.",
+  "Review service unavailable": "خدمة المراجعة غير متاحة. حاول مرة أخرى.",
+};
+function reviewError(message: string, arabic: boolean) {
+  if (!arabic) return message;
+  return reviewErrorAr[message.trim()] ?? localizeError(message, true);
+}
+function codeName(map: Record<string, string>, code: string | null | undefined, arabic: boolean) {
+  const value = code ?? "";
+  return arabic ? map[value] ?? value : value;
+}
 
 async function api<T>(path: string, data?: unknown): Promise<T> {
   const r = await fetch("/api/reviews" + path, {
@@ -299,7 +372,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
           </Link>
           <button
             className="icon-button"
-            aria-label="Switch language"
+            aria-label={t("Switch language", "تغيير اللغة")}
             onClick={() => {
               const l = ar ? "en" : "ar";
               setLocale(l);
@@ -311,7 +384,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
           </button>
           <button
             className="icon-button"
-            aria-label="Toggle theme"
+            aria-label={t("Toggle theme", "تبديل المظهر")}
             onClick={() => {
               setDark(!dark);
               localStorage.setItem("ibvs-theme", dark ? "light" : "dark");
@@ -413,30 +486,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
         </form>
         {error && (
           <div className="review-alert error" role="alert">
-            {ar
-              ? (
-                  {
-                    "Another supervisor must provide the next approval":
-                      "يجب أن يقدم مشرف آخر الموافقة التالية.",
-                    "Evidence assessment changed. Refresh review.":
-                      "تغير تقييم الأدلة. حدّث المراجعة قبل القرار.",
-                    "Review changed. Refresh before deciding.":
-                      "تغيرت المراجعة. حدّثها قبل اتخاذ القرار.",
-                    "Integrity failure requires resurvey":
-                      "فشل التحقق من السلامة. يلزم طلب إعادة معاينة.",
-                    "Withdraw the active reference before changing its review outcome":
-                      "اسحب المرجع الفعال قبل تغيير قرار المراجعة.",
-                    "Fresh supervisor approvals required for this assessment":
-                      "يتطلب هذا التقييم موافقات جديدة من المشرفين.",
-                    "Inspection already approved": "المعاينة معتمدة بالفعل.",
-                    "Review the linked resurvey task":
-                      "راجع مهمة إعادة المعاينة المرتبطة.",
-                    "Invalid review request":
-                      "طلب المراجعة غير صالح. تحقق من الحقول المطلوبة.",
-                  } as Record<string, string>
-                )[error] ||
-                "تعذر إكمال العملية. تحقق من سجل القرارات، ثم حدّث المراجعة وأعد المحاولة."
-              : error}{" "}
+            {reviewError(error, ar)}{" "}
             {ar && (
               <details>
                 <summary>تفاصيل الخدمة</summary>
@@ -511,7 +561,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                   </span>
                 </span>
                 <span>
-                  {q.worker_name} · {q.city}
+                  {q.worker_name} · {cityName(q.city, ar)}
                 </span>
                 <span className="review-row">
                   <small>{time(q.received_at)}</small>
@@ -549,7 +599,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                 <div className="panel review-summary">
                   <div>
                     <span className="eyebrow">
-                      {detail.inspection.city} /{" "}
+                      {cityName(detail.inspection.city, ar)} /{" "}
                       <bdi>{detail.inspection.structure_code}</bdi>
                     </span>
                     <h2>
@@ -748,15 +798,15 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                                   : {photo ? time(photo.capturedAt) : "—"}
                                 </p>
                                 <p>
-                                  <bdi>{photo?.captureMode}</bdi> · GPS:{" "}
-                                  <bdi>{photo?.gps.status}</bdi>
+                                  <bdi>{codeName(captureModeAr, photo?.captureMode, ar)}</bdi> · {t("GPS", "الموقع")}:{" "}
+                                  <bdi>{codeName(gpsStatusAr, photo?.gps.status, ar)}</bdi>
                                 </p>
                                 {photo?.gps.status === "ok" && (
                                   <p>
                                     <bdi>
                                       {photo.gps.latitude.toFixed(6)},{" "}
                                       {photo.gps.longitude.toFixed(6)} · ±{" "}
-                                      {Math.round(photo.gps.accuracy)} m
+                                      {Math.round(photo.gps.accuracy)} {t("m", "م")}
                                     </bdi>
                                     <br />
                                     {t(
@@ -785,7 +835,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                             <bdi>
                               {detail.inspection.latitude},{" "}
                               {detail.inspection.longitude} ±{" "}
-                              {detail.inspection.uncertainty_m} m
+                              {detail.inspection.uncertainty_m} {t("m", "م")}
                             </bdi>
                           </p>
                           {(detail.inspection.original_latitude !==
@@ -830,7 +880,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                           {detail.report?.observations.map((o) => (
                             <p key={o.kind}>
                               <bdi>
-                                {o.kind}: {o.distanceM} m · ± {o.accuracy} m
+                                {codeName(photoKindAr, o.kind, ar)}: {o.distanceM} {t("m", "م")} · ± {o.accuracy} {t("m", "م")}
                               </bdi>
                               <br />
                               {time(o.observedAt)}
@@ -843,8 +893,8 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                           {detail.report?.candidates.map((c) => (
                             <p key={c.id}>
                               <bdi>
-                                {c.code} · {c.orientation} ·{" "}
-                                {Math.round(c.distanceM)} m
+                                {c.code} · {codeName(directionAr, c.orientation, ar)} ·{" "}
+                                {Math.round(c.distanceM)} {t("m", "م")}
                               </bdi>
                             </p>
                           ))}
@@ -877,7 +927,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                       </p>
                       <p>
                         <bdi>
-                          {detail.report?.ruleVersion || "Analysis pending"}
+                          {detail.report?.ruleVersion || t("Analysis pending", "التحليل قيد الانتظار")}
                         </bdi>
                       </p>
                       {!detail.report && (
@@ -946,7 +996,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                                     ? "resurvey_requested"
                                     : "ambiguous",
                             )}{" "}
-                            · v{d.version}
+                            · {t("v", "النسخة ")}{d.version}
                           </strong>
                           <p>{d.reason}</p>
                           <small>
@@ -968,7 +1018,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                         <article className="review-signal" key={m.kind}>
                           <strong>
                             <bdi>
-                              {m.kind} · {m.width} × {m.height} · {m.parts}
+                              {codeName(photoKindAr, m.kind, ar)} · {m.width} × {m.height} · {m.parts}
                             </bdi>{" "}
                             {t("received parts", "أجزاء مستلمة")}
                           </strong>
@@ -1034,7 +1084,7 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                       )}
                       {detail.history.map((h, n) => (
                         <article key={n} className="review-signal">
-                          <bdi>{h.action}</bdi>
+                          <bdi>{codeName(auditActionAr, h.action, ar)}</bdi>
                           <small> · {time(h.created_at)}</small>
                           <pre dir="ltr">
                             {JSON.stringify(h.detail, null, 2)}
@@ -1229,7 +1279,9 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
                                       "W",
                                       "NW",
                                     ].map((v) => (
-                                      <option key={v}>{v}</option>
+                                      <option key={v} value={v}>
+                                        {codeName(directionAr, v, ar)}
+                                      </option>
                                     ))}
                                   </select>
                                 </label>
@@ -1479,6 +1531,7 @@ function BrandReview({
     [advertiserId, setAdvertiserId] = useState(""),
     [newName, setNewName] = useState(""),
     [reason, setReason] = useState("");
+  const ar = t("en", "ar") === "ar";
   const observed = brand.observation;
   const observedLabel = !observed
     ? t("Not recorded for this visit", "غير مسجل لهذه الزيارة")
@@ -1507,7 +1560,7 @@ function BrandReview({
                   ? t("Blank face", "وجه فارغ")
                   : t("Unreadable", "غير مقروء")}
             </bdi>{" "}
-            · <small>{current.confirmed_by_name} · {new Date(current.confirmed_at).toLocaleString()}</small>
+            · <small>{current.confirmed_by_name} · {new Date(current.confirmed_at).toLocaleString(ar ? "ar-IQ" : undefined)}</small>
           </>
         ) : (
           t("Not confirmed", "غير مؤكد")
