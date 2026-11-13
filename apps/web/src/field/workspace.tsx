@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { liveQuery } from "dexie";
-import { CityTabs, cityCounts, needsLocationAttention } from "../components/city-tabs";
+import { cityCounts, needsLocationAttention } from "../components/city-tabs";
 import Link from "next/link";
 import {
   Compass,
@@ -17,8 +17,14 @@ import {
   RefreshCw,
   Clock,
   CheckCircle,
+  Search,
+  MapPin,
+  Plus,
 } from "lucide-react";
 import type { Actor } from "@ibvs/domain";
+import { matchesFilter } from "@ibvs/domain";
+import { FieldMenu } from "./menu";
+import VisitSteps, { type VisitStep } from "./visit-steps";
 import type { Assignment } from "../server/service";
 import { FieldStore, hasRequiredPhotos, type Draft } from "./store";
 import { fieldRequest, replayQueue, SyncError } from "./sync";
@@ -62,7 +68,10 @@ export default function FieldWorkspace() {
     [visitSort, setVisitSort] = useState<"due" | "nearest">("due"),
     [origin, setOrigin] = useState<{ latitude: number; longitude: number } | null>(null),
     [locatingVisits, setLocatingVisits] = useState(false),
-    [sortNotice, setSortNotice] = useState<string | null>(null);
+    [sortNotice, setSortNotice] = useState<string | null>(null),
+    [search, setSearch] = useState(""),
+    [nearbyOpen, setNearbyOpen] = useState(false),
+    [step, setStep] = useState<VisitStep>("photos");
   const t = fieldStrings[locale];
   const messages = locale === "ar" ? locationMessagesAr : locationMessages;
   useEffect(() => {
@@ -281,12 +290,65 @@ export default function FieldWorkspace() {
     void openTask(task);
   }, [loading, store, tasks, openTask]);
   const draft = drafts.find((d) => d.id === opened);
+  // A visit opens on Photos while it is still being taken, and on Send once it has been submitted.
+  const stepChosenFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!opened) {
+      stepChosenFor.current = null;
+      return;
+    }
+    if (!draft || stepChosenFor.current === opened) return;
+    stepChosenFor.current = opened;
+    setStep(draft.state === "local_draft" ? "photos" : "send");
+  }, [opened, draft]);
+  async function signOut() {
+    localStorage.setItem("ibvs-field-locked", "1");
+    localStorage.removeItem(ownerKey);
+    try {
+      await fetch("/api/auth/sign-out", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch {
+      /* Device remains locked even if server logout is interrupted. */
+    }
+    location.assign("/sign-in");
+  }
+  async function sortBy(mode: "due" | "nearest") {
+    setSortNotice(null);
+    if (mode === "due") {
+      setVisitSort("due");
+      return;
+    }
+    setLocatingVisits(true);
+    const fix = await getLocation();
+    setLocatingVisits(false);
+    if (fix.status === "ok") {
+      setOrigin({ latitude: fix.latitude, longitude: fix.longitude });
+      setVisitSort("nearest");
+    } else {
+      setVisitSort("due");
+      setSortNotice(t.sortUnavailable);
+    }
+  }
+  const visibleTasks = sortVisits(
+    tasks.filter(
+      (task) =>
+        (!cityFilter || task.city === cityFilter) &&
+        matchesFilter(
+          `${task.code} ${task.structure_code} ${task.city} ${task.zone} ${task.description ?? ""} ${task.worker_address ?? ""}`,
+          search,
+        ),
+    ),
+    visitSort,
+    visitSort === "nearest" ? origin : null,
+  );
+  // Opening a visit that still needs photos brings the camera into view.
   useEffect(() => {
     if (!opened || !draft?.id || draft.state !== "local_draft") return;
-    if (
-      new URLSearchParams(window.location.search).get("assignment") === opened
-    )
-      document.querySelector(".field-live")?.scrollIntoView({ block: "start" });
+    document.querySelector(".field-live")?.scrollIntoView({ block: "start" });
   }, [opened, draft?.id, draft?.state]);
   const reviewLabel = (d: Draft) => {
     const state = tasks.find(
@@ -402,6 +464,42 @@ export default function FieldWorkspace() {
           >
             {dark ? <Sun size={19} /> : <Moon size={19} />}
           </button>
+          {actor && (
+            <FieldMenu
+              label={t.menu}
+              items={[
+                {
+                  label: t.registerSite,
+                  icon: <Plus size={17} />,
+                  disabled: !online || busy || !store,
+                  onSelect: () => {
+                    setOpened(null);
+                    setNewSite(true);
+                  },
+                },
+                {
+                  label: t.findNearby,
+                  icon: <MapPin size={17} />,
+                  onSelect: () => {
+                    setOpened(null);
+                    setNearbyOpen(true);
+                  },
+                },
+                ...(install
+                  ? [
+                      {
+                        label: t.install,
+                        icon: <Download size={17} />,
+                        onSelect: () => {
+                          void install.prompt().finally(() => setInstall(null));
+                        },
+                      },
+                    ]
+                  : []),
+                { label: t.signout, icon: <LogOut size={17} />, onSelect: () => void signOut() },
+              ]}
+            />
+          )}
         </div>
       </header>
       <main id="field-main">
@@ -410,29 +508,6 @@ export default function FieldWorkspace() {
             <span className="eyebrow">{actor?.name || "IBVS"}</span>
             <h1>{t.title}</h1>
           </div>
-          {actor && (
-            <button
-              className="icon-button"
-              aria-label={t.signout}
-              onClick={async () => {
-                localStorage.setItem("ibvs-field-locked", "1");
-                localStorage.removeItem(ownerKey);
-                try {
-                  await fetch("/api/auth/sign-out", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: "{}",
-                    signal: AbortSignal.timeout(5000),
-                  });
-                } catch {
-                  /* Device remains locked even if server logout is interrupted. */
-                }
-                location.assign("/sign-in");
-              }}
-            >
-              <LogOut size={20} />
-            </button>
-          )}
         </div>
         {/* Offline readiness is shown only while it is not ready; the marker lets tests wait for it. */}
         <div className="field-readiness" data-offline-ready={shell ? "true" : "false"}>
@@ -440,18 +515,6 @@ export default function FieldWorkspace() {
             <span className="not-ready">
               <RefreshCw size={16} /> {t.shellPending}
             </span>
-          )}
-          {install && (
-            <button
-              className="text-button"
-              onClick={async () => {
-                await install.prompt();
-                setInstall(null);
-              }}
-            >
-              {t.install}
-              <Download size={16} />
-            </button>
           )}
         </div>
         {!online && (
@@ -483,30 +546,7 @@ export default function FieldWorkspace() {
           <>
             {!opened ? (
               <>
-                <Nearby
-                  arabic={locale === "ar"}
-                  tasks={tasks.filter(
-                    (task) => online || cachedIds.includes(task.assignment_id),
-                  )}
-                  online={online}
-                  busy={busy}
-                  onOpen={openTask}
-                />
-                <section className="field-list-heading">
-                  <div>
-                    <h2>{t.tasks}</h2>
-                    <p>{t.downloadFirst}</p>
-                  </div>
-                  <button
-                    className="primary"
-                    disabled={!online || busy || !store}
-                    onClick={() => void download()}
-                  >
-                    <Download size={17} />
-                    {t.download}
-                  </button>
-                </section>
-                {newSite ? (
+                {newSite && (
                   <NewSite
                     arabic={locale === "ar"}
                     onCancel={() => setNewSite(false)}
@@ -518,70 +558,77 @@ export default function FieldWorkspace() {
                       else setError("storage_unavailable");
                     }}
                   />
-                ) : (
-                  <p className="field-caption">
-                    <button
-                      className="secondary"
-                      disabled={!online || busy || !store}
-                      onClick={() => setNewSite(true)}
-                    >
-                      {t.registerSite}
-                    </button>{" "}
-                    {t.registerSiteNote}
-                  </p>
                 )}
-                <CityTabs
-                  label={locale === "ar" ? "المدن" : "Cities"}
-                  allLabel={locale === "ar" ? "كل المواقع المكلّف بها" : "All assigned locations"}
-                  total={tasks.length}
-                  cities={cityCounts(tasks, needsLocationAttention)}
-                  value={cityFilter}
-                  onChange={setCityFilter}
-                  ar={locale === "ar"}
-                />
-                <div className="visit-sort" role="group" aria-label={locale === "ar" ? "ترتيب الزيارات" : "Sort visits"}>
-                  <button
-                    className={visitSort === "due" ? "primary" : "secondary"}
-                    aria-pressed={visitSort === "due"}
-                    onClick={() => {
-                      setVisitSort("due");
-                      setSortNotice(null);
-                    }}
+                {nearbyOpen && (
+                  <>
+                    <button className="text-button" onClick={() => setNearbyOpen(false)}>
+                      <ArrowLeft size={17} />
+                      {t.back}
+                    </button>
+                    <Nearby
+                      arabic={locale === "ar"}
+                      tasks={tasks.filter(
+                        (task) => online || cachedIds.includes(task.assignment_id),
+                      )}
+                      online={online}
+                      busy={busy}
+                      onOpen={openTask}
+                    />
+                  </>
+                )}
+                <h2 className="field-list-title">{t.tasks}</h2>
+                <div className="field-toolbar">
+                  <label className="field-search">
+                    <Search size={17} aria-hidden="true" />
+                    <input
+                      type="search"
+                      aria-label={t.searchVisits}
+                      placeholder={t.searchPlaceholder}
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </label>
+                  <select
+                    aria-label={t.cityFilter}
+                    value={cityFilter}
+                    onChange={(e) => setCityFilter(e.target.value)}
                   >
-                    {locale === "ar" ? "حسب الاستحقاق" : "By due date"}
-                  </button>
-                  <button
-                    className={visitSort === "nearest" ? "primary" : "secondary"}
-                    aria-pressed={visitSort === "nearest"}
+                    <option value="">
+                      {t.allCities} ({tasks.length})
+                    </option>
+                    {cityCounts(tasks, needsLocationAttention).map((c) => (
+                      <option key={c.city} value={c.city}>
+                        {c.city} ({c.count})
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label={t.sortBy}
+                    value={visitSort}
                     disabled={locatingVisits}
-                    onClick={async () => {
-                      setLocatingVisits(true);
-                      const fix = await getLocation();
-                      setLocatingVisits(false);
-                      if (fix.status === "ok") {
-                        setOrigin({ latitude: fix.latitude, longitude: fix.longitude });
-                        setVisitSort("nearest");
-                        setSortNotice(null);
-                      } else {
-                        setSortNotice(
-                          locale === "ar"
-                            ? "تعذّر تحديد موقعك، فالترتيب حسب الاستحقاق."
-                            : "Your location is unavailable, so visits stay sorted by due date.",
-                        );
-                      }
-                    }}
+                    onChange={(e) => void sortBy(e.target.value as "due" | "nearest")}
                   >
-                    {locatingVisits ? "…" : locale === "ar" ? "الأقرب إليّ" : "Nearest to me"}
+                    <option value="due">{t.sortDue}</option>
+                    <option value="nearest">{locatingVisits ? "…" : t.sortNearest}</option>
+                  </select>
+                  <button
+                    className="icon-button"
+                    aria-label={t.download}
+                    title={t.download}
+                    disabled={!online || busy || !store}
+                    onClick={() => void download()}
+                  >
+                    <Download size={18} />
                   </button>
                 </div>
                 {sortNotice && <p className="notice" role="status">{sortNotice}</p>}
                 <div className="field-visits">
-                  {tasks.length ? (
-                    sortVisits(
-                      tasks.filter((task) => !cityFilter || task.city === cityFilter),
-                      visitSort,
-                      visitSort === "nearest" ? origin : null,
-                    ).map((task) => {
+                  {!tasks.length ? (
+                    <div className="empty-state">{t.empty}</div>
+                  ) : !visibleTasks.length ? (
+                    <div className="empty-state">{t.noMatches}</div>
+                  ) : (
+                    visibleTasks.map((task) => {
                       const saved = drafts.find(
                         (d) => d.id === task.assignment_id,
                       );
@@ -651,8 +698,6 @@ export default function FieldWorkspace() {
                         </article>
                       );
                     })
-                  ) : (
-                    <div className="empty-state">{t.empty}</div>
                   )}
                 </div>
                 {drafts.some(
@@ -732,17 +777,77 @@ export default function FieldWorkspace() {
                     </div>
                   </dl>
                 </section>
-                {status(draft)}
-                <Capture
-                  arabic={locale === "ar"}
-                  key={draft.id}
-                  store={store}
-                  draft={draft}
+                <VisitSteps
+                  step={step}
+                  onStep={setStep}
                   t={t}
-                  online={online}
+                  done={{
+                    photos: hasRequiredPhotos(draft),
+                    brand: !!draft.brand,
+                    send: draft.state !== "local_draft",
+                  }}
                 />
+                {step !== "send" && (
+                  <>
+                    <Capture
+                      arabic={locale === "ar"}
+                      key={draft.id}
+                      store={store}
+                      draft={draft}
+                      t={t}
+                      online={online}
+                      step={step}
+                      onBrandChosen={() => setStep("send")}
+                    />
+                    <button
+                      className="primary field-next"
+                      onClick={() => {
+                        setStep(step === "photos" ? "brand" : "send");
+                        window.scrollTo({ top: 0 });
+                      }}
+                    >
+                      {t.next}
+                      <ArrowRight size={17} />
+                    </button>
+                  </>
+                )}
+                {step === "send" && (
                 <section className="panel field-submit">
-                  <p>{t.queueNote}</p>
+                  {status(draft)}
+                  <h2>{t.checklist}</h2>
+                  <ul className="field-checklist">
+                    {(["front", "wide"] as const).map((k) => (
+                      <li key={k} className={draft.photos[k] ? "done" : ""}>
+                        {draft.photos[k] ? <CheckCircle size={17} /> : <Clock size={17} />}
+                        <span>
+                          {k === "front" ? t.front : t.wide}
+                          {!draft.photos[k] && <small>{t.missingPhoto}</small>}
+                        </span>
+                      </li>
+                    ))}
+                    <li className={hasRequiredPhotos(draft) ? "done" : ""}>
+                      {hasRequiredPhotos(draft) ? <CheckCircle size={17} /> : <Clock size={17} />}
+                      <span>
+                        {t.angle}
+                        {!hasRequiredPhotos(draft) && <small>{t.missingPhoto}</small>}
+                      </span>
+                    </li>
+                    <li className={draft.brand ? "done" : ""}>
+                      {draft.brand ? <CheckCircle size={17} /> : <Clock size={17} />}
+                      <span>
+                        {t.brandTitle}
+                        <small>
+                          {draft.brand
+                            ? draft.brand.kind === "advertiser"
+                              ? draft.brand.text
+                              : draft.brand.kind === "blank"
+                                ? t.brandBlank
+                                : t.brandUnreadable
+                            : t.missingBrand}
+                        </small>
+                      </span>
+                    </li>
+                  </ul>
                   {draft.task.location_exception &&
                     Date.parse(draft.task.location_exception.expires_at) >
                       clock && (
@@ -776,9 +881,6 @@ export default function FieldWorkspace() {
                     <p className="notice danger" role="alert">
                       {locationError}
                     </p>
-                  )}
-                  {draft.photos.front && draft.photos.wide && !hasRequiredPhotos(draft) && (
-                    <p className="muted">{t.needAngle}</p>
                   )}
                   {draft.state === "local_draft" ? (
                     <button
@@ -859,14 +961,11 @@ export default function FieldWorkspace() {
                     )
                   )}
                 </section>
+                )}
               </>
             ) : (
               <p role="status">{t.loading}</p>
             )}
-            <Link className="text-button" href="/">
-              {t.home}
-              <ArrowRight size={16} />
-            </Link>
           </>
         )}
       </main>

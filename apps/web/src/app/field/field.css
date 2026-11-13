@@ -553,3 +553,33 @@
   color: #fff;
   font-weight: 600;
 }
+
+/* Phase 2: one toolbar row, a menu for rare actions, and three visit steps. */
+.field-list-title { font-size: 20px; margin: 22px 0 12px; }
+.field-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
+.field-toolbar select { min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 0 10px; }
+.field-search { flex: 1 1 220px; display: flex; align-items: center; gap: 8px; min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 0 12px; color: var(--muted); }
+.field-search input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--ink); font: inherit; outline: none; }
+.field-search:focus-within { outline: 2px solid var(--blue); outline-offset: 1px; }
+.field-menu { position: relative; }
+.field-menu-list { position: absolute; inset-inline-end: 0; top: calc(100% + 6px); z-index: 30; min-width: 230px; display: grid; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 12px 30px #0002; }
+.field-menu-list button { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font: inherit; text-align: start; cursor: pointer; }
+.field-menu-list button:hover:not(:disabled) { background: var(--surface2); }
+.field-menu-list button:disabled { opacity: 0.5; cursor: default; }
+.visit-steps { margin: 16px 0; }
+.visit-steps ol { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; list-style: none; margin: 0; padding: 0; }
+.visit-steps button { width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; }
+.visit-steps button.active { border-color: var(--blue); color: var(--ink); background: var(--blue-soft, var(--surface2)); }
+.visit-step-number { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--surface2); font-size: 12px; }
+.visit-steps button.active .visit-step-number { background: var(--blue); color: #fff; }
+.field-next { width: 100%; min-height: 48px; margin: 16px 0 22px; justify-content: center; }
+.field-submit h2 { font-size: 16px; margin: 16px 0 10px; }
+.field-checklist { list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 8px; }
+.field-checklist li { display: flex; gap: 10px; align-items: flex-start; color: var(--amber); }
+.field-checklist li.done { color: var(--green); }
+.field-checklist span { display: grid; gap: 2px; color: var(--ink); }
+.field-checklist small { color: var(--muted); }
+@media (max-width: 520px) {
+  .field-toolbar select { flex: 1 1 40%; }
+  .visit-steps button { font-size: 13px; gap: 5px; }
+}

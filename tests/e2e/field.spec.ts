@@ -20,7 +20,7 @@ async function field(page: Page, code: string) {
     expect(result.status).toBe(200);
     break;
   }
-  await page.getByRole("link", { name: "Open field workspace" }).click();
+  await expect(page).toHaveURL(/\/field$/);
   await expect(
     page.getByRole("heading", { name: "Field workspace", exact: true }),
   ).toBeVisible();
@@ -122,6 +122,7 @@ test("offline camera evidence survives reload and interrupted upload; server rec
   await expect(
     page.getByText("Taken offline", { exact: true }),
   ).toHaveCount(3);
+  await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Blank face", exact: true }).click();
   await page
     .getByRole("button", { name: "Submit visit", exact: true })
@@ -139,12 +140,16 @@ test("offline camera evidence survives reload and interrupted upload; server rec
   await card
     .getByRole("button", { name: "Continue inspection", exact: true })
     .click();
-  await expect(
-    page.getByText("Photo saved", { exact: true }),
-  ).toHaveCount(3);
+  // A submitted visit reopens on the Send step; its photos are still on the Photos step.
   await expect(
     page.getByText("Waiting to send", { exact: true }),
   ).toBeVisible();
+  const steps = page.getByRole("navigation", { name: "Visit steps" });
+  await steps.getByRole("button", { name: "Photos", exact: true }).click();
+  await expect(
+    page.getByText("Photo saved", { exact: true }),
+  ).toHaveCount(3);
+  await steps.getByRole("button", { name: "Send", exact: true }).click();
   await page.route("**/api/inspections/*/parts/wide/*", (route) =>
     route.abort("internetdisconnected"),
   );
@@ -406,9 +411,8 @@ test("same-browser logout locks offline access and separates workers without del
   expect(saved.state).toBe("local_draft");
   expect(saved.bytes).toBeGreaterThan(0);
   expect(saved.actualHash).toBe(saved.sha256);
-  await page
-    .getByRole("button", { name: "Sign out / lock device", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Sign out / lock device", exact: true }).click();
   await expect(page).toHaveURL("http://localhost:3000/sign-in");
   expect(
     await page.evaluate(() => localStorage.getItem("ibvs-field-locked")),
@@ -461,8 +465,7 @@ test("same-browser logout locks offline access and separates workers without del
       expect(result.status()).toBe(200);
       break;
     }
-    await expect(page).toHaveURL("http://localhost:3000/");
-    await page.getByRole("link", { name: "Open field workspace" }).click();
+    await expect(page).toHaveURL(/\/field$/);
     await expect(
       page.getByRole("heading", { name: "Field workspace", exact: true }),
     ).toBeVisible();
@@ -492,9 +495,8 @@ test("same-browser logout locks offline access and separates workers without del
   ).toHaveCount(0);
   expect(await snapshot()).toEqual(saved);
   expect(evidenceWrites).toBe(0);
-  await page
-    .getByRole("button", { name: "Sign out / lock device", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Sign out / lock device", exact: true }).click();
   await expect(page).toHaveURL("http://localhost:3000/sign-in");
   await signIn("worker@demo.ibvs.test");
   const card = page

@@ -24,6 +24,8 @@ export default async function Page() {
       }),
     );
   }
+  // Workers have one app: the field workspace. The operations workspace is for administrators.
+  if (actor && requiresSignIn && actor.role === "worker") redirect("/field");
   if (actor) {
     // Administrators must have a verified second factor before the workspace opens.
     const decision = evaluateAccess(actor, "ordinary");
