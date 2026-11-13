@@ -14,6 +14,10 @@ import {
 import { assessInspection } from "@/server/risk-analysis";
 import { confirmBrand } from "@/server/advertisers";
 export const dynamic = "force-dynamic";
+// How long this route may run. The database is far from the server, so every query is a round trip;
+// without an explicit limit the platform's short default cut requests off mid-write.
+// Supervisor review. The risk analysis reads every photo of a visit and analyses each one.
+export const maxDuration = 120;
 const json = (data: unknown, status = 200) =>
   Response.json(data, {
     status,

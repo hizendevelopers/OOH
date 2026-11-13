@@ -5,6 +5,10 @@ import { ApiError } from "@/server/service";
 import { recordWorkerAddress } from "@/server/worker-address";
 
 export const dynamic = "force-dynamic";
+// How long this route may run. The database is far from the server, so every query is a round trip;
+// without an explicit limit the platform's short default cut requests off mid-write.
+// Worker-entered address: a write plus its checks.
+export const maxDuration = 30;
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "private, no-store" } });
 
