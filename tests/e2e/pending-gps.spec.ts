@@ -72,7 +72,7 @@ test("pending-GPS location: capture, interrupted upload, server acceptance and s
   await field.getByRole("button", { name: "Next", exact: true }).click();
   await field.getByRole("button", { name: "Blank face", exact: true }).click();
   await field.getByRole("button", { name: "Submit visit", exact: true }).click();
-  await expect(field.getByText("Connection lost. Your photos will send automatically when you are back online.", { exact: true })).toBeVisible();
+  await expect(field.getByText("Sending was interrupted. It carries on by itself — keep this page open.", { exact: true })).toBeVisible();
   await field.reload();
   await field.locator("article.field-visit").filter({ hasText: `Site code: ${code}` })
     .getByRole("button", { name: "Continue visit", exact: true }).click();
