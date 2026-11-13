@@ -463,15 +463,15 @@ test("supervisors review adjacent faces, explicitly version references and reque
   ).toHaveCount(3);
   await page.getByRole("button", { name: "Blank face", exact: true }).click();
   await page
-    .getByRole("button", { name: "Queue for upload", exact: true })
+    .getByRole("button", { name: "Submit photos", exact: true })
     .click();
   // A click starts an IndexedDB transaction; wait for its durable acknowledgement.
   await expect(
-    page.getByText("Queued — no server receipt", { exact: true }).first(),
+    page.getByText("Waiting to send", { exact: true }).first(),
   ).toBeVisible();
   await page.reload();
   await expect(
-    page.getByText("Queued — no server receipt", { exact: true }).first(),
+    page.getByText("Waiting to send", { exact: true }).first(),
   ).toBeVisible();
   await page.context().setOffline(false);
   await expect(

@@ -36,13 +36,16 @@ it("requires HTTPS in production", () => {
   delete process.env.IBVS_ALLOW_LOCAL_DB;
   expect(() => environment()).toThrow("HTTPS");
 });
-it("requires private evidence configuration in production", () => {
+it("requires an evidence folder in production only for the filesystem store", () => {
   vi.stubEnv("NODE_ENV", "production");
   process.env.DATABASE_URL = "postgresql://localhost/ibvs";
   process.env.BETTER_AUTH_SECRET = "test-only-value-at-least-32-characters";
   process.env.BETTER_AUTH_URL = "https://example.com";
   delete process.env.IBVS_ALLOW_LOCAL_DB;
   delete process.env.IBVS_EVIDENCE_DIR;
+  delete process.env.IBVS_EVIDENCE_STORE;
+  expect(environment().IBVS_EVIDENCE_DIR).toBeUndefined();
+  process.env.IBVS_EVIDENCE_STORE = "filesystem";
   expect(() => environment()).toThrow("IBVS_EVIDENCE_DIR");
 });
 it("rejects relative production evidence configuration before database or file access without exposing its value", () => {

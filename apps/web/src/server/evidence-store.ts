@@ -7,7 +7,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { root } from "./db";
+import { getDb, root, type Database } from "./db";
 
 // Private evidence storage behind one small interface. Callers use the functions at the
 // bottom of this file; the backend is chosen by configuration and never by the client.
@@ -17,9 +17,11 @@ const EVIDENCE_KEY =
   /^[a-f0-9-]{36}\/(?:front|wide|angle_[1-4])\/(?:[0-9]{1,2}-[a-f0-9]{64}|original-[a-f0-9]{64})$/;
 
 export interface EvidenceStore {
-  readonly kind: "s3" | "filesystem";
-  put(key: string, data: Buffer): Promise<void>;
-  get(key: string): Promise<Buffer>;
+  readonly kind: "s3" | "filesystem" | "database";
+  // db is the caller's open transaction, when there is one. Only the database backend uses it,
+  // so a photo row is written and rolled back together with the visit records around it.
+  put(key: string, data: Buffer, db?: Database): Promise<void>;
+  get(key: string, db?: Database): Promise<Buffer>;
 }
 
 // Keys come from the server, never from a client path. Anything unexpected is refused.
@@ -186,14 +188,49 @@ export class S3EvidenceStore implements EvidenceStore {
   }
 }
 
+// ----- Database backend: photo bytes in the evidence_objects table (migration 017). -----
+
+export class DatabaseEvidenceStore implements EvidenceStore {
+  readonly kind = "database" as const;
+
+  async put(key: string, data: Buffer, db?: Database) {
+    checkSize(data);
+    validateEvidenceKey(key);
+    const handle = db ?? (await getDb());
+    // Keys are content-addressed: a repeated write of the same key is the same photo.
+    await handle.query(
+      "INSERT INTO evidence_objects(key,bytes,sha256,data) VALUES($1,$2,$3,$4) ON CONFLICT (key) DO NOTHING",
+      [key, data.length, sha256Hex(data), data],
+    );
+  }
+
+  async get(key: string, db?: Database) {
+    validateEvidenceKey(key);
+    const handle = db ?? (await getDb());
+    const [row] = await handle.query<{ data: Uint8Array; sha256: string }>(
+      "SELECT data, sha256 FROM evidence_objects WHERE key=$1",
+      [key],
+    );
+    if (!row) throw new Error("Private evidence not found");
+    const data = Buffer.from(row.data);
+    checkSize(data);
+    if (sha256Hex(data) !== row.sha256) throw new Error("Private evidence integrity check failed");
+    return data;
+  }
+}
+
 // ----- Selection and configuration. -----
 
 let configured: EvidenceStore | null = null;
 
 export function createEvidenceStoreFromEnv(env: NodeJS.ProcessEnv = process.env): EvidenceStore {
-  // Hosted production (not the local test server) defaults to S3-compatible storage.
+  // Hosted production (not the local test server) keeps photos in the database, unless an
+  // S3-compatible bucket is configured, which stays in use so photos already there remain readable.
   const hosted = env.NODE_ENV === "production" && env.IBVS_ALLOW_LOCAL_DB !== "true";
-  const choice = env.IBVS_EVIDENCE_STORE ?? (hosted ? "s3" : "filesystem");
+  const choice =
+    env.IBVS_EVIDENCE_STORE ??
+    (hosted ? (env.IBVS_EVIDENCE_S3_BUCKET ? "s3" : "database") : "filesystem");
+  if (choice === "database") return new DatabaseEvidenceStore();
   if (choice === "s3") {
     const bucket = env.IBVS_EVIDENCE_S3_BUCKET;
     const endpoint = env.IBVS_EVIDENCE_S3_ENDPOINT;
@@ -222,7 +259,7 @@ export function createEvidenceStoreFromEnv(env: NodeJS.ProcessEnv = process.env)
     }
     return new FilesystemEvidenceStore(evidenceRoot(env));
   }
-  throw new Error("IBVS_EVIDENCE_STORE must be s3 or filesystem");
+  throw new Error("IBVS_EVIDENCE_STORE must be database, s3 or filesystem");
 }
 
 export function evidenceStore(): EvidenceStore {

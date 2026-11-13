@@ -69,7 +69,7 @@ test("pending-GPS location: capture, interrupted upload, server acceptance and s
   // Upload is interrupted on the wide photo. Saved photos must survive and the visit must not show a receipt.
   await field.route("**/api/inspections/*/parts/wide/*", (route) => route.abort("internetdisconnected"));
   await field.getByRole("button", { name: "Blank face", exact: true }).click();
-  await field.getByRole("button", { name: "Queue for upload", exact: true }).click();
+  await field.getByRole("button", { name: "Submit photos", exact: true }).click();
   await expect(field.getByText("Connection interrupted. Your saved photos will retry with backoff.", { exact: true })).toBeVisible();
   await field.reload();
   await field.locator("article.field-visit").filter({ has: field.getByRole("heading", { name: code, exact: true }) })
@@ -78,7 +78,7 @@ test("pending-GPS location: capture, interrupted upload, server acceptance and s
 
   // Connection restored: the retry succeeds and the server accepts the visit, validating every GPS reading.
   await field.unroute("**/api/inspections/*/parts/wide/*");
-  await field.getByRole("button", { name: "Retry synchronization", exact: true }).click();
+  await field.getByRole("button", { name: "Send again", exact: true }).click();
   await expect(field.getByText("Server received — awaiting human review", { exact: true })).toBeVisible();
 
   // Supervisor review: the captured position is listed for review and is not yet a verified coordinate.

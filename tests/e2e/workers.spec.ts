@@ -200,7 +200,7 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
   ).toHaveCount(3);
   await worker.getByRole("button", { name: "Blank face", exact: true }).click();
   await worker
-    .getByRole("button", { name: "Queue for upload", exact: true })
+    .getByRole("button", { name: "Submit photos", exact: true })
     .click();
   await expect(
     worker

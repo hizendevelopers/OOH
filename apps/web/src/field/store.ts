@@ -123,6 +123,19 @@ export class FieldStore extends Dexie {
     });
     return reopened;
   }
+  // Once the server has confirmed a visit, its photos are on the server and leave this phone.
+  // Only the small receipt record stays, so the visit still shows as submitted.
+  async releaseReceived() {
+    let released = 0;
+    await this.transaction("rw", this.drafts, async () => {
+      for (const draft of await this.drafts.toArray()) {
+        if (draft.state !== "server_received" || !Object.keys(draft.photos).length) continue;
+        await this.drafts.update(draft.id, { photos: {} });
+        released++;
+      }
+    });
+    return released;
+  }
   async queue(id: string) {
     await this.transaction("rw", this.drafts, async () => {
       const draft = await this.drafts.get(id);
