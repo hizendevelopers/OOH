@@ -14,6 +14,8 @@ Run `npm run dev` and open http://localhost:3000. `/api/health` checks connectiv
 
 The direct endpoint requires IPv6, but this machine currently has no usable IPv6 route. The app now uses the project's **Session pooler** at `aws-0-ap-northeast-1.pooler.supabase.com:5432`, copied from the Connect dialog. Keep the restricted role and certificate verification. App-to-pooler TLS 1.3 and certificate validation were verified; `pg_stat_ssl` describes the pooler's separate backend connection and does not measure the app's TLS socket. [Supabase connection modes](https://supabase.com/docs/guides/database/connecting-to-postgres) describes the alternatives.
 
+The database is in Tokyo (`ap-northeast-1`), so `vercel.json` pins the hosted functions to the Tokyo region (`hnd1`) to sit beside it. Receiving one visit takes several database round trips, and running those across the Pacific from the previous North American region made each one about 160 ms instead of a few. That alone was enough to exhaust the request time limit, so no visit could be received. `vercel.json` overrides the Function Regions setting in the Vercel dashboard. If the database ever moves, change the region in that file to match it.
+
 Hosted production stores photo originals in the database table `evidence_objects` (migration 017) by default. Set `IBVS_EVIDENCE_STORE=s3` with the `IBVS_EVIDENCE_S3_*` settings to use an S3-compatible bucket instead, or `IBVS_EVIDENCE_STORE=filesystem` with `IBVS_EVIDENCE_DIR` on a single host with a persistent disk. Database storage counts against the database size: up to 6 MB per photo, and upload chunks are kept as well as the assembled original. Photos already written to a bucket or folder are not moved.
 
 ## Vercel Docker runtime settings
