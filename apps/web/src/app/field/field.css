@@ -108,7 +108,8 @@
 }
 .field-visit h3 {
   font-size: 18px;
-  margin-top: 18px;
+  margin: 0;
+  line-height: 1.35;
   overflow-wrap: anywhere;
 }
 .field-visit > p {
@@ -582,4 +583,21 @@
 @media (max-width: 520px) {
   .field-toolbar select { flex: 1 1 40%; }
   .visit-steps button { font-size: 13px; gap: 5px; }
+}
+/* The shared site card inside an open visit: tighter than the old identity panel. */
+.field-identity .site-details h2.site-name {
+  font-size: 20px;
+  line-height: 1.3;
+}
+.field-identity .site-details dl.site-facts {
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin: 0;
+}
+.field-identity .site-details .field-more-details dl.site-facts {
+  grid-template-columns: 1fr 1fr;
+  margin-top: 6px;
+}
+.field-identity .site-details dt {
+  margin-bottom: 1px;
 }

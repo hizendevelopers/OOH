@@ -33,6 +33,7 @@ import Capture from "./capture";
 import { storageError } from "../../../../packages/domain/src/inspection";
 import { Nearby } from "./nearby";
 import VisitCard from "./visit-card";
+import { SiteDetails } from "../components/site-details";
 import { platformOf } from "./gallery-file";
 import { getLocation } from "./device";
 import { sortVisits } from "../../../../packages/domain/src/worker-visit";
@@ -645,7 +646,6 @@ export default function FieldWorkspace() {
                             online={online}
                             platform={platformOf(navigator.userAgent)}
                             downloaded={t.downloaded}
-                            downloadFirst={t.downloadFirst}
                             onAddressSaved={(assignmentId, address) =>
                               setTasks((list) =>
                                 list.map((item) =>
@@ -680,7 +680,7 @@ export default function FieldWorkspace() {
                           )}
                           {saved && status(saved)}
                           <button
-                            className="secondary"
+                            className="primary field-visit-start"
                             disabled={
                               busy ||
                               (!saved &&
@@ -735,48 +735,44 @@ export default function FieldWorkspace() {
                   {t.back}
                 </button>
                 <section className="panel field-identity">
-                  <span className="eyebrow">{t.locked}</span>
-                  <h2>
-                    <bdi>{draft.task.code}</bdi>
-                  </h2>
-                  <p>
-                    {draft.task.city} · {draft.task.zone}
-                  </p>
-                  {draft.task.instructions && (
-                    <div className="notice warning">
-                      <strong>
-                        {locale === "ar"
-                          ? "تعليمات إعادة المعاينة"
-                          : "Resurvey instructions"}
-                      </strong>
-                      <p>{draft.task.instructions}</p>
-                      <bdi>{draft.task.parent_inspection_id}</bdi>
-                    </div>
-                  )}
-                  <dl>
-                    <div>
-                      <dt>{t.structure}</dt>
-                      <dd>
-                        <bdi>
-                          {draft.task.structure_code} / {draft.task.orientation}
-                        </bdi>
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>{t.original}</dt>
-                      <dd>
-                        <bdi>
-                          {draft.task.latitude === null || draft.task.longitude === null
-                            ? (locale === "ar" ? "بانتظار الموقع GPS" : "Pending GPS")
-                            : `${draft.task.latitude}, ${draft.task.longitude}`}
-                        </bdi>
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>{t.unverified}</dt>
-                      <dd>± {draft.task.uncertainty_m} m</dd>
-                    </div>
-                  </dl>
+                  <SiteDetails
+                    site={draft.task}
+                    ar={locale === "ar"}
+                    heading="h2"
+                    pendingText={
+                      locale === "ar"
+                        ? "بانتظار الموقع GPS — أول صورة لك تحدّده"
+                        : "Pending GPS — your first photo sets it"
+                    }
+                  >
+                    {draft.task.instructions && (
+                      <div className="notice warning">
+                        <strong>
+                          {locale === "ar"
+                            ? "تعليمات إعادة المعاينة"
+                            : "Resurvey instructions"}
+                        </strong>
+                        <p>{draft.task.instructions}</p>
+                      </div>
+                    )}
+                    <details className="field-more-details">
+                      <summary>{t.moreDetails}</summary>
+                      <dl className="site-facts">
+                        <div>
+                          <dt>{t.structure}</dt>
+                          <dd>
+                            <bdi>
+                              {draft.task.structure_code} / {draft.task.orientation}
+                            </bdi>
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>{t.unverified}</dt>
+                          <dd>± {draft.task.uncertainty_m} m</dd>
+                        </div>
+                      </dl>
+                    </details>
+                  </SiteDetails>
                 </section>
                 {/* Once the server has a visit its photos are removed from this phone, so only its status is shown. */}
                 {!sent && (

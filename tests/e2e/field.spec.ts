@@ -31,16 +31,16 @@ async function field(page: Page, code: string) {
     .locator("article.field-visit")
     .filter({ has: page.getByRole("heading", { name: code, exact: true }) });
   await expect(
-    card.getByRole("button", { name: "Open inspection", exact: true }),
+    card.getByRole("button", { name: "Start visit", exact: true }),
   ).toBeEnabled();
   await page
     .getByRole("button", { name: "Download assignments", exact: true })
     .click();
   await expect(
-    card.getByText("Downloaded for this device", { exact: true }),
+    card.getByText("Saved on this phone for offline use", { exact: true }),
   ).toBeVisible();
   await card
-    .getByRole("button", { name: "Open inspection", exact: true })
+    .getByRole("button", { name: "Start visit", exact: true })
     .click();
   await expect(
     page.getByRole("heading", { name: code, exact: true }),
@@ -138,7 +138,7 @@ test("offline camera evidence survives reload and interrupted upload; server rec
     has: page.getByRole("heading", { name: "DEMO-BGD-001", exact: true }),
   });
   await card
-    .getByRole("button", { name: "Continue inspection", exact: true })
+    .getByRole("button", { name: "Continue visit", exact: true })
     .click();
   // A submitted visit reopens on the Send step; its photos are still on the Photos step.
   await expect(
@@ -274,8 +274,9 @@ test("GPS success, simulated storage exhaustion and denied camera preserve hones
   await page
     .getByRole("button", { name: "Record location fix", exact: true })
     .click();
+  // The reading shows in the GPS panel; the site card above may show the same coordinates.
   await expect(
-    page.getByText("33.310200, 44.435100", { exact: false }),
+    page.locator(".field-gps").getByText("33.310200, 44.435100", { exact: false }),
   ).toBeVisible();
   await camera(page);
   await page.evaluate(() => {
@@ -518,7 +519,7 @@ test("same-browser logout locks offline access and separates workers without del
       has: page.getByRole("heading", { name: "DEMO-BGD-003", exact: true }),
     });
   await card
-    .getByRole("button", { name: "Continue inspection", exact: true })
+    .getByRole("button", { name: "Continue visit", exact: true })
     .click();
   await expect(
     page.getByText("Photo saved", { exact: true }),

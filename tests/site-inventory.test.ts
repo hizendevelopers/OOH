@@ -6,6 +6,7 @@ import {
   formatDimensions,
   groupSitesByCity,
   siteAddress,
+  siteSummary,
 } from "../packages/domain/src/site-inventory";
 
 describe("city grouping", () => {
@@ -56,5 +57,37 @@ describe("address and coordinates", () => {
   it("shows coordinates to six decimals, or nothing when unsaved", () => {
     expect(formatCoordinateValue(33.3152)).toBe("33.315200");
     expect(formatCoordinateValue(null)).toBeNull();
+  });
+});
+
+describe("site summary", () => {
+  const base = { code: "IQ-BGD-0719", city: "Baghdad", zone: "Karrada", latitude: null, longitude: null };
+  it("names the site by its description and keeps the code separate", () => {
+    const s = siteSummary({ ...base, description: "  Ramp down from Amana Bridge  " });
+    expect(s).toMatchObject({ name: "Ramp down from Amana Bridge", hasName: true, code: "IQ-BGD-0719" });
+  });
+  it("falls back to the code only when there is no description", () => {
+    expect(siteSummary({ ...base, description: " " })).toMatchObject({ name: "IQ-BGD-0719", hasName: false });
+  });
+  it("uses the worker's address first, then area and city", () => {
+    expect(siteSummary({ ...base, worker_address: "Street 52, near the bridge" })).toMatchObject({
+      address: "Street 52, near the bridge",
+      addressFromWorker: true,
+    });
+    expect(siteSummary(base)).toMatchObject({ address: "Karrada, Baghdad", addressFromWorker: false });
+  });
+  it("puts size and ratio on one line, and nothing when unmeasured", () => {
+    expect(siteSummary({ ...base, width_m: 4, height_m: 3 }).size).toBe("4 × 3 m · 4:3");
+    expect(siteSummary({ ...base, width_m: 15.1, height_m: 2 }).size).toBe("15.1 × 2 m · 151:20");
+    expect(siteSummary(base).size).toBeNull();
+  });
+  it("reports a location only when both coordinates exist", () => {
+    expect(siteSummary(base).location).toBeNull();
+    expect(siteSummary({ ...base, latitude: 33.3, longitude: null }).location).toBeNull();
+    expect(siteSummary({ ...base, latitude: 33.3152, longitude: 44.3661 }).location).toEqual({
+      latitude: 33.3152,
+      longitude: 44.3661,
+      text: "33.315200, 44.366100",
+    });
   });
 });
