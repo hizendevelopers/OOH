@@ -107,3 +107,38 @@ test("administrator assigns every unassigned site in one city to a worker", asyn
   await page.getByRole("combobox", { name: "City", exact: true }).selectOption(city);
   await expect(page.getByRole("button", { name: "Assign whole city (0)", exact: true })).toBeDisabled();
 });
+
+test("administrator assigns a whole city from its row in the city list", async ({ page }) => {
+  test.setTimeout(180000);
+  await loginAdmin(page);
+  // A city name used only by this run, so the assignment cannot touch other tests' sites.
+  const suffix = Date.now().toString();
+  const city = `E2E Row City ${suffix}`;
+  const codes = [1, 2].map((n) => `E2E-ROW-${suffix}-${n}`);
+  const csv = ["code,structure_code,city,latitude,longitude", ...codes.map((code, i) => `${code},STR-ROW-${suffix}-${i},${city},33.5${i},44.5${i}`)].join("\n");
+  const imported = await page.request.post("/api/inventory/import", {
+    headers: { origin, "content-type": "application/json" },
+    data: { csv, sourceName: "city-row.csv" },
+  });
+  expect(imported.status()).toBe(200);
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Inventory", exact: true }).click();
+  // The By city view lists each city with its own Assign city button.
+  const row = page.locator("details.city-card").filter({ has: page.locator("summary", { hasText: city }) });
+  const wasOpen = await row.evaluate((d) => (d as HTMLDetailsElement).open);
+  await row.getByRole("button", { name: "Assign city (2)", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText(`All 2 unassigned sites in ${city}`, { exact: true })).toBeVisible();
+  // The click opened the form without opening or closing the city.
+  expect(await row.evaluate((d) => (d as HTMLDetailsElement).open)).toBe(wasOpen);
+  await dialog.getByRole("combobox", { name: "Worker", exact: true }).selectOption({ label: "DEMO Ali Hassan" });
+  await dialog.getByLabel("Due date").fill("2026-12-31");
+  await dialog.getByRole("button", { name: "Create assignments", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  const tasks = await (await page.request.get("/api/assignments")).json();
+  expect(tasks.filter((t: { code: string }) => codes.includes(t.code))).toHaveLength(2);
+  await page.getByRole("button", { name: "Inventory", exact: true }).click();
+  await expect(row.getByRole("button", { name: "Assign city (0)", exact: true })).toBeDisabled();
+});

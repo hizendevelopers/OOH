@@ -429,16 +429,22 @@ export default function Workspace({
       (!city || f.city === city) &&
       matchesFilter(`${f.code} ${f.city} ${f.zone} ${f.description}`, search),
   );
-  // Every unassigned site in the chosen city, whatever the search box says, within the location-type filter.
-  const cityUnassigned = city
-    ? faces.filter(
-        (f) =>
-          f.city === city &&
-          !f.status &&
-          (locationKind === "all" ||
-            (locationKind === "test" ? f.is_test : !f.is_test)),
-      )
-    : [];
+  // Every unassigned site in a city, whatever the search box says, within the location-type filter.
+  const unassignedIn = (name: string) =>
+    faces.filter(
+      (f) =>
+        f.city === name &&
+        !f.status &&
+        (locationKind === "all" ||
+          (locationKind === "test" ? f.is_test : !f.is_test)),
+    );
+  const cityUnassigned = city ? unassignedIn(city) : [];
+  // Opens the assign form with every unassigned site in one city; shared by the toolbar and the city rows.
+  const assignWholeCity = (name: string) => {
+    setSelected(unassignedIn(name).map((f) => f.id));
+    setAssignCity(name);
+    openModal("assign");
+  };
   const filteredTasks = tasks.filter(
     (f) =>
       (!city || f.city === city) &&
@@ -949,11 +955,7 @@ export default function Workspace({
                       <button
                         className="secondary"
                         disabled={!cityUnassigned.length}
-                        onClick={() => {
-                          setSelected(cityUnassigned.map((f) => f.id));
-                          setAssignCity(city);
-                          openModal("assign");
-                        }}
+                        onClick={() => assignWholeCity(city)}
                       >
                         <MapPin size={16} />
                         {locale === "ar" ? "تكليف المدينة كاملة" : "Assign whole city"} (
@@ -992,6 +994,26 @@ export default function Workspace({
                       ar={locale === "ar"}
                       keyOf={(site) => site.id}
                       emptyText={t.emptySub}
+                      renderCityActions={(name) => {
+                        const open = unassignedIn(name).length;
+                        return (
+                          <button
+                            type="button"
+                            className="secondary city-card-assign"
+                            disabled={!open || busy}
+                            title={
+                              open
+                                ? undefined
+                                : locale === "ar"
+                                  ? "كل مواقع هذه المدينة مكلّفة"
+                                  : "Every site in this city is already assigned"
+                            }
+                            onClick={() => assignWholeCity(name)}
+                          >
+                            {locale === "ar" ? "تكليف المدينة" : "Assign city"} ({open})
+                          </button>
+                        );
+                      }}
                     />
                   ) : tab === "inventory" ? (
                     filteredFaces.length ? (
