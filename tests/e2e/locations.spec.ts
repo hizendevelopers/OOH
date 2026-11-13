@@ -136,13 +136,17 @@ test("admin creates GPS test location, corrects coordinates, worker finds it and
   const workerPage = await workerContext.newPage();
   try {
     await login(workerPage, "worker@demo.ibvs.test");
-    await workerPage
-      .getByRole("link", { name: "Open field workspace" })
-      .click();
+    await expect(workerPage).toHaveURL(/\/field$/);
     await expect(
       workerPage.locator('[data-offline-ready="true"]'),
     ).toBeAttached();
+    // Nearby search opens from the menu, then runs from its own panel.
+    await workerPage.getByRole("button", { name: "Menu", exact: true }).click();
     await workerPage
+      .getByRole("menuitem", { name: "Find nearby billboards", exact: true })
+      .click();
+    await workerPage
+      .locator(".field-nearby")
       .getByRole("button", { name: "Find nearby billboards", exact: true })
       .click();
     await expect(
@@ -154,6 +158,7 @@ test("admin creates GPS test location, corrects coordinates, worker finds it and
       .getByLabel("Include test locations", { exact: true })
       .check();
     await workerPage
+      .locator(".field-nearby")
       .getByRole("button", { name: "Find nearby billboards", exact: true })
       .click();
     const nearby = workerPage

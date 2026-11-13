@@ -29,7 +29,8 @@ async function login(page: Page, email: string) {
     expect(response.status()).toBe(200);
     break;
   }
-  await expect(page).toHaveURL("http://localhost:3000/");
+  // Administrators land on the operations workspace, workers on the field workspace.
+  await expect(page).toHaveURL(/^http:\/\/localhost:3000\/(field)?$/);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 }
 test("supervisors review adjacent faces, explicitly version references and request an offline resurvey", async ({
@@ -461,6 +462,7 @@ test("supervisors review adjacent faces, explicitly version references and reque
   await expect(
     page.getByText("Photo saved", { exact: true }),
   ).toHaveCount(3);
+  await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Blank face", exact: true }).click();
   await page
     .getByRole("button", { name: "Submit visit", exact: true })

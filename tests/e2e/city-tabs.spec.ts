@@ -60,11 +60,13 @@ test("imported cities, pending GPS and worker assignment appear in admin and fie
   const workerContext = await browser.newContext({ baseURL: origin });
   const workerPage = await workerContext.newPage();
   await login(workerPage, "worker@demo.ibvs.test");
-  await workerPage.getByRole("link", { name: "Open field workspace" }).click();
-  const fieldCities = workerPage.getByRole("navigation", { name: "Cities" });
-  await expect(fieldCities.getByRole("button", { name: /All assigned locations/ })).toBeVisible();
-  await expect(fieldCities.getByRole("button", { name: /Kura \(as listed\)/ })).toBeVisible();
-  await fieldCities.getByRole("button", { name: /Kura \(as listed\)/ }).click();
+  await expect(workerPage).toHaveURL(/\/field$/);
+  // The field workspace filters by city with one dropdown in the toolbar.
+  const fieldCities = workerPage.getByRole("combobox", { name: "City", exact: true });
+  await expect(fieldCities.locator("option", { hasText: /^All cities/ })).toHaveCount(1);
+  const kura = fieldCities.locator("option", { hasText: /Kura \(as listed\)/ });
+  await expect(kura).toHaveCount(1);
+  await fieldCities.selectOption({ value: (await kura.getAttribute("value"))! });
   await expect(workerPage.getByText("IQ-TST-0005").first()).toBeVisible();
   await expect(workerPage.getByText("IQ-TST-0001")).toHaveCount(0);
   await expect(workerPage.getByText("Pending GPS").first()).toBeVisible();

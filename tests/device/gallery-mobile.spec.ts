@@ -11,7 +11,7 @@ async function signIn(page: Page) {
   await page.getByLabel("Email address").fill("worker@demo.ibvs.test");
   await page.getByLabel("Password", { exact: true }).fill(password!);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await page.getByRole("link", { name: "Open field workspace" }).click();
+  await expect(page).toHaveURL(/\/field$/);
   await expect(page.getByRole("heading", { name: "Field workspace", exact: true })).toBeVisible();
 }
 
