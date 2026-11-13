@@ -46,7 +46,7 @@ test("imported cities, pending GPS and worker assignment appear in admin and fie
 
   // Administrator dashboard: one city dropdown with counts, and the pending GPS label.
   await page.goto("/");
-  await page.getByRole("button", { name: "Inventory", exact: true }).click();
+  await page.getByRole("button", { name: "Sites", exact: true }).click();
   const adminCities = page.getByRole("combobox", { name: "City", exact: true });
   await expect(adminCities.locator("option", { hasText: /^All cities/ })).toHaveCount(1);
   await expect(adminCities.locator("option", { hasText: /Kura \(as listed\)/ })).toHaveCount(1);
@@ -88,7 +88,7 @@ test("administrator assigns every unassigned site in one city to a worker", asyn
   expect(imported.status()).toBe(200);
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Inventory", exact: true }).click();
+  await page.getByRole("button", { name: "Sites", exact: true }).click();
   await page.getByRole("combobox", { name: "City", exact: true }).selectOption(city);
   await page.getByRole("button", { name: "Assign whole city (3)", exact: true }).click();
   const dialog = page.getByRole("dialog");
@@ -103,7 +103,7 @@ test("administrator assigns every unassigned site in one city to a worker", asyn
   expect(assigned).toHaveLength(3);
   expect(new Set(assigned.map((t: { worker_name: string }) => t.worker_name))).toEqual(new Set(["DEMO Ali Hassan"]));
   // Nothing in the city is left to assign, so the button is disabled.
-  await page.getByRole("button", { name: "Inventory", exact: true }).click();
+  await page.getByRole("button", { name: "Sites", exact: true }).click();
   await page.getByRole("combobox", { name: "City", exact: true }).selectOption(city);
   await expect(page.getByRole("button", { name: "Assign whole city (0)", exact: true })).toBeDisabled();
 });
@@ -123,7 +123,7 @@ test("administrator assigns a whole city from its row in the city list", async (
   expect(imported.status()).toBe(200);
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Inventory", exact: true }).click();
+  await page.getByRole("button", { name: "Sites", exact: true }).click();
   // The By city view lists each city with its own Assign city button.
   const row = page.locator("details.city-card").filter({ has: page.locator("summary", { hasText: city }) });
   const wasOpen = await row.evaluate((d) => (d as HTMLDetailsElement).open);
@@ -139,6 +139,40 @@ test("administrator assigns a whole city from its row in the city list", async (
 
   const tasks = await (await page.request.get("/api/assignments")).json();
   expect(tasks.filter((t: { code: string }) => codes.includes(t.code))).toHaveLength(2);
-  await page.getByRole("button", { name: "Inventory", exact: true }).click();
+  await page.getByRole("button", { name: "Sites", exact: true }).click();
   await expect(row.getByRole("button", { name: "Assign city (0)", exact: true })).toBeDisabled();
+});
+
+test("administrator picks single sites from their cards in the city list", async ({ page }) => {
+  test.setTimeout(180000);
+  await loginAdmin(page);
+  const suffix = Date.now().toString();
+  const city = `E2E Pick City ${suffix}`;
+  const codes = [1, 2].map((n) => `E2E-PICK-${suffix}-${n}`);
+  const csv = ["code,structure_code,city,latitude,longitude", ...codes.map((code, i) => `${code},STR-PICK-${suffix}-${i},${city},33.6${i},44.6${i}`)].join("\n");
+  const imported = await page.request.post("/api/inventory/import", {
+    headers: { origin, "content-type": "application/json" },
+    data: { csv, sourceName: "city-pick.csv" },
+  });
+  expect(imported.status()).toBe(200);
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Sites", exact: true }).click();
+  await page.getByRole("combobox", { name: "City", exact: true }).selectOption(city);
+  // In the By city view each unassigned site card has its own checkbox.
+  await page.getByRole("checkbox", { name: `Select ${codes[0]}`, exact: true }).check();
+  await page.getByRole("button", { name: /^Assign visits \(1\)$/ }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("combobox", { name: "Worker", exact: true }).selectOption({ label: "DEMO Ali Hassan" });
+  await dialog.getByLabel("Due date").fill("2026-12-31");
+  await dialog.getByRole("button", { name: "Create assignments", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  const tasks = await (await page.request.get("/api/assignments")).json();
+  expect(tasks.filter((t: { code: string }) => codes.includes(t.code)).map((t: { code: string }) => t.code)).toEqual([codes[0]]);
+  // An assigned site can no longer be picked; the other one still can.
+  await page.getByRole("button", { name: "Sites", exact: true }).click();
+  await page.getByRole("combobox", { name: "City", exact: true }).selectOption(city);
+  await expect(page.getByRole("checkbox", { name: `Select ${codes[0]}`, exact: true })).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: `Select ${codes[1]}`, exact: true })).toBeVisible();
 });

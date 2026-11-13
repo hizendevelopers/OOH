@@ -91,7 +91,7 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
   ).toBe(true);
   await page.reload();
   await page
-    .getByRole("button", { name: "Inventory", exact: true })
+    .getByRole("button", { name: "Sites", exact: true })
     .first()
     .click();
   // Selection and row details live in the table view; the inventory opens by city.

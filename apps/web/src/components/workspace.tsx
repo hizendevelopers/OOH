@@ -64,9 +64,9 @@ type Event = {
 const words = {
   en: {
     overview: "Overview",
-    inventory: "Inventory",
-    assignments: "Assignments",
-    audit: "Audit trail",
+    inventory: "Sites",
+    assignments: "Visits",
+    audit: "Activity",
     import: "Import inventory",
     total: "Billboard faces",
     structures: "Physical structures",
@@ -90,7 +90,6 @@ const words = {
     status: "Status",
     orientation: "Face",
     unassigned: "Unassigned",
-    my: "My assignments",
     signout: "Sign out",
     offline:
       "You are offline. This operations view requires a connection. Use downloaded tasks in the field workspace for offline capture.",
@@ -113,14 +112,13 @@ const words = {
     selected: "selected",
     demo: "DEMO WORKSPACE · illustrative coordinates, no verified evidence",
     noTasks: "No assignments yet",
-    noTasksSub: "Your administrator will assign visits here.",
     back: "Back to assignments",
   },
   ar: {
     overview: "نظرة عامة",
-    inventory: "المخزون",
-    assignments: "المهام",
-    audit: "سجل التدقيق",
+    inventory: "المواقع",
+    assignments: "الزيارات",
+    audit: "النشاط",
     import: "استيراد المخزون",
     total: "واجهات اللوحات",
     structures: "الهياكل",
@@ -144,7 +142,6 @@ const words = {
     status: "الحالة",
     orientation: "الاتجاه",
     unassigned: "غير مكلّفة",
-    my: "مهامي",
     signout: "تسجيل الخروج",
     offline:
       "أنت غير متصل. مساحة العمليات تتطلب الاتصال. استخدم المهام المحمّلة في مساحة العمل الميداني للالتقاط دون اتصال.",
@@ -167,7 +164,6 @@ const words = {
     selected: "محددة",
     demo: "مساحة تجريبية · إحداثيات توضيحية دون أدلة موثّقة",
     noTasks: "لا توجد مهام بعد",
-    noTasksSub: "سيقوم المشرف بتكليفك بزيارات هنا.",
     back: "العودة للمهام",
   },
 };
@@ -268,7 +264,7 @@ export default function Workspace({
   signInRequired?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>(
-      actor.role === "admin" ? "overview" : "assignments",
+      "overview",
     ),
     [locale, setLocale] = useState<"en" | "ar">("en"),
     [dark, setDark] = useState(false),
@@ -332,26 +328,24 @@ export default function Workspace({
     setLoading(true);
     setError("");
     try {
-      if (actor.role === "admin") {
-        const [f, a, s, e, w] = await Promise.all([
-          api<Face[]>("inventory"),
-          api<Assignment[]>("assignments"),
-          api<Summary>("overview"),
-          api<Event[]>("audit"),
-          api<{ id: string; name: string; email: string }[]>("workers"),
-        ]);
-        setFaces(f);
-        setTasks(a);
-        setSummary(s);
-        setEvents(e);
-        setWorkers(w);
-      } else setTasks(await api<Assignment[]>("assignments"));
+      const [f, a, s, e, w] = await Promise.all([
+        api<Face[]>("inventory"),
+        api<Assignment[]>("assignments"),
+        api<Summary>("overview"),
+        api<Event[]>("audit"),
+        api<{ id: string; name: string; email: string }[]>("workers"),
+      ]);
+      setFaces(f);
+      setTasks(a);
+      setSummary(s);
+      setEvents(e);
+      setWorkers(w);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [actor.role]);
+  }, []);
   useEffect(() => {
     void load();
   }, [load]);
@@ -508,7 +502,6 @@ export default function Workspace({
       setBusy(false);
     }
   }
-  const isAdmin = actor.role === "admin";
   const filteredFaces = faces.filter(
     (f) =>
       (locationKind === "all" ||
@@ -548,7 +541,7 @@ export default function Workspace({
     {
       id: "assignments" as Tab,
       icon: ClipboardList,
-      label: isAdmin ? t.assignments : t.my,
+      label: t.assignments,
     },
     {
       id: "submissions" as Tab,
@@ -556,7 +549,7 @@ export default function Workspace({
       label: locale === "ar" ? "الزيارات المكتملة" : "Submissions",
     },
     { id: "audit" as Tab, icon: ScrollText, label: t.audit },
-  ].filter((n) => isAdmin || n.id === "assignments");
+  ];
   const openCount = tasks.filter((a) =>
     ["assigned", "resurvey_requested"].includes(a.status),
   ).length;
@@ -601,7 +594,7 @@ export default function Workspace({
             <span className="avatar">{actor.name.slice(0, 1)}</span>
             <span>
               {actor.name}
-              <small>{isAdmin ? (isAr ? "مدير" : "Administrator") : isAr ? "موظف ميداني" : "Field worker"}</small>
+              <small>{isAr ? "مدير" : "Administrator"}</small>
             </span>
             {signInRequired && (
               <button
@@ -639,11 +632,9 @@ export default function Workspace({
             </button>
           </div>
           <div className="top-actions">
-            {actor.role === "admin" && (
-              <Link className="secondary" href="/review">
-                {locale === "ar" ? "مركز المراجعة" : "Review center"}
-              </Link>
-            )}
+            <Link className="secondary" href="/review">
+              {locale === "ar" ? "مركز المراجعة" : "Review center"}
+            </Link>
             <span className="connection">
               <span className={offline ? "offline-dot" : "online-dot"} />
               {offline ? (isAr ? "غير متصل" : "Offline") : isAr ? "متصل" : "Connected"}
@@ -691,14 +682,7 @@ export default function Workspace({
               <h1>{nav.find((n) => n.id === tab)?.label}</h1>
             </div>
             <div className="heading-actions">
-              {!isAdmin && (
-                <Link href="/field" className="primary">
-                  {locale === "ar"
-                    ? "فتح مساحة العمل الميداني"
-                    : "Open field workspace"}
-                </Link>
-              )}
-              {isAdmin && (tab === "overview" || tab === "inventory") && (
+              {(tab === "overview" || tab === "inventory") && (
                 <>
                   <button
                     className="primary"
@@ -716,7 +700,7 @@ export default function Workspace({
                   </button>
                 </>
               )}
-              {isAdmin && tab === "assignments" && (
+              {tab === "assignments" && (
                 <a className="secondary" href="/api/export" download>
                   <ArrowDownToLine size={16} />
                   {t.export}
@@ -739,8 +723,8 @@ export default function Workspace({
             </div>
           ) : (
             <>
-              {tab === "submissions" && isAdmin && <Submissions ar={locale === "ar"} />}
-              {tab === "workers" && isAdmin && (
+              {tab === "submissions" && <Submissions ar={locale === "ar"} />}
+              {tab === "workers" && (
                 <WorkerManagement
                   workers={workers}
                   locale={locale}
@@ -1081,6 +1065,15 @@ export default function Workspace({
                       ar={locale === "ar"}
                       keyOf={(site) => site.id}
                       emptyText={t.emptySub}
+                      // Pick single sites here as in the table; only sites with no worker can be picked.
+                      selection={{
+                        isSelected: (f) => selected.includes(f.id),
+                        canSelect: (f) => !f.status,
+                        toggle: (f, checked) =>
+                          setSelected((current) =>
+                            checked ? [...current, f.id] : current.filter((id) => id !== f.id),
+                          ),
+                      }}
                       renderCityActions={(name) => {
                         const open = unassignedIn(name).length;
                         return (
@@ -1262,38 +1255,6 @@ export default function Workspace({
                     ) : (
                       <Empty title={t.empty} text={t.emptySub} />
                     )
-                  ) : !isAdmin ? (
-                    <CityInventory
-                      sites={filteredTasks}
-                      ar={locale === "ar"}
-                      keyOf={(site) => site.assignment_id}
-                      emptyText={t.noTasksSub}
-                      renderActions={(a) => (
-                        <div className="site-actions">
-                          <button
-                            className="secondary"
-                            onClick={async () => {
-                              try {
-                                setDetail(await api<Assignment>("assignments/" + a.assignment_id));
-                              } catch (e) {
-                                setToast(localizeError((e as Error).message, isAr));
-                              }
-                            }}
-                          >
-                            {locale === "ar" ? "التفاصيل" : "Details"}
-                          </button>
-                          {["assigned", "resurvey_requested"].includes(a.status) && (
-                            <Link
-                              className="primary"
-                              href={`/field?assignment=${encodeURIComponent(a.assignment_id)}`}
-                            >
-                              <Camera size={17} />
-                              {locale === "ar" ? "التقاط صور مباشرة" : "Capture live photos"}
-                            </Link>
-                          )}
-                        </div>
-                      )}
-                    />
                   ) : filteredTasks.length ? (
                     <div className="task-grid">
                       {filteredTasks.map((a) => (
@@ -1346,7 +1307,7 @@ export default function Workspace({
                   ) : (
                     <Empty
                       title={t.noTasks}
-                      text={isAdmin ? t.emptySub : t.noTasksSub}
+                      text={t.emptySub}
                     />
                   )}
                   <div className="panel-footer">
@@ -1450,8 +1411,7 @@ export default function Workspace({
                       · {detail.location_exception.reason}
                     </div>
                   )}
-                  {isAdmin &&
-                    ["assigned", "resurvey_requested"].includes(
+                  {["assigned", "resurvey_requested"].includes(
                       detail.status,
                     ) && (
                       <button
@@ -1476,20 +1436,6 @@ export default function Workspace({
                     <Navigation size={17} />
                     {t.navigation}
                   </a>
-                  {!isAdmin &&
-                    ["assigned", "resurvey_requested"].includes(
-                      detail.status,
-                    ) && (
-                      <Link
-                        className="primary"
-                        href={`/field?assignment=${encodeURIComponent(detail.assignment_id)}`}
-                      >
-                        <Camera size={17} />
-                        {locale === "ar"
-                          ? "التقاط صور مباشرة"
-                          : "Capture live photos"}
-                      </Link>
-                    )}
                 </section>
               )}
               {tab === "audit" && (
