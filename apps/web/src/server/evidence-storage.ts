@@ -13,3 +13,12 @@ export async function putPrivate(key: string, data: Buffer, db?: Database) {
 export async function readPrivate(key: string, db?: Database) {
   return evidenceStore().get(key, db);
 }
+
+// Several objects at once, in one request to the backend where it supports that.
+export async function readManyPrivate(keys: string[], db?: Database) {
+  const store = evidenceStore();
+  if (store.getMany) return store.getMany(keys, db);
+  const data: Buffer[] = [];
+  for (const key of keys) data.push(await store.get(key, db));
+  return data;
+}

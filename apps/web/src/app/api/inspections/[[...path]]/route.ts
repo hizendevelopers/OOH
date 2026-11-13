@@ -21,6 +21,10 @@ import {
 } from "../../../../../../../packages/domain/src/inspection";
 
 export const dynamic = "force-dynamic";
+// Receiving a visit means several database round trips, and the database may be far from the
+// server running this code. Without an explicit limit the platform's short default cut these
+// requests off mid-transaction, so no visit could ever be completed.
+export const maxDuration = 60;
 const json = (body: unknown, status = 200) =>
   Response.json(body, {
     status,

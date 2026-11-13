@@ -8,6 +8,9 @@ const environment: {
   IBVS_DEMO_PASSWORD: randomBytes(32).toString("base64url"),
   IBVS_LOCAL_DB: await testDirectory("browser-db-"),
   IBVS_EVIDENCE_DIR: await testDirectory("browser-evidence-"),
+  // Hosted production keeps photo bytes in the database, so the browser checks exercise that
+  // same store. With the filesystem store here, a fault in the production path went unseen.
+  IBVS_EVIDENCE_STORE: "database",
   TMP: await testDirectory("browser-temp-"),
   BETTER_AUTH_SECRET: randomBytes(48).toString("base64url"),
   BETTER_AUTH_URL: "http://localhost:3000",
