@@ -47,7 +47,7 @@ test("pending-GPS location: capture, interrupted upload, server acceptance and s
   await workerContext.grantPermissions(["camera", "geolocation"]);
   await workerContext.setGeolocation({ latitude: 33.31, longitude: 44.13, accuracy: 10 });
   await login(field, "worker@demo.ibvs.test");
-  await field.getByRole("link", { name: "Open field workspace" }).click();
+  await expect(field).toHaveURL(/\/field$/);
   await expect(field.locator('[data-offline-ready="true"]')).toBeAttached();
   const card = field.locator("article.field-visit").filter({ has: field.getByRole("heading", { name: code, exact: true }) });
   await field.getByRole("button", { name: "Download assignments", exact: true }).click();

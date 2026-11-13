@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { liveQuery } from "dexie";
-import { CityTabs, cityCounts, needsLocationAttention } from "../components/city-tabs";
+import { cityCounts, needsLocationAttention } from "../components/city-tabs";
+import { matchesFilter } from "@ibvs/domain";
 import Link from "next/link";
 import {
   Compass,
@@ -17,6 +18,8 @@ import {
   RefreshCw,
   Clock,
   CheckCircle,
+  MoreVertical,
+  Plus,
 } from "lucide-react";
 import type { Actor } from "@ibvs/domain";
 import type { Assignment } from "../server/service";
@@ -42,6 +45,8 @@ const ownerKey = "ibvs-field-owner-v2";
 export default function FieldWorkspace() {
   const requestedVisitHandled = useRef(false);
   const [cityFilter, setCityFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [locale, setLocale] = useState<"en" | "ar">("en"),
     [dark, setDark] = useState(false),
     [online, setOnline] = useState(true),
@@ -60,7 +65,10 @@ export default function FieldWorkspace() {
     [install, setInstall] = useState<InstallEvent | null>(null),
     [newSite, setNewSite] = useState(false),
     [visitSort, setVisitSort] = useState<"due" | "nearest">("due"),
-    [origin, setOrigin] = useState<{ latitude: number; longitude: number } | null>(null),
+    [origin, setOrigin] = useState<{
+      latitude: number;
+      longitude: number;
+    } | null>(null),
     [locatingVisits, setLocatingVisits] = useState(false),
     [sortNotice, setSortNotice] = useState<string | null>(null);
   const t = fieldStrings[locale];
@@ -280,13 +288,23 @@ export default function FieldWorkspace() {
     }
     void openTask(task);
   }, [loading, store, tasks, openTask]);
+  // Opened from the menu, the form may be below the fold on a phone; bring it into view.
+  useEffect(() => {
+    if (newSite)
+      document.getElementById("new-site")?.scrollIntoView({ block: "start" });
+  }, [newSite]);
+  // A visit is listed when it is in the chosen city and matches the search text.
+  const shown = (task: Assignment) =>
+    (!cityFilter || task.city === cityFilter) &&
+    matchesFilter(
+      `${task.code} ${task.description ?? ""} ${task.city ?? ""} ${task.zone ?? ""} ${task.worker_address ?? ""}`,
+      search,
+    );
   const draft = drafts.find((d) => d.id === opened);
   useEffect(() => {
+    // An opened visit starts at the camera, the first thing the worker needs.
     if (!opened || !draft?.id || draft.state !== "local_draft") return;
-    if (
-      new URLSearchParams(window.location.search).get("assignment") === opened
-    )
-      document.querySelector(".field-live")?.scrollIntoView({ block: "start" });
+    document.querySelector(".field-live")?.scrollIntoView({ block: "start" });
   }, [opened, draft?.id, draft?.state]);
   const reviewLabel = (d: Draft) => {
     const state = tasks.find(
@@ -411,6 +429,52 @@ export default function FieldWorkspace() {
             <h1>{t.title}</h1>
           </div>
           {actor && (
+            <div className="field-menu">
+              <button
+                className="icon-button"
+                aria-label={t.menu}
+                aria-expanded={menuOpen}
+                aria-controls="field-menu-list"
+                onClick={() => setMenuOpen(!menuOpen)}
+              >
+                <MoreVertical size={20} />
+              </button>
+              {menuOpen && (
+                <div
+                  className="field-menu-list"
+                  id="field-menu-list"
+                  role="menu"
+                >
+                  <button
+                    role="menuitem"
+                    disabled={!online || busy || !store}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setOpened(null);
+                      setNewSite(true);
+                    }}
+                  >
+                    <Plus size={17} />
+                    {t.registerSite}
+                  </button>
+                  {install && (
+                    <button
+                      role="menuitem"
+                      onClick={async () => {
+                        setMenuOpen(false);
+                        await install.prompt();
+                        setInstall(null);
+                      }}
+                    >
+                      <Download size={17} />
+                      {t.install}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {actor && (
             <button
               className="icon-button"
               aria-label={t.signout}
@@ -435,23 +499,14 @@ export default function FieldWorkspace() {
           )}
         </div>
         {/* Offline readiness is shown only while it is not ready; the marker lets tests wait for it. */}
-        <div className="field-readiness" data-offline-ready={shell ? "true" : "false"}>
+        <div
+          className="field-readiness"
+          data-offline-ready={shell ? "true" : "false"}
+        >
           {!shell && (
             <span className="not-ready">
               <RefreshCw size={16} /> {t.shellPending}
             </span>
-          )}
-          {install && (
-            <button
-              className="text-button"
-              onClick={async () => {
-                await install.prompt();
-                setInstall(null);
-              }}
-            >
-              {t.install}
-              <Download size={16} />
-            </button>
           )}
         </div>
         {!online && (
@@ -507,78 +562,86 @@ export default function FieldWorkspace() {
                   </button>
                 </section>
                 {newSite ? (
-                  <NewSite
-                    arabic={locale === "ar"}
-                    onCancel={() => setNewSite(false)}
-                    onRegistered={async (site: RegisteredSite) => {
-                      setNewSite(false);
-                      const list = await download();
-                      const task = list?.find((a) => a.assignment_id === site.assignmentId);
-                      if (task) await openTask(task);
-                      else setError("storage_unavailable");
-                    }}
+                  <div id="new-site">
+                    <NewSite
+                      arabic={locale === "ar"}
+                      onCancel={() => setNewSite(false)}
+                      onRegistered={async (site: RegisteredSite) => {
+                        setNewSite(false);
+                        const list = await download();
+                        const task = list?.find(
+                          (a) => a.assignment_id === site.assignmentId,
+                        );
+                        if (task) await openTask(task);
+                        else setError("storage_unavailable");
+                      }}
+                    />
+                  </div>
+                ) : null}
+                {/* One row: search, city and sort. It wraps on narrow phones. */}
+                <div className="visit-toolbar">
+                  <input
+                    type="search"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder={t.searchVisits}
+                    aria-label={t.searchVisits}
                   />
-                ) : (
-                  <p className="field-caption">
-                    <button
-                      className="secondary"
-                      disabled={!online || busy || !store}
-                      onClick={() => setNewSite(true)}
-                    >
-                      {t.registerSite}
-                    </button>{" "}
-                    {t.registerSiteNote}
-                  </p>
-                )}
-                <CityTabs
-                  label={locale === "ar" ? "المدن" : "Cities"}
-                  allLabel={locale === "ar" ? "كل المواقع المكلّف بها" : "All assigned locations"}
-                  total={tasks.length}
-                  cities={cityCounts(tasks, needsLocationAttention)}
-                  value={cityFilter}
-                  onChange={setCityFilter}
-                  ar={locale === "ar"}
-                />
-                <div className="visit-sort" role="group" aria-label={locale === "ar" ? "ترتيب الزيارات" : "Sort visits"}>
-                  <button
-                    className={visitSort === "due" ? "primary" : "secondary"}
-                    aria-pressed={visitSort === "due"}
-                    onClick={() => {
-                      setVisitSort("due");
-                      setSortNotice(null);
-                    }}
+                  <select
+                    value={cityFilter}
+                    onChange={(e) => setCityFilter(e.target.value)}
+                    aria-label={t.cityFilter}
                   >
-                    {locale === "ar" ? "حسب الاستحقاق" : "By due date"}
-                  </button>
-                  <button
-                    className={visitSort === "nearest" ? "primary" : "secondary"}
-                    aria-pressed={visitSort === "nearest"}
+                    <option value="">
+                      {t.allCities} ({tasks.length})
+                    </option>
+                    {cityCounts(tasks, needsLocationAttention).map((c) => (
+                      <option key={c.city} value={c.city}>
+                        {c.city} ({c.count})
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={locatingVisits ? "nearest" : visitSort}
                     disabled={locatingVisits}
-                    onClick={async () => {
+                    aria-label={t.sortVisits}
+                    onChange={async (e) => {
+                      if (e.target.value === "due") {
+                        setVisitSort("due");
+                        setSortNotice(null);
+                        return;
+                      }
                       setLocatingVisits(true);
                       const fix = await getLocation();
                       setLocatingVisits(false);
                       if (fix.status === "ok") {
-                        setOrigin({ latitude: fix.latitude, longitude: fix.longitude });
+                        setOrigin({
+                          latitude: fix.latitude,
+                          longitude: fix.longitude,
+                        });
                         setVisitSort("nearest");
                         setSortNotice(null);
                       } else {
-                        setSortNotice(
-                          locale === "ar"
-                            ? "تعذّر تحديد موقعك، فالترتيب حسب الاستحقاق."
-                            : "Your location is unavailable, so visits stay sorted by due date.",
-                        );
+                        setVisitSort("due");
+                        setSortNotice(t.nearestUnavailable);
                       }
                     }}
                   >
-                    {locatingVisits ? "…" : locale === "ar" ? "الأقرب إليّ" : "Nearest to me"}
-                  </button>
+                    <option value="due">{t.sortDue}</option>
+                    <option value="nearest">
+                      {locatingVisits ? t.locating : t.sortNearest}
+                    </option>
+                  </select>
                 </div>
-                {sortNotice && <p className="notice" role="status">{sortNotice}</p>}
+                {sortNotice && (
+                  <p className="notice" role="status">
+                    {sortNotice}
+                  </p>
+                )}
                 <div className="field-visits">
                   {tasks.length ? (
                     sortVisits(
-                      tasks.filter((task) => !cityFilter || task.city === cityFilter),
+                      tasks.filter(shown),
                       visitSort,
                       visitSort === "nearest" ? origin : null,
                     ).map((task) => {
@@ -601,7 +664,9 @@ export default function FieldWorkspace() {
                             onAddressSaved={(assignmentId, address) =>
                               setTasks((list) =>
                                 list.map((item) =>
-                                  item.assignment_id === assignmentId ? { ...item, worker_address: address } : item,
+                                  item.assignment_id === assignmentId
+                                    ? { ...item, worker_address: address }
+                                    : item,
                                 ),
                               )
                             }
@@ -653,6 +718,9 @@ export default function FieldWorkspace() {
                     })
                   ) : (
                     <div className="empty-state">{t.empty}</div>
+                  )}
+                  {tasks.length > 0 && !tasks.some(shown) && (
+                    <div className="empty-state">{t.noMatches}</div>
                   )}
                 </div>
                 {drafts.some(
@@ -720,8 +788,11 @@ export default function FieldWorkspace() {
                       <dt>{t.original}</dt>
                       <dd>
                         <bdi>
-                          {draft.task.latitude === null || draft.task.longitude === null
-                            ? (locale === "ar" ? "بانتظار الموقع GPS" : "Pending GPS")
+                          {draft.task.latitude === null ||
+                          draft.task.longitude === null
+                            ? locale === "ar"
+                              ? "بانتظار الموقع GPS"
+                              : "Pending GPS"
                             : `${draft.task.latitude}, ${draft.task.longitude}`}
                         </bdi>
                       </dd>
@@ -733,140 +804,171 @@ export default function FieldWorkspace() {
                   </dl>
                 </section>
                 {status(draft)}
-                <Capture
-                  arabic={locale === "ar"}
-                  key={draft.id}
-                  store={store}
-                  draft={draft}
-                  t={t}
-                  online={online}
-                />
-                <section className="panel field-submit">
-                  <p>{t.queueNote}</p>
-                  {draft.task.location_exception &&
-                    Date.parse(draft.task.location_exception.expires_at) >
-                      clock && (
-                      <p className="notice warning">
-                        {locale === "ar"
-                          ? "استثناء الموقع من المشرف:"
-                          : "Supervisor location exception:"}{" "}
-                        {draft.task.location_exception.reason}.{" "}
-                        {locale === "ar" ? "ينتهي" : "Expires"}{" "}
-                        {new Date(
-                          draft.task.location_exception.expires_at,
-                        ).toLocaleString()}
-                        .{" "}
-                        {locale === "ar"
-                          ? "لا تزال المراجعة البشرية مطلوبة."
-                          : "Human review is still required."}
-                      </p>
-                    )}
-                  {Object.values(draft.photos).map((photo) => {
-                    const result = assessPhotoLocation(photo, draft.task);
-                    return result.status !== "within_area" && result.status !== "first_capture" ? (
-                      <p key={photo.kind} className="notice warning">
-                        {photo.kind}: {messages[result.status]}{" "}
-                        {locale === "ar"
-                          ? "الصورة محفوظة كمسودة."
-                          : "Photo remains saved as a draft."}
-                      </p>
-                    ) : null;
-                  })}
-                  {locationError && (
-                    <p className="notice danger" role="alert">
-                      {locationError}
-                    </p>
-                  )}
-                  {draft.photos.front && draft.photos.wide && !hasRequiredPhotos(draft) && (
-                    <p className="muted">{t.needAngle}</p>
-                  )}
-                  {draft.state === "local_draft" ? (
-                    <button
-                      className="primary"
-                      disabled={
-                        busy || !hasRequiredPhotos(draft)
-                      }
-                      onClick={async () => {
-                        setBusy(true);
-                        setLocationError(null);
-                        try {
-                          if (online) {
-                            const current = await fieldRequest<Assignment>(
-                              `assignments/${draft.id}`,
-                            );
-                            if (
-                              current.version !== draft.task.version ||
-                              current.id !== draft.task.id ||
-                              current.code !== draft.task.code
-                            )
-                              throw new Error(
-                                locale === "ar"
-                                  ? "تغيرت المهمة. احتفظ بالصور واتصل بالمشرف."
-                                  : "Assignment changed. Keep the saved photos and contact your supervisor.",
+                {/* A submitted visit's photos are on the server, not this phone: there is nothing left to do here. */}
+                {draft.state !== "server_received" && (
+                  <>
+                    {/* Three steps, in page order; each one ticks when it is done. */}
+                    <ol className="visit-steps" aria-label={t.visitSteps}>
+                      {(
+                        [
+                          [
+                            "step-photos",
+                            t.stepPhotos,
+                            hasRequiredPhotos(draft),
+                          ],
+                          ["step-brand", t.stepBrand, !!draft.brand],
+                          [
+                            "step-submit",
+                            t.stepSubmit,
+                            draft.state !== "local_draft",
+                          ],
+                        ] as const
+                      ).map(([id, label, done], index) => (
+                        <li key={id} className={done ? "done" : ""}>
+                          <a href={"#" + id}>
+                            <span aria-hidden="true">
+                              {done ? <CheckCircle size={16} /> : index + 1}
+                            </span>
+                            {label}
+                            {done && (
+                              <span className="sr-only"> ({t.stepDone})</span>
+                            )}
+                          </a>
+                        </li>
+                      ))}
+                    </ol>
+                    <Capture
+                      arabic={locale === "ar"}
+                      key={draft.id}
+                      store={store}
+                      draft={draft}
+                      t={t}
+                      online={online}
+                    />
+                    <h2 className="visit-step-title" id="step-submit">
+                      <span>3</span> {t.stepSubmit}
+                    </h2>
+                    <section className="panel field-submit">
+                      <p>{t.queueNote}</p>
+                      {draft.task.location_exception &&
+                        Date.parse(draft.task.location_exception.expires_at) >
+                          clock && (
+                          <p className="notice warning">
+                            {locale === "ar"
+                              ? "استثناء الموقع من المشرف:"
+                              : "Supervisor location exception:"}{" "}
+                            {draft.task.location_exception.reason}.{" "}
+                            {locale === "ar" ? "ينتهي" : "Expires"}{" "}
+                            {new Date(
+                              draft.task.location_exception.expires_at,
+                            ).toLocaleString()}
+                            .{" "}
+                            {locale === "ar"
+                              ? "لا تزال المراجعة البشرية مطلوبة."
+                              : "Human review is still required."}
+                          </p>
+                        )}
+                      {Object.values(draft.photos).map((photo) => {
+                        const result = assessPhotoLocation(photo, draft.task);
+                        return result.status !== "within_area" &&
+                          result.status !== "first_capture" ? (
+                          <p key={photo.kind} className="notice warning">
+                            {photo.kind}: {messages[result.status]}
+                          </p>
+                        ) : null;
+                      })}
+                      {locationError && (
+                        <p className="notice danger" role="alert">
+                          {locationError}
+                        </p>
+                      )}
+                      {draft.photos.front &&
+                        draft.photos.wide &&
+                        !hasRequiredPhotos(draft) && (
+                          <p className="muted">{t.needAngle}</p>
+                        )}
+                      {draft.state === "local_draft" ? (
+                        <button
+                          className="primary"
+                          disabled={busy || !hasRequiredPhotos(draft)}
+                          onClick={async () => {
+                            setBusy(true);
+                            setLocationError(null);
+                            try {
+                              if (online) {
+                                const current = await fieldRequest<Assignment>(
+                                  `assignments/${draft.id}`,
+                                );
+                                if (
+                                  current.version !== draft.task.version ||
+                                  current.id !== draft.task.id ||
+                                  current.code !== draft.task.code
+                                )
+                                  throw new Error(
+                                    locale === "ar"
+                                      ? "تغيرت المهمة. احتفظ بالصور واتصل بالمشرف."
+                                      : "Assignment changed. Keep the saved photos and contact your supervisor.",
+                                  );
+                                await store.drafts.update(draft.id, {
+                                  task: current,
+                                });
+                              }
+                              await store.queue(draft.id);
+                              setError(null);
+                              if (online) await replayQueue(store);
+                            } catch (e) {
+                              const message =
+                                e instanceof Error
+                                  ? e.message
+                                  : "Unable to send the photos. Try again.";
+                              const known = Object.entries(
+                                locationMessages,
+                              ).find(([, text]) => text === message)?.[0] as
+                                keyof typeof locationMessages | undefined;
+                              setLocationError(
+                                known
+                                  ? messages[known]
+                                  : message === "brand-required"
+                                    ? t.brandNeeded
+                                    : message,
                               );
-                            await store.drafts.update(draft.id, {
-                              task: current,
-                            });
-                          }
-                          await store.queue(draft.id);
-                          setError(null);
-                          if (online) await replayQueue(store);
-                        } catch (e) {
-                          const message =
-                            e instanceof Error
-                              ? e.message
-                              : "Unable to send the photos. Try again.";
-                          const known = Object.entries(locationMessages).find(
-                            ([, text]) => text === message,
-                          )?.[0] as keyof typeof locationMessages | undefined;
-                          setLocationError(
-                            known
-                              ? messages[known]
-                              : message === "brand-required"
-                                ? t.brandNeeded
-                                : message,
-                          );
-                        } finally {
-                          setBusy(false);
-                        }
-                      }}
-                    >
-                      {t.queue}
-                    </button>
-                  ) : (
-                    draft.state !== "server_received" && (
-                      <button
-                        className="primary"
-                        disabled={busy || !online}
-                        onClick={async () => {
-                          setBusy(true);
-                          try {
-                            await store.drafts.update(draft.id, {
-                              state: "queued",
-                              nextAttemptAt: 0,
-                            });
-                            await replayQueue(store);
-                          } catch {
-                            setError("storage_unavailable");
-                          } finally {
-                            setBusy(false);
-                          }
-                        }}
-                      >
-                        <RefreshCw size={17} />
-                        {t.retry}
-                      </button>
-                    )
-                  )}
-                </section>
+                            } finally {
+                              setBusy(false);
+                            }
+                          }}
+                        >
+                          {t.queue}
+                        </button>
+                      ) : (
+                        <button
+                          className="primary"
+                          disabled={busy || !online}
+                          onClick={async () => {
+                            setBusy(true);
+                            try {
+                              await store.drafts.update(draft.id, {
+                                state: "queued",
+                                nextAttemptAt: 0,
+                              });
+                              await replayQueue(store);
+                            } catch {
+                              setError("storage_unavailable");
+                            } finally {
+                              setBusy(false);
+                            }
+                          }}
+                        >
+                          <RefreshCw size={17} />
+                          {t.retry}
+                        </button>
+                      )}
+                    </section>
+                  </>
+                )}
               </>
             ) : (
               <p role="status">{t.loading}</p>
             )}
-            <Link className="text-button" href="/">
-              {t.home}
-              <ArrowRight size={16} />
-            </Link>
           </>
         )}
       </main>

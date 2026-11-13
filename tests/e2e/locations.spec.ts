@@ -136,9 +136,7 @@ test("admin creates GPS test location, corrects coordinates, worker finds it and
   const workerPage = await workerContext.newPage();
   try {
     await login(workerPage, "worker@demo.ibvs.test");
-    await workerPage
-      .getByRole("link", { name: "Open field workspace" })
-      .click();
+    await expect(workerPage).toHaveURL(/\/field$/);
     await expect(
       workerPage.locator('[data-offline-ready="true"]'),
     ).toBeAttached();

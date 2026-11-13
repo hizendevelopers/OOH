@@ -277,7 +277,9 @@ export default function Capture({
       <p className="field-caption">
         <AlertTriangle size={16} aria-hidden="true" /> {t.safe}
       </p>
-      <BrandPanel store={store} draft={draft} t={t} locked={locked} />
+      <h2 className="visit-step-title" id="step-photos">
+        <span>1</span> {t.stepPhotos}
+      </h2>
       {!locked && (
         <section className="panel field-live">
           <div className="panel-heading">
@@ -594,6 +596,10 @@ export default function Capture({
           </button>
         </div>
       )}
+      <h2 className="visit-step-title" id="step-brand">
+        <span>2</span> {t.stepBrand}
+      </h2>
+      <BrandPanel store={store} draft={draft} t={t} locked={locked} />
     </section>
   );
 }
@@ -630,7 +636,7 @@ function BrandPanel({
         : t.brandUnreadable;
   if (locked)
     return (
-      <section className="panel">
+      <section className="panel field-brand">
         <h3>{t.brandTitle}</h3>
         <p>
           {t.brandLocked}
@@ -639,7 +645,7 @@ function BrandPanel({
       </section>
     );
   return (
-    <section className="panel">
+    <section className="panel field-brand">
       <h3>{t.brandTitle}</h3>
       <p className="muted">{t.brandHelp}</p>
       <div className="brand-choices">

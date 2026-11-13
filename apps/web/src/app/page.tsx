@@ -30,6 +30,8 @@ export default async function Page() {
     if (!decision.allowed)
       redirect(decision.code === "MFA_SETUP_REQUIRED" ? "/security" : "/sign-in?reauth=1");
   }
+  // Workers have one app: the field workspace. The demo without sign-in has no field app, so it stays here.
+  if (actor && actor.role !== "admin" && requiresSignIn) redirect("/field");
   if (actor) return <Workspace actor={actor} signInRequired={requiresSignIn} />;
   return (
     <main className="service-error">

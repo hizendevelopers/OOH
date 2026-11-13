@@ -553,3 +553,134 @@
   color: #fff;
   font-weight: 600;
 }
+
+/* Declutter phase 2: menu, one-row visit toolbar and numbered visit steps. */
+.field-menu {
+  position: relative;
+  margin-inline-start: auto;
+}
+.field-menu-list {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  min-width: 220px;
+  display: grid;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px #0000001f;
+}
+.field-menu-list button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.field-menu-list button:hover:not(:disabled) {
+  background: var(--surface2);
+}
+.field-menu-list button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.visit-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.visit-toolbar input,
+.visit-toolbar select {
+  min-height: 44px;
+  min-width: 0;
+}
+.visit-toolbar input {
+  flex: 2 1 220px;
+}
+.visit-toolbar select {
+  flex: 1 1 140px;
+}
+.visit-steps {
+  display: flex;
+  gap: 6px;
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+}
+.visit-steps li {
+  flex: 1;
+}
+.visit-steps a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.visit-steps a > span:first-child {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface2);
+  font-size: 12px;
+}
+.visit-steps li.done a {
+  color: var(--green);
+  border-color: currentColor;
+}
+.visit-steps li.done a > span:first-child {
+  background: none;
+}
+.visit-step-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 22px 0 10px;
+  font-size: 17px;
+  scroll-margin-top: 12px;
+}
+.visit-step-title > span {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-size: 14px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.field-brand {
+  display: grid;
+  gap: 10px;
+  padding: 18px 20px;
+}
+.field-brand h3,
+.field-brand p {
+  margin: 0;
+}

@@ -29,7 +29,10 @@ async function login(page: Page, email: string) {
     expect(response.status()).toBe(200);
     break;
   }
-  await expect(page).toHaveURL("http://localhost:3000/");
+  // Workers land straight in the field workspace; supervisors on the dashboard.
+  await expect(page).toHaveURL(
+    email.startsWith("worker") ? "http://localhost:3000/field" : "http://localhost:3000/",
+  );
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 }
 test("supervisors review adjacent faces, explicitly version references and request an offline resurvey", async ({

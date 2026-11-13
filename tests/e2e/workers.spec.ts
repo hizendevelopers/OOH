@@ -123,12 +123,12 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
   const worker = await context.newPage();
   await worker.setViewportSize({ width: 390, height: 844 });
   await login(worker, baseURL!, email, workerPassword);
-  await expect(
-    worker.getByRole("heading", { name: "My assignments", exact: true }),
-  ).toBeVisible();
-  await expect(
-    worker.locator("article.site-card").filter({ hasText: code }),
-  ).toBeVisible();
+  // Workers land straight in the field workspace with their visits.
+  await expect(worker).toHaveURL(/\/field$/);
+  const visit = worker
+    .locator("article.field-visit")
+    .filter({ has: worker.getByRole("heading", { name: code, exact: true }) });
+  await expect(visit).toBeVisible();
   expect((await worker.request.get("/api/workers")).status()).toBe(403);
   expect(
     (
@@ -149,12 +149,7 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
     path: "test-results/worker-capture-action.png",
     fullPage: true,
   });
-  await worker
-    .locator("article.site-card")
-    .filter({ hasText: code })
-    .getByRole("link", { name: "Capture live photos", exact: true })
-    .click();
-  await expect(worker).toHaveURL(/\/field\?assignment=/);
+  await visit.getByRole("button", { name: "Open inspection", exact: true }).click();
   await expect(
     worker.getByRole("button", { name: "Open camera", exact: true }),
   ).toBeVisible();

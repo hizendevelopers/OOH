@@ -20,7 +20,8 @@ async function field(page: Page, code: string) {
     expect(result.status).toBe(200);
     break;
   }
-  await page.getByRole("link", { name: "Open field workspace" }).click();
+  // Workers land straight in the field workspace.
+  await expect(page).toHaveURL(/\/field$/);
   await expect(
     page.getByRole("heading", { name: "Field workspace", exact: true }),
   ).toBeVisible();
@@ -461,8 +462,7 @@ test("same-browser logout locks offline access and separates workers without del
       expect(result.status()).toBe(200);
       break;
     }
-    await expect(page).toHaveURL("http://localhost:3000/");
-    await page.getByRole("link", { name: "Open field workspace" }).click();
+    await expect(page).toHaveURL("http://localhost:3000/field");
     await expect(
       page.getByRole("heading", { name: "Field workspace", exact: true }),
     ).toBeVisible();

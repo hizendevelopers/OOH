@@ -29,8 +29,10 @@ async function login(page: import("@playwright/test").Page, email: string) {
     break;
   }
   if (email.startsWith("worker")) {
+    // Workers land straight in the field workspace.
+    await expect(page).toHaveURL(/\/field$/);
     await expect(
-      page.getByRole("heading", { name: "My assignments" }),
+      page.getByRole("heading", { name: "Field workspace", exact: true }),
     ).toBeVisible();
     return;
   }
@@ -92,18 +94,14 @@ test("admin imports, assigns, worker sees authorized visit; CSRF and scope are e
   const context = await browser.newContext();
   const worker = await context.newPage();
   await login(worker, "worker@demo.ibvs.test");
-  // The worker page lists sites by city; open this site's details from its card.
-  await worker
-    .locator("article.site-card")
-    .filter({ hasText: face })
-    .getByRole("button", { name: "Details", exact: true })
-    .click();
+  // The worker's field list shows this site, ready to open.
+  const visit = worker
+    .locator("article.field-visit")
+    .filter({ has: worker.getByRole("heading", { name: face, exact: true }) });
+  await expect(visit).toBeVisible();
   await expect(
-    worker.getByRole("heading", { name: face, exact: true }),
-  ).toBeVisible();
-  await expect(
-    worker.getByRole("link", { name: "Capture live photos", exact: true }),
-  ).toBeVisible();
+    visit.getByRole("button", { name: "Open inspection", exact: true }),
+  ).toBeEnabled();
   expect((await worker.request.get("/api/inventory")).status()).toBe(403);
   await context.close();
   const otherContext = await browser.newContext();
