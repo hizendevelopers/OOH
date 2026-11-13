@@ -4,7 +4,7 @@ import { testDirectory } from "../scripts/test-directory";
 import { migrate } from "../scripts/migrate";
 import { getDb } from "../apps/web/src/server/db";
 import { importCsv, assign, assignments, inventory } from "../apps/web/src/server/service";
-import { beginInspection, completePhoto, submitInspection, uploadPart } from "../apps/web/src/server/inspections";
+import { beginInspection, completePhoto, submissions, submitInspection, uploadPart } from "../apps/web/src/server/inspections";
 import type { InspectionInput } from "../packages/domain/src/inspection";
 import type { Actor } from "../packages/domain/src";
 import { baghdadExifText, jpegWithExif } from "./helpers/exif-jpeg";
@@ -160,4 +160,13 @@ it("flags an original the server already received on another visit as an exact d
   const result = await send(session.inspectionId, "front", receivedFront!);
   expect(result.verification?.status).toBe("rejected");
   expect(result.verification?.reasons.map((r) => r.code)).toContain("duplicate_exact");
+});
+
+it("lists completed visits with their photos for admins only", async () => {
+  const list = await submissions(admin);
+  const first = list.find((row) => row.code === tasks[0].faceCode);
+  expect(first).toMatchObject({ worker_id: worker.id, worker_name: "Admin", city: "Baghdad", review_state: "pending", kinds: ["front", "wide", "angle_1"] });
+  // Visits still uploading are not completed submissions.
+  expect(list.some((row) => row.code === tasks[2].faceCode)).toBe(false);
+  await expect(submissions(worker)).rejects.toMatchObject({ status: 403 });
 });

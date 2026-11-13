@@ -11,6 +11,7 @@ import {
   inspectionStatus,
   inspectionHistory,
   evidenceAccess,
+  submissions,
 } from "@/server/inspections";
 import {
   inspectionInput,
@@ -54,6 +55,7 @@ async function handle(request: Request) {
       .slice(2);
     if (request.method === "GET") {
       if (!segments.length) return json(await inspectionHistory(actor));
+      if (segments.length === 1 && segments[0] === "submissions") return json(await submissions(actor));
       const id = z.uuid().parse(segments[0]);
       if (segments.length === 1) return json(await inspectionStatus(actor, id));
       if (segments.length === 3 && segments[1] === "media") {

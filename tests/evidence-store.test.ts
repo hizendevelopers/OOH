@@ -116,9 +116,12 @@ describe("filesystem store", () => {
 });
 
 describe("configuration", () => {
-  it("refuses production when no evidence store is configured", () => {
-    // Production defaults to S3; without its settings the app must not start.
-    expect(() => createEvidenceStoreFromEnv({ NODE_ENV: "production" } as NodeJS.ProcessEnv)).toThrow("requires bucket");
+  it("keeps hosted photos in the database unless a bucket is configured", () => {
+    expect(createEvidenceStoreFromEnv({ NODE_ENV: "production" } as NodeJS.ProcessEnv).kind).toBe("database");
+    expect(createEvidenceStoreFromEnv({ NODE_ENV: "production", VERCEL: "1" } as NodeJS.ProcessEnv).kind).toBe("database");
+    // A bucket already in use stays in use, so its photos remain readable; incomplete settings still refuse.
+    expect(() => createEvidenceStoreFromEnv({ NODE_ENV: "production", IBVS_EVIDENCE_S3_BUCKET: "b" } as NodeJS.ProcessEnv)).toThrow("requires bucket");
+    expect(createEvidenceStoreFromEnv({ NODE_ENV: "production", IBVS_EVIDENCE_S3_BUCKET: "b", IBVS_EVIDENCE_STORE: "database" } as NodeJS.ProcessEnv).kind).toBe("database");
   });
   it("allows production filesystem storage only with an explicit persistent directory", async () => {
     const dir = await testDirectory("evidence-prod-");
@@ -149,6 +152,6 @@ describe("configuration", () => {
     expect(store.kind).toBe("s3");
   });
   it("rejects an unknown store name", () => {
-    expect(() => createEvidenceStoreFromEnv({ NODE_ENV: "development", IBVS_EVIDENCE_STORE: "disk" } as NodeJS.ProcessEnv)).toThrow("s3 or filesystem");
+    expect(() => createEvidenceStoreFromEnv({ NODE_ENV: "development", IBVS_EVIDENCE_STORE: "disk" } as NodeJS.ProcessEnv)).toThrow("database, s3 or filesystem");
   });
 });

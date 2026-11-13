@@ -24,11 +24,9 @@ export const fieldStrings = {
     structure: "Structure / side",
     due: "Due",
     start: "Start inspection",
-    local: "Saved on this device, not uploaded yet",
+    local: "Not sent yet",
     registerSite: "Register a new site",
     registerSiteNote: "For a billboard that is not in the inventory. Needs a connection.",
-    persistDenied:
-      "The browser did not grant saved storage. Send your visits as soon as there is a connection.",
     queued: "Waiting to send",
     uploading: "Sending…",
     blocked: "Needs your attention",
@@ -85,12 +83,6 @@ export const fieldStrings = {
     queue: "Submit visit",
     queueNote: "Take the front, wide and at least one angle photo, then submit.",
     retry: "Try sending again",
-    storage: "Device storage",
-    persist: "Request persistent storage",
-    persistent: "Persistent storage granted",
-    evictable: "Your browser may delete unsent photos if storage runs low. Send them as soon as you can.",
-    storageNote:
-      "Private browsing, clearing site data or losing the device can erase unsent photos. Download tasks first and check receipts before leaving.",
     shellPending: "Getting ready for offline use. Stay online for a moment.",
     install: "Install field app",
     session_expired:
@@ -130,17 +122,15 @@ export const fieldStrings = {
     missing: "Take the front and wide photos before submitting.",
     downloadError:
       "Assignments could not be downloaded. Existing local copies remain available.",
-    quota: "used / available quota",
     ready: "Ready for capture",
     removeNone: "No photos have been saved yet.",
     continue: "Continue inspection",
-    history: "Saved inspections",
+    history: "Submitted visits",
     refresh: "Refresh assignments",
     localReceiptWarning:
       "Your photos will send when you are back online.",
     photoTooLarge:
       "Photo exceeds the 6 MB limit. Retake with a lower camera resolution.",
-    storageError: "Storage diagnostics unavailable.",
   },
   ar: {
     title: "مساحة العمل الميداني",
@@ -167,11 +157,9 @@ export const fieldStrings = {
     structure: "الهيكل / الاتجاه",
     due: "الاستحقاق",
     start: "بدء المعاينة",
-    local: "محفوظة على هذا الجهاز، ولم تُرفع بعد",
+    local: "لم تُرسل بعد",
     registerSite: "تسجيل موقع جديد",
     registerSiteNote: "للوحة غير موجودة في النظام. يحتاج إلى اتصال.",
-    persistDenied:
-      "لم يمنح المتصفح التخزين الدائم. أرسل الزيارات فور توفر الاتصال.",
     queued: "بانتظار الإرسال",
     uploading: "جارٍ الإرسال…",
     blocked: "تحتاج إلى إجراء منك",
@@ -227,12 +215,6 @@ export const fieldStrings = {
     queue: "إرسال الزيارة",
     queueNote: "التقط الصورة الأمامية والواسعة وصورة زاوية واحدة على الأقل، ثم أرسل.",
     retry: "إعادة محاولة الإرسال",
-    storage: "تخزين الجهاز",
-    persist: "طلب تخزين دائم",
-    persistent: "التخزين الدائم ممنوح",
-    evictable: "قد يحذف المتصفح الصور غير المرسلة إذا قلّت المساحة. أرسلها في أقرب وقت.",
-    storageNote:
-      "التصفح الخاص أو مسح بيانات الموقع أو فقدان الجهاز قد يمحو الصور غير المرسلة. نزّل المهام أولاً وتأكد من الإيصالات قبل المغادرة.",
     shellPending: "جارٍ التجهيز للعمل دون اتصال. ابقَ متصلاً قليلاً.",
     install: "تثبيت التطبيق الميداني",
     session_expired:
@@ -270,16 +252,14 @@ export const fieldStrings = {
     safe: "لا تلتقط الصور أثناء القيادة.",
     missing: "التقط الصورة الأمامية والواسعة قبل الإرسال.",
     downloadError: "تعذّر تنزيل المهام. النسخ المحلية السابقة ما زالت متاحة.",
-    quota: "المستخدم / الحصة المتاحة",
     ready: "جاهز للالتقاط",
     removeNone: "لم تُحفظ صور بعد.",
     continue: "متابعة المعاينة",
-    history: "المعاينات المحفوظة",
+    history: "الزيارات المُرسلة",
     refresh: "تحديث المهام",
     localReceiptWarning:
       "ستُرسل صورك عند عودة الاتصال.",
     photoTooLarge: "تجاوزت الصورة حد ٦ ميغابايت. أعد الالتقاط بدقة أقل.",
-    storageError: "تعذّر فحص مساحة التخزين.",
   },
 };
 export type FieldText = typeof fieldStrings.en;

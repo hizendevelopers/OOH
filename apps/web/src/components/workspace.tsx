@@ -38,9 +38,10 @@ import { LocationEditor } from "./location-editor";
 import { LocationMap } from "./location-map";
 import { WorkerManagement } from "./worker-management";
 import { CityInventory } from "./city-inventory";
+import { Submissions } from "./submissions";
 import { CityTabs, LocationFlags, cityCounts, needsLocationAttention } from "./city-tabs";
 import { cityLine } from "@ibvs/domain";
-type Tab = "overview" | "inventory" | "assignments" | "workers" | "audit";
+type Tab = "overview" | "inventory" | "assignments" | "submissions" | "workers" | "audit";
 type Summary = {
   faces: number;
   structures: number;
@@ -404,6 +405,11 @@ export default function Workspace({
       icon: ClipboardList,
       label: isAdmin ? t.assignments : t.my,
     },
+    {
+      id: "submissions" as Tab,
+      icon: Camera,
+      label: locale === "ar" ? "الزيارات المكتملة" : "Submissions",
+    },
     { id: "audit" as Tab, icon: ScrollText, label: t.audit },
   ].filter((n) => isAdmin || n.id === "assignments");
   const openCount = tasks.filter((a) =>
@@ -588,6 +594,7 @@ export default function Workspace({
             </div>
           ) : (
             <>
+              {tab === "submissions" && isAdmin && <Submissions ar={locale === "ar"} />}
               {tab === "workers" && isAdmin && (
                 <WorkerManagement
                   workers={workers}

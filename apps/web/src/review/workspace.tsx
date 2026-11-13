@@ -178,6 +178,14 @@ export default function ReviewWorkspace({ actor }: { actor: Actor }) {
       if (token === request.current) setError((e as Error).message);
     }
   }, []);
+  // A link from the dashboard's Submissions list opens that visit directly: /review?inspection=<id>.
+  const linked = useRef(false);
+  useEffect(() => {
+    if (linked.current) return;
+    linked.current = true;
+    const id = new URLSearchParams(window.location.search).get("inspection");
+    if (id && /^[0-9a-f-]{36}$/i.test(id)) void open(id);
+  }, [open]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (mutationLocked.current) return;
