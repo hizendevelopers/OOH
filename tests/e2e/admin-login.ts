@@ -71,10 +71,29 @@ async function enterPassword(page: Page, email: string, password: string) {
   throw new Error("Sign-in was refused repeatedly by the rate limiter");
 }
 
+// The authenticator step is rate limited (3 attempts per 10 seconds, shared by the whole suite on one address),
+// and a code may be refused at the edge of its 30-second window. Read the server's answer instead of waiting
+// for a page that will not come: wait out a 429, or use the next window's code after a refusal.
 async function completeAuthenticatorStep(page: Page, secret: string) {
-  await page.getByLabel("Authenticator code").fill(totpAt(secret, Date.now()));
-  await page.getByRole("button", { name: "Verify and sign in", exact: true }).click();
-  await page.waitForURL((url) => url.pathname === "/", { timeout: 30000 });
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await page.getByLabel("Authenticator code").fill(totpAt(secret, Date.now()));
+    const response = page.waitForResponse((r) => r.url().endsWith("/api/auth/two-factor/verify-totp"));
+    await page.getByRole("button", { name: "Verify and sign in", exact: true }).click();
+    const result = await response;
+    if (result.ok()) {
+      await page.waitForURL((url) => url.pathname === "/", { timeout: 30000 });
+      return;
+    }
+    if (attempt === 3) break;
+    if (result.status() === 429) {
+      const seconds = Math.min(60, Math.max(1, Number(result.headers()["retry-after"]) || 11));
+      await page.waitForTimeout((seconds + 1) * 1000);
+    } else {
+      await page.waitForTimeout(30000 - (Date.now() % 30000) + 1000);
+    }
+    await expect(page.getByRole("button", { name: "Verify and sign in", exact: true })).toBeEnabled();
+  }
+  throw new Error("The authenticator code was refused repeatedly");
 }
 
 export async function loginAdmin(page: Page, email: string = defaultAdmin) {
