@@ -72,8 +72,23 @@ async function enterPassword(page: Page, email: string, password: string) {
 }
 
 async function completeAuthenticatorStep(page: Page, secret: string) {
-  await page.getByLabel("Authenticator code").fill(totpAt(secret, Date.now()));
-  await page.getByRole("button", { name: "Verify and sign in", exact: true }).click();
+  // The code check has a real rate limit shared by the whole suite, and a code can be refused near a 30-second
+  // boundary. Read the server's answer: after a 429 wait as long as it asks, after a refused code use the next
+  // window's code, then try again. The server checks are unchanged.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await page.getByLabel("Authenticator code").fill(totpAt(secret, Date.now()));
+    const response = page.waitForResponse((r) => r.url().endsWith("/api/auth/two-factor/verify-totp"));
+    await page.getByRole("button", { name: "Verify and sign in", exact: true }).click();
+    const result = await response;
+    if (result.ok()) break;
+    if (attempt === 3) throw new Error(`Authenticator code refused (${result.status()}) after ${attempt + 1} attempts`);
+    if (result.status() === 429) {
+      const seconds = Math.min(60, Math.max(1, Number(result.headers()["retry-after"]) || 60));
+      await page.waitForTimeout((seconds + 1) * 1000);
+    } else {
+      await page.waitForTimeout(30000 - (Date.now() % 30000) + 1000);
+    }
+  }
   await page.waitForURL((url) => url.pathname === "/", { timeout: 30000 });
 }
 
