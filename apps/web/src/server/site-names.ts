@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Actor } from "@ibvs/domain";
-import { getDb } from "./db";
+import { getDb, type Database } from "./db";
 import { ApiError, audit, requireAdmin } from "./service";
 
 // Arabic site names. Each site's English description is machine-translated once by the Gemini API and stored with
@@ -18,7 +18,9 @@ export function translationConfigured() {
 }
 
 // Sites whose current description has no matching Arabic translation yet.
-const missing = `FROM billboard_faces f LEFT JOIN face_name_translations t ON t.face_id=f.id AND t.source_text=f.description
+const missing = `FROM billboard_faces f
+  JOIN billboard_structures s ON s.id=f.structure_id
+  LEFT JOIN face_name_translations t ON t.face_id=f.id AND t.source_text=f.description
   WHERE f.organization_id=$1 AND length(trim(f.description))>0 AND t.face_id IS NULL`;
 
 export async function translationStatus(actor: Actor) {
@@ -93,16 +95,30 @@ async function askGemini(prompt: string, key: string): Promise<string> {
   return text;
 }
 
+// The next sites to translate. A chosen city comes first, so the city an administrator is looking at
+// finishes quickly instead of waiting behind every other city in import order; the rest follow in
+// import order. Exported so the ordering can be tested without calling the translation service.
+export async function untranslatedSites(
+  db: Pick<Database, "query">,
+  organizationId: string,
+  city?: string | null,
+  limit = BATCH * 3,
+) {
+  const chosen = (city ?? "").trim().slice(0, 120) || null;
+  return db.query<{ id: string; description: string }>(
+    `SELECT f.id, f.description ${missing}
+     ORDER BY ${chosen ? "(s.city = $2) DESC, " : ""}f.created_at, f.id LIMIT ${Number(limit)}`,
+    chosen ? [organizationId, chosen] : [organizationId],
+  );
+}
+
 // Translates one batch of untranslated names. Called repeatedly by the dashboard until nothing remains.
-export async function translateSiteNames(actor: Actor) {
+export async function translateSiteNames(actor: Actor, city?: string | null) {
   requireAdmin(actor);
   const key = apiKey();
   if (!key) throw new ApiError(503, "Site name translation is not set up");
   const db = await getDb();
-  const rows = await db.query<{ id: string; description: string }>(
-    `SELECT f.id, f.description ${missing} ORDER BY f.created_at, f.id LIMIT ${BATCH * 3}`,
-    [actor.organizationId],
-  );
+  const rows = await untranslatedSites(db, actor.organizationId, city);
   if (!rows.length) return { translated: 0, remaining: 0 };
   // Many sites share the same name text; each distinct text is translated once.
   const texts = [...new Set(rows.map((r) => r.description.trim()))].slice(0, BATCH);

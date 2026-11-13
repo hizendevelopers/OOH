@@ -170,7 +170,9 @@ async function handle(request: Request) {
       // Arabic site names: translates one batch of untranslated names. Administrator only (checked in the service).
       if (route === "site-names") {
         const { translateSiteNames } = await import("@/server/site-names");
-        return json(await translateSiteNames(actor));
+        // An optional city is translated before the rest, so a chosen city finishes first.
+        const input = z.object({ city: z.string().max(120).optional() }).parse(body);
+        return json(await translateSiteNames(actor, input.city));
       }
       if (route === "workers")
         return json(await createWorker(actor, body), 201);

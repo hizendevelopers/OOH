@@ -359,6 +359,11 @@ export default function Workspace({
   // background, one batch at a time, and the lists are refreshed afterwards. Runs once per page load.
   const [siteNames, setSiteNames] = useState<{ configured: boolean; remaining: number; running: boolean } | null>(null);
   const siteNamesStarted = useRef(false);
+  // Read inside the translation loop so a city chosen while it runs takes priority next batch.
+  const cityRef = useRef("");
+  useEffect(() => {
+    cityRef.current = city;
+  }, [city]);
   useEffect(() => {
     if (actor.role !== "admin" || loading || siteNamesStarted.current) return;
     siteNamesStarted.current = true;
@@ -370,7 +375,10 @@ export default function Workspace({
         setSiteNames({ ...status, running: status.configured && status.remaining > 0 });
         let translated = 0;
         while (active && status.configured && status.remaining > 0) {
-          const result = await api<{ translated: number; remaining: number }>("site-names", {});
+          // Whichever city is on screen when a batch starts is translated first.
+          const result = await api<{ translated: number; remaining: number }>("site-names", {
+            city: cityRef.current || undefined,
+          });
           translated += result.translated;
           status = { configured: true, remaining: result.remaining };
           if (active) setSiteNames({ ...status, running: result.remaining > 0 });
