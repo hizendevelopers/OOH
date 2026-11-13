@@ -290,6 +290,7 @@ export default function FieldWorkspace() {
     void openTask(task);
   }, [loading, store, tasks, openTask]);
   const draft = drafts.find((d) => d.id === opened);
+  const sent = draft?.state === "server_received";
   // A visit opens on Photos while it is still being taken, and on Send once it has been submitted.
   const stepChosenFor = useRef<string | null>(null);
   useEffect(() => {
@@ -777,16 +778,19 @@ export default function FieldWorkspace() {
                     </div>
                   </dl>
                 </section>
-                <VisitSteps
-                  step={step}
-                  onStep={setStep}
-                  t={t}
-                  done={{
-                    photos: hasRequiredPhotos(draft),
-                    brand: !!draft.brand,
-                    send: draft.state !== "local_draft",
-                  }}
-                />
+                {/* Once the server has a visit its photos are removed from this phone, so only its status is shown. */}
+                {!sent && (
+                  <VisitSteps
+                    step={step}
+                    onStep={setStep}
+                    t={t}
+                    done={{
+                      photos: hasRequiredPhotos(draft),
+                      brand: !!draft.brand,
+                      send: draft.state !== "local_draft",
+                    }}
+                  />
+                )}
                 <Capture
                   arabic={locale === "ar"}
                   key={draft.id}
@@ -794,10 +798,10 @@ export default function FieldWorkspace() {
                   draft={draft}
                   t={t}
                   online={online}
-                  step={step}
+                  step={sent ? "send" : step}
                   onBrandChosen={() => setStep("send")}
                 />
-                {step !== "send" && (
+                {!sent && step !== "send" && (
                   <>
                     <button
                       className="primary field-next"
@@ -811,9 +815,11 @@ export default function FieldWorkspace() {
                     </button>
                   </>
                 )}
-                {step === "send" && (
+                {(sent || step === "send") && (
                 <section className="panel field-submit">
                   {status(draft)}
+                  {!sent && (
+                  <>
                   <h2>{t.checklist}</h2>
                   <ul className="field-checklist">
                     {(["front", "wide"] as const).map((k) => (
@@ -848,6 +854,8 @@ export default function FieldWorkspace() {
                       </span>
                     </li>
                   </ul>
+                  </>
+                  )}
                   {draft.task.location_exception &&
                     Date.parse(draft.task.location_exception.expires_at) >
                       clock && (

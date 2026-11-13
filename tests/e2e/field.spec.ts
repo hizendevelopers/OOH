@@ -177,6 +177,9 @@ test("offline camera evidence survives reload and interrupted upload; server rec
   await expect(
     page.getByText("Submitted — waiting for review", { exact: true }),
   ).toBeVisible();
+  // A sent visit shows only its status: its photos leave the phone, so there are no steps or checklist.
+  await expect(page.getByRole("navigation", { name: "Visit steps" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Before you send", exact: true })).toHaveCount(0);
   const receipt = await (
     await page.request.get("/api/inspections/" + row.id)
   ).json();
