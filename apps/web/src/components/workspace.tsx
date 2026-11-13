@@ -357,7 +357,12 @@ export default function Workspace({
   }, [load]);
   // Arabic site names: when the administrator opens the dashboard, untranslated names are translated in the
   // background, one batch at a time, and the lists are refreshed afterwards. Runs once per page load.
-  const [siteNames, setSiteNames] = useState<{ configured: boolean; remaining: number; running: boolean } | null>(null);
+  const [siteNames, setSiteNames] = useState<{
+    configured: boolean;
+    remaining: number;
+    running: boolean;
+    problem?: string | null;
+  } | null>(null);
   const siteNamesStarted = useRef(false);
   // Read inside the translation loop so a city chosen while it runs takes priority next batch.
   const cityRef = useRef("");
@@ -388,9 +393,11 @@ export default function Workspace({
           setFaces(f);
           setTasks(a);
         }
-      } catch {
-        // Translation is best effort; the English names stay until the next try.
-        if (active) setSiteNames((s) => (s ? { ...s, running: false } : s));
+      } catch (e) {
+        // Translation is best effort, but the reason must be visible: otherwise the footer only
+        // reports names left over and an administrator cannot tell a failure from unfinished work.
+        const problem = (e as Error).message;
+        if (active) setSiteNames((s) => (s ? { ...s, running: false, problem } : s));
       }
     })();
     return () => {
@@ -1366,9 +1373,13 @@ export default function Workspace({
                             ? locale === "ar"
                               ? `جارٍ ترجمة أسماء المواقع إلى العربية… متبقٍ ${siteNames.remaining}`
                               : `Translating site names to Arabic… ${siteNames.remaining} left`
-                            : locale === "ar"
-                              ? `${siteNames.remaining} اسم موقع لم يُترجم بعد.`
-                              : `${siteNames.remaining} site names not translated yet.`}
+                            : siteNames.problem
+                              ? (locale === "ar"
+                                  ? `تعذّرت ترجمة أسماء المواقع: ${localizeError(siteNames.problem, true)}`
+                                  : `Site names could not be translated: ${siteNames.problem}`)
+                              : locale === "ar"
+                                ? `${siteNames.remaining} اسم موقع لم يُترجم بعد.`
+                                : `${siteNames.remaining} site names not translated yet.`}
                       </span>
                     )}
                   </div>

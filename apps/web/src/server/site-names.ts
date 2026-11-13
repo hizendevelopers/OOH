@@ -9,7 +9,9 @@ import { ApiError, audit, requireAdmin } from "./service";
 
 const MODEL = "gemini-3.5-flash-lite";
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
-const BATCH = 60;
+// Names are short, so a larger batch means far fewer round trips: about 2,750 names take
+// roughly 18 requests rather than 46, each still well inside the route's time limit.
+const BATCH = 150;
 
 const apiKey = () => process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
 
@@ -68,7 +70,7 @@ async function askGemini(prompt: string, key: string): Promise<string> {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     generationConfig: {
       responseMimeType: "application/json",
-      maxOutputTokens: 8192,
+      maxOutputTokens: 32768,
       ...(withSchema ? { responseJsonSchema: responseSchema } : {}),
     },
   });
