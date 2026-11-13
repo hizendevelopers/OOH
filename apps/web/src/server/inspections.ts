@@ -616,6 +616,7 @@ export type Submission = {
   worker_name: string;
   code: string;
   description: string;
+  description_ar: string | null;
   city: string | null;
   review_state: string;
   kinds: PhotoKind[];
@@ -623,7 +624,7 @@ export type Submission = {
 export async function submissions(actor: Actor): Promise<Submission[]> {
   if (actor.role !== "admin") throw new ApiError(403, "Admin access required");
   const rows = await (await getDb()).query<Submission>(
-    `SELECT i.id, i.received_at, i.worker_id, u.name worker_name, f.code, f.description, s.city,
+    `SELECT i.id, i.received_at, i.worker_id, u.name worker_name, f.code, f.description,(SELECT t.name_ar FROM face_name_translations t WHERE t.face_id=f.id AND t.source_text=f.description) AS description_ar, s.city,
        COALESCE(r.state, 'pending') review_state,
        (SELECT COALESCE(jsonb_agg(m.kind), '[]'::jsonb) FROM media_evidence m
           WHERE m.inspection_id = i.id AND m.superseded_at IS NULL AND m.receipt_id IS NOT NULL) kinds

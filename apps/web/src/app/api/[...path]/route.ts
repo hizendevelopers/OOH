@@ -52,6 +52,10 @@ async function handle(request: Request) {
       }
       if (route === "me") return json({ id: actor.id, organizationId: actor.organizationId, role: actor.role, name: actor.name, email: actor.email, mfa: { enrolled: actor.secondFactor && "enrolled" in actor.secondFactor ? actor.secondFactor.enrolled : null } });
       if (route === "locations/captures") return json(await pendingFieldCaptures(actor));
+      if (route === "site-names") {
+        const { translationStatus } = await import("@/server/site-names");
+        return json(await translationStatus(actor));
+      }
       if (route === "overview") return json(await overview(actor));
       if (route === "inventory") return json(await inventory(actor));
       if (route === "workers") return json(await workers(actor));
@@ -154,6 +158,11 @@ async function handle(request: Request) {
         return json(await correctImportedCity(actor, z.object({ faceId: z.string().uuid(), city: z.string(), reason: z.string() }).parse(body)));
       if (route === "assignments")
         return json(await assign(actor, assignmentInput.parse(body)), 201);
+      // Arabic site names: translates one batch of untranslated names. Administrator only (checked in the service).
+      if (route === "site-names") {
+        const { translateSiteNames } = await import("@/server/site-names");
+        return json(await translateSiteNames(actor));
+      }
       if (route === "workers")
         return json(await createWorker(actor, body), 201);
     }

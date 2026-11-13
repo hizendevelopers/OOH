@@ -355,6 +355,40 @@ export default function Workspace({
   useEffect(() => {
     void load();
   }, [load]);
+  // Arabic site names: when the administrator opens the dashboard, untranslated names are translated in the
+  // background, one batch at a time, and the lists are refreshed afterwards. Runs once per page load.
+  const [siteNames, setSiteNames] = useState<{ configured: boolean; remaining: number; running: boolean } | null>(null);
+  const siteNamesStarted = useRef(false);
+  useEffect(() => {
+    if (actor.role !== "admin" || loading || siteNamesStarted.current) return;
+    siteNamesStarted.current = true;
+    let active = true;
+    void (async () => {
+      try {
+        let status = await api<{ configured: boolean; remaining: number }>("site-names");
+        if (!active) return;
+        setSiteNames({ ...status, running: status.configured && status.remaining > 0 });
+        let translated = 0;
+        while (active && status.configured && status.remaining > 0) {
+          const result = await api<{ translated: number; remaining: number }>("site-names", {});
+          translated += result.translated;
+          status = { configured: true, remaining: result.remaining };
+          if (active) setSiteNames({ ...status, running: result.remaining > 0 });
+        }
+        if (active && translated) {
+          const [f, a] = await Promise.all([api<Face[]>("inventory"), api<Assignment[]>("assignments")]);
+          setFaces(f);
+          setTasks(a);
+        }
+      } catch {
+        // Translation is best effort; the English names stay until the next try.
+        if (active) setSiteNames((s) => (s ? { ...s, running: false } : s));
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [actor.role, loading]);
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(""), 6000);
@@ -472,7 +506,7 @@ export default function Workspace({
       (locationKind === "all" ||
         (locationKind === "test" ? f.is_test : !f.is_test)) &&
       (!city || f.city === city) &&
-      matchesFilter(`${f.code} ${f.city} ${f.zone} ${f.description}`, search),
+      matchesFilter(`${f.code} ${f.city} ${f.zone} ${f.description} ${f.description_ar ?? ""}`, search),
   );
   // Every unassigned site in a city, whatever the search box says, within the location-type filter.
   const unassignedIn = (name: string) =>
@@ -493,7 +527,7 @@ export default function Workspace({
   const filteredTasks = tasks.filter(
     (f) =>
       (!city || f.city === city) &&
-      matchesFilter(`${f.code} ${f.city} ${f.zone} ${f.description} ${f.worker_name}`, search),
+      matchesFilter(`${f.code} ${f.city} ${f.zone} ${f.description} ${f.description_ar ?? ""} ${f.worker_name}`, search),
   );
   const nav = [
     { id: "overview" as Tab, icon: LayoutDashboard, label: t.overview },
@@ -1197,7 +1231,7 @@ export default function Workspace({
                                     </small>
                                   )}
                                   {f.description && (
-                                    <small>{f.description}</small>
+                                    <small>{(isAr && f.description_ar) || f.description}</small>
                                   )}
                                   </>
                                   )}
@@ -1314,6 +1348,21 @@ export default function Workspace({
                         : filteredTasks.length}{" "}
                       {locale === "ar" ? "سجلاً" : "records"}
                     </span>
+                    {tab === "inventory" && siteNames && siteNames.remaining > 0 && (
+                      <span role="status">
+                        {!siteNames.configured
+                          ? locale === "ar"
+                            ? "ترجمة أسماء المواقع إلى العربية غير مفعّلة بعد."
+                            : "Arabic site names are not set up yet."
+                          : siteNames.running
+                            ? locale === "ar"
+                              ? `جارٍ ترجمة أسماء المواقع إلى العربية… متبقٍ ${siteNames.remaining}`
+                              : `Translating site names to Arabic… ${siteNames.remaining} left`
+                            : locale === "ar"
+                              ? `${siteNames.remaining} اسم موقع لم يُترجم بعد.`
+                              : `${siteNames.remaining} site names not translated yet.`}
+                      </span>
+                    )}
                   </div>
                 </section>
               )}

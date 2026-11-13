@@ -54,6 +54,8 @@ export function formatCoordinateValue(value: number | null | undefined) {
 export type SiteSummaryInput = {
   code: string;
   description?: string | null;
+  // Machine-translated Arabic name, present only while it matches the current description.
+  description_ar?: string | null;
   worker_address?: string | null;
   zone?: string | null;
   city?: string | null;
@@ -67,7 +69,9 @@ export type SiteSummaryInput = {
 // inventory always agree. The description names the site; the code is only an identifier.
 // With ar, the city and the size unit are shown in Arabic; saved names and addresses stay as entered.
 export function siteSummary(site: SiteSummaryInput, ar = false) {
-  const name = (site.description ?? "").trim();
+  const english = (site.description ?? "").trim();
+  const arabic = (site.description_ar ?? "").trim();
+  const name = ar && arabic && english ? arabic : english;
   const size = formatDimensions(site.width_m, site.height_m, ar);
   const ratio = dimensionRatio(site.width_m, site.height_m);
   const pinned =

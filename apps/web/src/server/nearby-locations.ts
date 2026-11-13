@@ -46,7 +46,7 @@ export async function nearbyLocations(actor: Actor, raw: unknown) {
   const rows = await db.query<
     Assignment & { is_test: boolean; distance_m?: number }
   >(
-    `SELECT f.id,f.code,f.orientation,f.is_test,f.description,s.code structure_code,s.city,s.zone,c.latitude,c.longitude,c.uncertainty_m,c.original_latitude,c.original_longitude,c.original_uncertainty_m,a.id assignment_id,a.status,a.worker_id,a.due_date::text,a.version,a.instructions,a.parent_inspection_id,u.name worker_name ${engine === "postgis" ? `,ST_Distance(${source},${device}) distance_m` : ""}
+    `SELECT f.id,f.code,f.orientation,f.is_test,f.description,(SELECT t.name_ar FROM face_name_translations t WHERE t.face_id=f.id AND t.source_text=f.description) AS description_ar,s.code structure_code,s.city,s.zone,c.latitude,c.longitude,c.uncertainty_m,c.original_latitude,c.original_longitude,c.original_uncertainty_m,a.id assignment_id,a.status,a.worker_id,a.due_date::text,a.version,a.instructions,a.parent_inspection_id,u.name worker_name ${engine === "postgis" ? `,ST_Distance(${source},${device}) distance_m` : ""}
      FROM assignments a JOIN billboard_faces f ON f.id=a.face_id AND f.organization_id=a.organization_id
      JOIN billboard_structures s ON s.id=f.structure_id JOIN effective_source_coordinates c ON c.face_id=f.id
      JOIN "user" u ON u.id=a.worker_id JOIN worker_profiles w ON w.user_id=a.worker_id

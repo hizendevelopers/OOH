@@ -88,7 +88,7 @@ export function Submissions({ ar }: { ar: boolean }) {
             <article className="submission-card" key={row.id}>
               <header>
                 <div>
-                  <h4>{row.description?.trim() || row.code}</h4>
+                  <h4>{(ar && row.description_ar?.trim()) || row.description?.trim() || row.code}</h4>
                   <p className="muted">
                     <bdi>{row.code}</bdi>
                     {row.city ? " · " + cityName(row.city, ar) : ""}
