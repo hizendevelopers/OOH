@@ -40,12 +40,15 @@ export function CityInventory<T extends InventorySite>({
   keyOf,
   emptyText,
   renderActions,
+  renderCityActions,
 }: {
   sites: T[];
   ar: boolean;
   keyOf: (site: T) => string;
   emptyText: string;
   renderActions?: (site: T) => ReactNode;
+  // Optional action in a city's header row, such as assigning the whole city. Not shown for sites without a city.
+  renderCityActions?: (city: string) => ReactNode;
 }) {
   const t = ar ? text.ar : text.en;
   const groups = groupSitesByCity(sites);
@@ -61,6 +64,18 @@ export function CityInventory<T extends InventorySite>({
               {group.city === UNASSIGNED_CITY ? t.unassigned : cityName(group.city, ar)}
             </span>
             <span className="city-card-count">{t.sites(group.sites.length)}</span>
+            {renderCityActions && group.city !== UNASSIGNED_CITY && (
+              // A click here runs the action without opening or closing the city.
+              <span
+                className="city-card-actions"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+              >
+                {renderCityActions(group.city)}
+              </span>
+            )}
           </summary>
           <div className="site-grid">
             {group.sites.map((site) => {
