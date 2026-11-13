@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { localizeError } from "@/lib/server-messages";
 
 type Worker = { id: string; name: string; email: string };
 export function WorkerManagement({
@@ -50,7 +51,7 @@ export function WorkerManagement({
           : "Worker account created. You can assign visits to this worker now.",
       );
     } catch (error) {
-      setError((error as Error).message);
+      setError(localizeError((error as Error).message, ar));
     } finally {
       setBusy(false);
     }

@@ -15,7 +15,7 @@ export default async function Page() {
   }
   return (
     <main className="service-error">
-      <h1>Security</h1>
+      {/* The heading is rendered by SecuritySettings so it follows the chosen language. */}
       <SecuritySettings />
     </main>
   );

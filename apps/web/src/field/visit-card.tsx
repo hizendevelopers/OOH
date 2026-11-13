@@ -5,6 +5,7 @@ import { coordinatePair, mapLinks, statusLabel } from "../../../../packages/doma
 import { SiteDetails } from "../components/site-details";
 import type { Assignment } from "../server/service";
 import { fieldRequest, SyncError } from "./sync";
+import { localizeError } from "@/lib/server-messages";
 
 // Every visible word on the card, in the two worker languages.
 const copy = {
@@ -31,7 +32,7 @@ const copy = {
     saveAddress: "حفظ العنوان",
     addressNeedsOnline: "اتصل بالإنترنت لحفظ العنوان.",
     addressSaved: "تم حفظ العنوان.",
-    notPinned: "بانتظار الموقع GPS — أول صورة لك تحدّده",
+    notPinned: "بانتظار تحديد الموقع — أول صورة لك تحدّده",
     copy: "نسخ",
     copied: "تم النسخ",
     googleMaps: "خرائط جوجل",
@@ -84,7 +85,7 @@ export default function VisitCard({
       setAddingAddress(false);
       setMessage(t.addressSaved);
     } catch (e) {
-      setMessage(e instanceof SyncError ? e.message : ar ? "تعذّر الحفظ." : "Address not saved.");
+      setMessage(e instanceof SyncError ? localizeError(e.message, ar) : ar ? "تعذّر الحفظ." : "Address not saved.");
     } finally {
       setSaving(false);
     }

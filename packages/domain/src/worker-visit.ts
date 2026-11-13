@@ -1,3 +1,4 @@
+import { cityName } from "./arabic-names";
 // Worker-facing rules for a visit card: status wording, address fallback, coordinates and map links, sorting.
 // Shared by the field app and the tests. Pure functions only.
 
@@ -32,8 +33,8 @@ export function statusLabel(status: string, lang: Lang) {
 }
 
 // City line without a dangling separator: "Baghdad · Karrada", or just "Baghdad" when there is no area.
-export function cityLine(city: string | null | undefined, area: string | null | undefined) {
-  return [city, area].map((part) => (part ?? "").trim()).filter(Boolean).join(" · ");
+export function cityLine(city: string | null | undefined, area: string | null | undefined, ar = false) {
+  return [cityName(city, ar), area].map((part) => (part ?? "").trim()).filter(Boolean).join(" · ");
 }
 
 // The address the worker sees: the address the worker entered on a visit, otherwise the address from the import.

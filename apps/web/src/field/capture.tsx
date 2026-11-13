@@ -20,7 +20,8 @@ import {
   type GpsObservation,
   type PhotoKind,
 } from "../../../../packages/domain/src/inspection";
-import type { FieldText } from "./strings";
+import { fieldTime, type FieldText } from "./strings";
+import { localizeError } from "@/lib/server-messages";
 import type { BrandEntry } from "../../../../packages/domain/src/brand";
 import {
   assessPhotoLocation,
@@ -290,7 +291,7 @@ export default function Capture({
   if (step === "brand")
     return (
       <section className="field-capture">
-        <BrandPanel store={store} draft={draft} t={t} locked={locked} onChosen={onBrandChosen} />
+        <BrandPanel store={store} draft={draft} t={t} locked={locked} onChosen={onBrandChosen} arabic={arabic} />
       </section>
     );
   return (
@@ -430,8 +431,8 @@ export default function Capture({
               <bdi>
                 {shownGps.latitude.toFixed(6)}, {shownGps.longitude.toFixed(6)}
               </bdi>{" "}
-              · ± {Math.round(shownGps.accuracy)} m<br />
-              <time>{shownGps.observedAt}</time>
+              · ± {Math.round(shownGps.accuracy)} {arabic ? "م" : "m"}<br />
+              <time dateTime={shownGps.observedAt}>{fieldTime(shownGps.observedAt, arabic)}</time>
             </>
           ) : shownGps?.status === "denied" ? (
             t.gpsDenied
@@ -517,7 +518,7 @@ export default function Capture({
                             : t.onlinePhoto}
                       </p>
                       <small>
-                        {t.deviceTime}: <bdi>{draft.photos[k]!.capturedAt}</bdi>
+                        {t.deviceTime}: <bdi>{fieldTime(draft.photos[k]!.capturedAt, arabic)}</bdi>
                       </small>
                       <p>
                         {
@@ -564,7 +565,7 @@ export default function Capture({
                         ).accuracy,
                       )}{" "}
                       {arabic ? "م · وقت الرصد " : "m · observed "}
-                      {draft.photos[k]!.gps.observedAt}
+                      {fieldTime(draft.photos[k]!.gps.observedAt, arabic)}
                     </small>
                   )}
                 </div>
@@ -626,12 +627,14 @@ function BrandPanel({
   t,
   locked,
   onChosen,
+  arabic = false,
 }: {
   store: FieldStore;
   draft: Draft;
   t: FieldText;
   locked: boolean;
   onChosen?: () => void;
+  arabic?: boolean;
 }) {
   const saved = draft.brand ?? null;
   const [text, setText] = useState(saved?.kind === "advertiser" ? saved.text : ""),
@@ -643,7 +646,7 @@ function BrandPanel({
       // A blank or unreadable face needs nothing more, so go straight to sending.
       if (advance) onChosen?.();
     } catch (e) {
-      setError((e as Error).message);
+      setError(localizeError((e as Error).message, arabic));
     }
   }
   const label = (brand: BrandEntry) =>

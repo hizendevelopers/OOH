@@ -1,4 +1,5 @@
 "use client";
+import { cityName } from "@ibvs/domain";
 
 // Shared by the administrator and field dashboards. A location with no verified GPS, no measured size,
 // or an unverified city is shown with a visible label, never as if it were complete.
@@ -71,7 +72,7 @@ export function CityTabs({
           onClick={() => onChange(c.city)}
         >
           <span>
-            <bdi>{c.city}</bdi>
+            <bdi>{cityName(c.city, ar)}</bdi>
           </span>
           <strong>{c.count}</strong>
           {c.attention > 0 && (
@@ -88,7 +89,7 @@ export function CityTabs({
 export function LocationFlags({ item, ar }: { item: LocationFlagsInput; ar: boolean }) {
   const chips: { key: string; text: string; tone: "warn" | "info" | "ok" }[] = [];
   if (item.gps_status === "pending_gps")
-    chips.push({ key: "gps", text: ar ? "بانتظار الموقع GPS" : "Pending GPS", tone: "warn" });
+    chips.push({ key: "gps", text: ar ? "بانتظار تحديد الموقع" : "Pending GPS", tone: "warn" });
   if (item.gps_status === "approximate")
     chips.push({ key: "gps", text: ar ? "موقع تقريبي غير موثّق" : "Approximate, unverified", tone: "warn" });
   if (item.gps_status === "to_correct")

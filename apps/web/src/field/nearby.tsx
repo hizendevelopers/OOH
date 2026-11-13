@@ -7,6 +7,8 @@ import { getLocation } from "./device";
 import { fieldRequest } from "./sync";
 import { LocationMap } from "./location-map";
 import { metresBetween } from "./location-policy";
+import { localizeError } from "@/lib/server-messages";
+import { cityName } from "@ibvs/domain";
 
 export function Nearby({
   tasks,
@@ -78,7 +80,7 @@ export function Nearby({
       }
       setSearched(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Nearby search unavailable");
+      setError(localizeError(e instanceof Error ? e.message : "Nearby search unavailable", arabic));
     } finally {
       setLocating(false);
     }
@@ -140,7 +142,7 @@ export function Nearby({
             <bdi>
               {gps.latitude.toFixed(6)}, {gps.longitude.toFixed(6)}
             </bdi>{" "}
-            · {arabic ? "الدقة" : "accuracy"} ±{Math.round(gps.accuracy)} m
+            · {arabic ? "الدقة" : "accuracy"} ±{Math.round(gps.accuracy)} {arabic ? "م" : "m"}
           </p>
           <LocationMap gps={gps} locations={locations} arabic={arabic} />
         </>
@@ -159,7 +161,7 @@ export function Nearby({
             {task.is_test ? (arabic ? " · تجريبي" : " · Test") : ""}
           </h3>
           <p>
-            {task.structure_code} / {task.orientation} · {task.city} ·{" "}
+            {task.structure_code} / {task.orientation} · {cityName(task.city, arabic)} ·{" "}
             {Math.round(task.distance_m)} {arabic ? "م بعيداً" : "m away"}
           </p>
           <button
