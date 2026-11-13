@@ -63,12 +63,16 @@ export default function Capture({
   t,
   online,
   arabic = false,
+  step = "photos",
+  onBrandChosen,
 }: {
   store: FieldStore;
   draft: Draft;
   t: FieldText;
   online: boolean;
   arabic?: boolean;
+  step?: "photos" | "brand" | "send";
+  onBrandChosen?: () => void;
 }) {
   const messages = arabic ? locationMessagesAr : locationMessages;
   const video = useRef<HTMLVideoElement>(null),
@@ -127,6 +131,15 @@ export default function Capture({
       setReady(false);
     }
   }, [draft.state]);
+  // The camera runs only on the Photos step.
+  useEffect(() => {
+    if (step === "photos") return;
+    requestVersion.current++;
+    stream.current?.getTracks().forEach((track) => track.stop());
+    stream.current = null;
+    setCamera(false);
+    setReady(false);
+  }, [step]);
   async function start() {
     setError(null);
     setBusy(true);
@@ -272,18 +285,25 @@ export default function Capture({
       setBusy(false);
     }
   }
+  // Stays mounted on every step so a photo that failed to save is kept for "Retry saving photo".
+  if (step === "send") return null;
+  if (step === "brand")
+    return (
+      <section className="field-capture">
+        <BrandPanel store={store} draft={draft} t={t} locked={locked} onChosen={onBrandChosen} />
+      </section>
+    );
   return (
     <section className="field-capture">
       <p className="field-caption">
         <AlertTriangle size={16} aria-hidden="true" /> {t.safe}
       </p>
-      <BrandPanel store={store} draft={draft} t={t} locked={locked} />
       {!locked && (
         <section className="panel field-live">
           <div className="panel-heading">
             <div>
-              <h2>{kind === "front" ? t.front : t.wide}</h2>
-              <p>{kind === "front" ? t.frontGuide : t.wideGuide}</p>
+              <h2>{kindLabel(kind)}</h2>
+              <p>{kindGuide(kind)}</p>
             </div>
             <Camera size={23} />
           </div>
@@ -605,19 +625,23 @@ function BrandPanel({
   draft,
   t,
   locked,
+  onChosen,
 }: {
   store: FieldStore;
   draft: Draft;
   t: FieldText;
   locked: boolean;
+  onChosen?: () => void;
 }) {
   const saved = draft.brand ?? null;
   const [text, setText] = useState(saved?.kind === "advertiser" ? saved.text : ""),
     [error, setError] = useState("");
-  async function choose(brand: BrandEntry) {
+  async function choose(brand: BrandEntry, advance = false) {
     setError("");
     try {
       await store.setBrand(draft.id, brand);
+      // A blank or unreadable face needs nothing more, so go straight to sending.
+      if (advance) onChosen?.();
     } catch (e) {
       setError((e as Error).message);
     }
@@ -653,14 +677,14 @@ function BrandPanel({
         <button
           type="button"
           aria-pressed={saved?.kind === "blank"}
-          onClick={() => void choose({ kind: "blank", text: "" })}
+          onClick={() => void choose({ kind: "blank", text: "" }, true)}
         >
           {t.brandBlank}
         </button>
         <button
           type="button"
           aria-pressed={saved?.kind === "unreadable"}
-          onClick={() => void choose({ kind: "unreadable", text: "" })}
+          onClick={() => void choose({ kind: "unreadable", text: "" }, true)}
         >
           {t.brandUnreadable}
         </button>

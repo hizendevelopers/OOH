@@ -47,7 +47,7 @@ test("pending-GPS location: capture, interrupted upload, server acceptance and s
   await workerContext.grantPermissions(["camera", "geolocation"]);
   await workerContext.setGeolocation({ latitude: 33.31, longitude: 44.13, accuracy: 10 });
   await login(field, "worker@demo.ibvs.test");
-  await field.getByRole("link", { name: "Open field workspace" }).click();
+  await expect(field).toHaveURL(/\/field$/);
   await expect(field.locator('[data-offline-ready="true"]')).toBeAttached();
   const card = field.locator("article.field-visit").filter({ has: field.getByRole("heading", { name: code, exact: true }) });
   await field.getByRole("button", { name: "Download assignments", exact: true }).click();
@@ -68,13 +68,18 @@ test("pending-GPS location: capture, interrupted upload, server acceptance and s
 
   // Upload is interrupted on the wide photo. Saved photos must survive and the visit must not show a receipt.
   await field.route("**/api/inspections/*/parts/wide/*", (route) => route.abort("internetdisconnected"));
+  await field.getByRole("button", { name: "Next", exact: true }).click();
   await field.getByRole("button", { name: "Blank face", exact: true }).click();
   await field.getByRole("button", { name: "Submit visit", exact: true }).click();
   await expect(field.getByText("Connection lost. Your photos will send automatically when you are back online.", { exact: true })).toBeVisible();
   await field.reload();
   await field.locator("article.field-visit").filter({ has: field.getByRole("heading", { name: code, exact: true }) })
     .getByRole("button", { name: "Continue inspection", exact: true }).click();
+  // The submitted visit reopens on Send; its saved photos are on the Photos step.
+  const steps = field.getByRole("navigation", { name: "Visit steps" });
+  await steps.getByRole("button", { name: "Photos", exact: true }).click();
   await expect(field.getByText("Photo saved", { exact: true })).toHaveCount(3);
+  await steps.getByRole("button", { name: "Send", exact: true }).click();
 
   // Connection restored: the retry succeeds and the server accepts the visit, validating every GPS reading.
   await field.unroute("**/api/inspections/*/parts/wide/*");
