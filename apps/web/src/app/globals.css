@@ -2596,3 +2596,8 @@ td small {
 .field-more-details .site-facts { margin-top: 6px; grid-template-columns: 1fr 1fr; }
 .field-visit-start { width: 100%; justify-content: center; }
 .field-visit .site-details + .visit-caption { margin: 8px 0 0; }
+/* "Assign city" in each city row: name on the left, count and button together on the right. */
+.city-card-name { margin-inline-end: auto; }
+.city-card-actions { display: inline-flex; }
+.city-card-assign { min-height: 34px; padding: 0 12px; font-size: 0.85rem; white-space: nowrap; }
+@media (max-width: 520px) { .city-card > summary { flex-wrap: wrap; } }
