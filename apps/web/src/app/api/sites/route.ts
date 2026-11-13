@@ -5,6 +5,10 @@ import { ApiError } from "@/server/service";
 import { registerSite } from "@/server/site-registration";
 
 export const dynamic = "force-dynamic";
+// How long this route may run. The database is far from the server, so every query is a round trip;
+// without an explicit limit the platform's short default cut requests off mid-write.
+// Worker site registration: several writes in one transaction.
+export const maxDuration = 30;
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "private, no-store" } });
 

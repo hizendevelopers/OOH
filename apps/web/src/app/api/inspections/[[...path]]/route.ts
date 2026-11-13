@@ -21,6 +21,12 @@ import {
 } from "../../../../../../../packages/domain/src/inspection";
 
 export const dynamic = "force-dynamic";
+// How long this route may run. The database is far from the server, so every query is a round trip;
+// without an explicit limit the platform's short default cut requests off mid-write.
+// Photo upload: each part is stored, completing a photo reads every part back and checks the image,
+// and submitting a visit writes the receipt. Cut off, these left workers retrying a visit the
+// server had already stored, with "Connection lost" on a phone that was online.
+export const maxDuration = 60;
 const json = (body: unknown, status = 200) =>
   Response.json(body, {
     status,

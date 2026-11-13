@@ -11,6 +11,10 @@ import {
 } from "@/server/location-management";
 
 export const dynamic = "force-dynamic";
+// How long this route may run. The database is far from the server, so every query is a round trip;
+// without an explicit limit the platform's short default cut requests off mid-write.
+// Location import and corrections: many rows in one request.
+export const maxDuration = 60;
 const json = (value: unknown, status = 200) =>
   Response.json(value, {
     status,

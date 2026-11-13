@@ -20,6 +20,10 @@ import {
 import { csvCell } from "@ibvs/domain";
 import { assignImportedLocations, correctImportedCity, importLocations, isoCalendarDate, pendingFieldCaptures, promoteFieldCapture } from "@/server/location-import";
 export const dynamic = "force-dynamic";
+// How long this route may run. The database is far from the server, so every query is a round trip;
+// without an explicit limit the platform's short default cut requests off mid-write.
+// Inventory import and bulk assignment: thousands of rows in one request.
+export const maxDuration = 60;
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 async function handle(request: Request) {

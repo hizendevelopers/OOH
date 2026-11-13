@@ -4,6 +4,10 @@ import { currentActor } from "@/server/access";
 import { ApiError } from "@/server/service";
 import { nearbyLocations } from "@/server/nearby-locations";
 export const dynamic = "force-dynamic";
+// How long this route may run. The database is far from the server, so every query is a round trip;
+// without an explicit limit the platform's short default cut requests off mid-write.
+// Nearby search over the inventory.
+export const maxDuration = 30;
 export async function GET(request: Request) {
   const headers = { "Cache-Control": "no-store" };
   try {

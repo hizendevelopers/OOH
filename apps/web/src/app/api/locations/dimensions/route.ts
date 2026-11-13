@@ -8,6 +8,10 @@ import {
 } from "@/server/face-dimensions";
 
 export const dynamic = "force-dynamic";
+// How long this route may run. The database is far from the server, so every query is a round trip;
+// without an explicit limit the platform's short default cut requests off mid-write.
+// Measurements: a write plus its checks.
+export const maxDuration = 30;
 const json = (value: unknown, status = 200) =>
   Response.json(value, {
     status,
