@@ -15,6 +15,12 @@ export class SyncError extends Error {
     super(message);
   }
 }
+export const REQUEST_TIMEOUT_MS = 45000;
+export const UPLOAD_TIMEOUT_MS = 180000;
+// How often a dropped photo part is tried again inside one run, and how long to wait between tries.
+const PART_ATTEMPTS = 3;
+const partRetryDelay = (attempt: number) => 1000 * 2 ** attempt;
+
 export async function fieldRequest<T>(
   url: string,
   body?: unknown,
@@ -36,7 +42,10 @@ export async function fieldRequest<T>(
         : body instanceof Blob
           ? body
           : JSON.stringify(body),
-    signal: AbortSignal.timeout(45000),
+    // A photo part goes up over the worker's mobile connection, which can be slow; the small JSON
+    // calls should not wait anywhere near as long. Giving up too early looked like a lost connection
+    // even when the server had received the part and stored it.
+    signal: AbortSignal.timeout(body instanceof Blob ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
     const error = await response
@@ -47,6 +56,25 @@ export async function fieldRequest<T>(
   return response.json();
 }
 export type Transport = typeof fieldRequest;
+
+// A request that fails for a reason worth trying again: no response at all, or the server asking to wait.
+function retryable(error: unknown) {
+  const status = error instanceof SyncError ? error.status : 0;
+  return status === 0 || status === 408 || status === 429 || status >= 500;
+}
+
+// One dropped request on a weak connection should not abandon the whole visit. Sending a part again is
+// safe: the server compares it with the part it already holds and refuses a different one.
+async function sendPart(request: Transport, url: string, chunk: Blob) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await request(url, chunk, "PUT");
+    } catch (error) {
+      if (attempt + 1 >= PART_ATTEMPTS || !retryable(error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, partRetryDelay(attempt)));
+    }
+  }
+}
 export async function syncDraft(
   store: FieldStore,
   id: string,
@@ -96,14 +124,20 @@ export async function syncDraft(
             Math.min(local.bytes, (part + 1) * upload.chunkSize),
           );
           if (!server.receivedParts.includes(part))
-            await request(
+            await sendPart(
+              request,
               `inspections/${upload.inspectionId}/parts/${kind}/${part}`,
               chunk,
-              "PUT",
             );
           uploaded += chunk.size;
+          // Each stored part is real progress, so the wait before the next try starts from zero again.
+          // Without this a visit that failed often kept waiting the full five minutes between parts.
+          // The wait already scheduled is cleared too, or a run cut short here would sit out that wait
+          // even though the count is back to zero.
           await store.drafts.update(id, {
             progress: Math.min(95, Math.round((uploaded / total) * 95)),
+            attempts: 0,
+            nextAttemptAt: 0,
           });
         }
         await request(
@@ -175,6 +209,16 @@ async function acknowledge(store: FieldStore, id: string, result: Receipt) {
     updatedAt: new Date().toISOString(),
   });
 }
+// Asks the phone to keep the screen on while a visit is being sent, and returns the way to let go.
+// Not every browser offers this, and the request can be refused, so it never blocks sending.
+async function keepScreenAwake(): Promise<() => void> {
+  try {
+    const lock = await navigator?.wakeLock?.request("screen");
+    return () => void lock?.release().catch(() => {});
+  } catch {
+    return () => {};
+  }
+}
 const inFlight = new Map<string, Promise<void>>();
 export async function replayQueue(
   store: FieldStore,
@@ -192,9 +236,15 @@ export async function replayQueue(
         await syncDraft(store, draft.id, request);
   };
   const promise = (async () => {
-    if (typeof navigator !== "undefined" && navigator.locks)
-      await navigator.locks.request(store.name, run);
-    else await run();
+    // A phone suspends a page whose screen has gone dark, which cuts off whatever is being sent.
+    const wake = await keepScreenAwake();
+    try {
+      if (typeof navigator !== "undefined" && navigator.locks)
+        await navigator.locks.request(store.name, run);
+      else await run();
+    } finally {
+      wake();
+    }
   })().finally(() => inFlight.delete(store.name));
   inFlight.set(store.name, promise);
   return promise;

@@ -413,3 +413,89 @@ it("keeps photos and their GPS readings when a pending-GPS upload is interrupted
     expect(draft.photos[kind]!.gps).toMatchObject({ status: "ok", latitude: 33.3, longitude: 44.1 });
   }
 });
+
+it("tries a dropped photo part again instead of abandoning the visit", async () => {
+  const store = await prepared();
+  const receipt: Receipt = {
+    inspectionId: crypto.randomUUID(),
+    receiptId: crypto.randomUUID(),
+    receivedAt: new Date().toISOString(),
+    status: "server_received",
+    flags: [],
+  };
+  let dropped = 0;
+  const transport = (async (url: string) => {
+    if (url === "me") return { ...store.owner, role: "worker" };
+    if (url === "inspections")
+      return {
+        inspectionId: receipt.inspectionId,
+        chunkSize: 256 * 1024,
+        photos: ["front", "wide", "angle_1"].map((kind) => ({ kind, receivedParts: [], receiptId: null })),
+        receipt: null,
+      } as UploadSession;
+    // The first part upload is cut off once, as a weak mobile connection does.
+    if (url.includes("/parts/") && dropped === 0) {
+      dropped++;
+      throw new TypeError("Load failed");
+    }
+    if (url.endsWith("/submit")) return receipt;
+    return { receiptId: "photo-receipt" };
+  }) as Transport;
+  await syncDraft(store, task.assignment_id, transport);
+  const draft = (await store.drafts.get(task.assignment_id))!;
+  expect(dropped).toBe(1);
+  expect(draft.state).toBe("server_received");
+  expect(draft.receipt).toEqual(receipt);
+});
+
+it("starts the wait again from zero once a part is stored", async () => {
+  const store = await prepared();
+  // A visit that has failed many times already waits the full five minutes between tries.
+  await store.drafts.update(task.assignment_id, { attempts: 9, nextAttemptAt: Date.now() + 300000 });
+  let parts = 0;
+  const transport = (async (url: string) => {
+    if (url === "me") return { ...store.owner, role: "worker" };
+    if (url === "inspections")
+      return {
+        inspectionId: crypto.randomUUID(),
+        chunkSize: 256 * 1024,
+        photos: ["front", "wide", "angle_1"].map((kind) => ({ kind, receivedParts: [], receiptId: null })),
+        receipt: null,
+      } as UploadSession;
+    if (url.includes("/parts/")) {
+      parts++;
+      return { receiptId: "photo-receipt" };
+    }
+    // Everything stops after the first stored part, so the draft is left queued.
+    throw new TypeError("Load failed");
+  }) as Transport;
+  await syncDraft(store, task.assignment_id, transport);
+  const draft = (await store.drafts.get(task.assignment_id))!;
+  expect(parts).toBeGreaterThan(0);
+  expect(draft.state).toBe("queued");
+  // One failure after real progress, not ten, so the next try is seconds away rather than five minutes.
+  expect(draft.attempts).toBe(1);
+  expect(draft.nextAttemptAt - Date.now()).toBeLessThan(10000);
+});
+
+it("clears a long wait already scheduled when a part is stored", async () => {
+  const store = await prepared();
+  await store.drafts.update(task.assignment_id, { attempts: 9, nextAttemptAt: Date.now() + 300000 });
+  const transport = (async (url: string) => {
+    if (url === "me") return { ...store.owner, role: "worker" };
+    if (url === "inspections")
+      return {
+        inspectionId: crypto.randomUUID(),
+        chunkSize: 256 * 1024,
+        photos: ["front", "wide", "angle_1"].map((kind) => ({ kind, receivedParts: [], receiptId: null })),
+        receipt: null,
+      } as UploadSession;
+    if (url.includes("/parts/")) return { receiptId: "photo-receipt" };
+    // The run is cut short straight after the first part, as closing the app would do.
+    throw new DOMException("The operation was aborted.", "AbortError");
+  }) as Transport;
+  await syncDraft(store, task.assignment_id, transport);
+  const draft = (await store.drafts.get(task.assignment_id))!;
+  // The next replay may pick it up at once instead of sitting out the old five-minute wait.
+  expect(draft.nextAttemptAt - Date.now()).toBeLessThan(10000);
+});

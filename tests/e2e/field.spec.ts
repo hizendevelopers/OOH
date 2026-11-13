@@ -156,7 +156,7 @@ test("offline camera evidence survives reload and interrupted upload; server rec
   await context.setOffline(false);
   await expect(
     page.getByText(
-      "Connection lost. Your photos will send automatically when you are back online.",
+      "Sending was interrupted. It carries on by itself — keep this page open.",
       { exact: true },
     ),
   ).toBeVisible();

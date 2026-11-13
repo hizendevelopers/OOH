@@ -135,7 +135,7 @@ export const fieldStrings = {
     galleryWarnUnreadable: "This photo's metadata cannot be read. Choose the original photo from your gallery.",
     galleryWarnOk: "Original photo selected. Location and date are checked by the server after upload.",
     connection_interrupted:
-      "Connection lost. Your photos will send automatically when you are back online.",
+      "Sending was interrupted. It carries on by itself — keep this page open.",
     safe: "Do not take photos while driving.",
     missing: "Take the front and wide photos before submitting.",
     downloadError:
@@ -284,7 +284,7 @@ export const fieldStrings = {
     galleryWarnUnreadable: "لا يمكن قراءة بيانات هذه الصورة. اختر الصورة الأصلية من معرض هاتفك.",
     galleryWarnOk: "تم اختيار الصورة الأصلية. يتحقق الخادم من الموقع والتاريخ بعد الرفع.",
     connection_interrupted:
-      "انقطع الاتصال. ستُرسل صورك تلقائياً عند عودة الاتصال.",
+      "توقّف الإرسال مؤقتاً. سيُستأنف تلقائياً — أبقِ هذه الصفحة مفتوحة.",
     safe: "لا تلتقط الصور أثناء القيادة.",
     missing: "التقط الصورة الأمامية والواسعة قبل الإرسال.",
     downloadError: "تعذّر تنزيل المهام. النسخ المحلية السابقة ما زالت متاحة.",
