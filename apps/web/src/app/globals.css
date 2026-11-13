@@ -2579,6 +2579,10 @@ td small {
 .submission-card .secondary { justify-self: start; display: inline-flex; align-items: center; gap: 6px; }
 @media (max-width: 520px) { .submission-list { grid-template-columns: 1fr; } .submissions-bar select { min-width: 0; width: 100%; } .submissions-bar label { width: 100%; } }
 
+/* Admin city filter: one dropdown instead of a button per city. */
+.city-select {
+  max-width: 280px;
+}
 /* Shared site card: name, chips, address, size, location, then the code small at the bottom. */
 .site-details { display: grid; gap: 10px; min-width: 0; }
 .site-details .site-facts { grid-template-columns: 1fr; gap: 8px; }

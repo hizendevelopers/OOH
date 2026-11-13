@@ -39,7 +39,7 @@ import { LocationMap } from "./location-map";
 import { WorkerManagement } from "./worker-management";
 import { CityInventory } from "./city-inventory";
 import { Submissions } from "./submissions";
-import { CityTabs, LocationFlags, cityCounts, needsLocationAttention } from "./city-tabs";
+import { LocationFlags, cityCounts, needsLocationAttention } from "./city-tabs";
 import { cityLine } from "@ibvs/domain";
 type Tab = "overview" | "inventory" | "assignments" | "submissions" | "workers" | "audit";
 type Summary = {
@@ -242,6 +242,9 @@ export default function Workspace({
     null,
   );
   const [locationKind, setLocationKind] = useState("all");
+  // Set when the administrator assigns every unassigned site in one city.
+  const [assignCity, setAssignCity] = useState<string | null>(null);
+  const [assignProgress, setAssignProgress] = useState("");
   const [exceptionTask, setExceptionTask] = useState<Assignment | null>(null);
   const [cityFix, setCityFix] = useState<Face | null>(null);
   const [cityName, setCityName] = useState("");
@@ -319,6 +322,14 @@ export default function Workspace({
     setMenu(false);
     setDetail(null);
   }
+  // Closing the form after "Assign whole city" drops that city's selection again.
+  function closeModal() {
+    setModal(null);
+    if (assignCity) {
+      setSelected([]);
+      setAssignCity(null);
+    }
+  }
   function openModal(kind: "import" | "assign") {
     setModal(kind);
     setFormError("");
@@ -362,20 +373,51 @@ export default function Workspace({
     setBusy(true);
     setFormError("");
     const data = new FormData(e.currentTarget);
+    // A whole city can hold more sites than one request accepts, so send them in batches.
+    const batchSize = 200;
+    let done = 0;
     try {
-      await api("assignments", {
-        faceIds: selected,
-        workerId: data.get("worker"),
-        dueDate: data.get("due"),
-      });
+      for (let start = 0; start < selected.length; start += batchSize) {
+        if (selected.length > batchSize)
+          setAssignProgress(
+            locale === "ar"
+              ? `جارٍ التكليف: ${done} من ${selected.length}`
+              : `Assigning ${done} of ${selected.length}…`,
+          );
+        const batch = selected.slice(start, start + batchSize);
+        await api("assignments", {
+          faceIds: batch,
+          workerId: data.get("worker"),
+          dueDate: data.get("due"),
+        });
+        done += batch.length;
+      }
       setModal(null);
       setSelected([]);
-      setToast(locale === "ar" ? "تم إنشاء المهام" : "Assignments created");
+      setAssignCity(null);
+      setToast(
+        locale === "ar"
+          ? `تم إنشاء ${done} مهمة`
+          : `${done} ${done === 1 ? "assignment" : "assignments"} created`,
+      );
       navigate("assignments");
       await load();
     } catch (e) {
-      setFormError((e as Error).message);
+      const message = (e as Error).message;
+      setFormError(
+        done
+          ? locale === "ar"
+            ? `تم تكليف ${done} من ${selected.length} قبل الخطأ: ${message}`
+            : `${done} of ${selected.length} were assigned before this error: ${message}`
+          : message,
+      );
+      if (done) {
+        // Keep only the sites that are still unassigned, so retrying does not repeat the first batches.
+        setSelected(selected.slice(done));
+        await load();
+      }
     } finally {
+      setAssignProgress("");
       setBusy(false);
     }
   }
@@ -387,6 +429,16 @@ export default function Workspace({
       (!city || f.city === city) &&
       matchesFilter(`${f.code} ${f.city} ${f.zone} ${f.description}`, search),
   );
+  // Every unassigned site in the chosen city, whatever the search box says, within the location-type filter.
+  const cityUnassigned = city
+    ? faces.filter(
+        (f) =>
+          f.city === city &&
+          !f.status &&
+          (locationKind === "all" ||
+            (locationKind === "test" ? f.is_test : !f.is_test)),
+      )
+    : [];
   const filteredTasks = tasks.filter(
     (f) =>
       (!city || f.city === city) &&
@@ -813,20 +865,6 @@ export default function Workspace({
               )}
               {(tab === "inventory" || tab === "assignments") && !detail && (
                 <section className="panel">
-                  <div className="city-tabs-row">
-                  <CityTabs
-                    label={locale === "ar" ? "المدن" : "Cities"}
-                    allLabel={locale === "ar" ? "كل المدن" : "All cities"}
-                    total={(tab === "inventory" ? faces : tasks).length}
-                    cities={cityCounts(
-                      tab === "inventory" ? faces : tasks,
-                      tab === "inventory" ? (f) => needsLocationAttention(f) : () => false,
-                    )}
-                    value={city}
-                    onChange={setCity}
-                    ar={locale === "ar"}
-                  />
-                  </div>
                   {tab === "inventory" && (
                     <div className="view-switch" role="group" aria-label={locale === "ar" ? "طريقة العرض" : "View"}>
                       <button
@@ -855,6 +893,34 @@ export default function Workspace({
                         placeholder={t.search}
                       />
                     </label>
+                    <select
+                      className="city-select"
+                      aria-label={locale === "ar" ? "المدينة" : "City"}
+                      value={city}
+                      onChange={(e) => {
+                        setCity(e.target.value);
+                        setSelected([]);
+                      }}
+                    >
+                      <option value="">
+                        {locale === "ar" ? "كل المدن" : "All cities"} (
+                        {(tab === "inventory" ? faces : tasks).length})
+                      </option>
+                      {cityCounts(
+                        tab === "inventory" ? faces : tasks,
+                        tab === "inventory" ? (f) => needsLocationAttention(f) : () => false,
+                      ).map((c) => (
+                        <option key={c.city} value={c.city}>
+                          {c.city} ({c.count}
+                          {c.attention > 0
+                            ? locale === "ar"
+                              ? ` · ${c.attention} للمتابعة`
+                              : ` · ${c.attention} to check`
+                            : ""}
+                          )
+                        </option>
+                      ))}
+                    </select>
                     {tab === "inventory" && (
                       <select
                         aria-label={
@@ -879,11 +945,29 @@ export default function Workspace({
                         </option>
                       </select>
                     )}
+                    {tab === "inventory" && city && (
+                      <button
+                        className="secondary"
+                        disabled={!cityUnassigned.length}
+                        onClick={() => {
+                          setSelected(cityUnassigned.map((f) => f.id));
+                          setAssignCity(city);
+                          openModal("assign");
+                        }}
+                      >
+                        <MapPin size={16} />
+                        {locale === "ar" ? "تكليف المدينة كاملة" : "Assign whole city"} (
+                        {cityUnassigned.length})
+                      </button>
+                    )}
                     {tab === "inventory" && (
                       <button
                         disabled={!selected.length}
                         className="primary"
-                        onClick={() => openModal("assign")}
+                        onClick={() => {
+                          setAssignCity(null);
+                          openModal("assign");
+                        }}
                       >
                         <Plus size={16} />
                         {t.newAssignment}
@@ -1543,7 +1627,7 @@ export default function Workspace({
         <Modal
           title={modal === "import" ? t.import : t.newAssignment}
           close={() => {
-            if (!busy) setModal(null);
+            if (!busy) closeModal();
           }}
           closeLabel={t.close}
         >
@@ -1639,7 +1723,7 @@ export default function Workspace({
                 <button
                   className="secondary"
                   disabled={busy}
-                  onClick={() => setModal(null)}
+                  onClick={closeModal}
                 >
                   {t.cancel}
                 </button>
@@ -1671,8 +1755,17 @@ export default function Workspace({
           ) : (
             <form onSubmit={createAssignment}>
               <p className="muted">
-                {selected.length} {t.selected}
+                {assignCity
+                  ? locale === "ar"
+                    ? `كل المواقع غير المكلّفة في ${assignCity}: ${selected.length}`
+                    : `All ${selected.length} unassigned sites in ${assignCity}`
+                  : `${selected.length} ${t.selected}`}
               </p>
+              {assignProgress && (
+                <p className="muted" role="status">
+                  {assignProgress}
+                </p>
+              )}
               {!workers.length && (
                 <div className="notice warning">
                   {locale === "ar"
@@ -1712,7 +1805,7 @@ export default function Workspace({
                   type="button"
                   className="secondary"
                   disabled={busy}
-                  onClick={() => setModal(null)}
+                  onClick={closeModal}
                 >
                   {t.cancel}
                 </button>
