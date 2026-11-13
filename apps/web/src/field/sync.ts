@@ -119,17 +119,22 @@ export async function syncDraft(
           part < Math.ceil(local.bytes / upload.chunkSize);
           part++
         ) {
-          const chunk = local.blob.slice(
-            part * upload.chunkSize,
-            Math.min(local.bytes, (part + 1) * upload.chunkSize),
-          );
-          if (!server.receivedParts.includes(part))
+          const from = part * upload.chunkSize;
+          const to = Math.min(local.bytes, (part + 1) * upload.chunkSize);
+          if (!server.receivedParts.includes(part)) {
+            // Take the photo from the device again for every part. A phone can let go of a photo held
+            // from an earlier read once other writes have happened, and reading it then fails before any
+            // request is sent, which looked like a visit that stopped sending for no reason.
+            const current = await store.drafts.get(id);
+            const blob = current?.photos[kind]?.blob;
+            if (!blob) throw new SyncError(409, "Photo is no longer on this device");
             await sendPart(
               request,
               `inspections/${upload.inspectionId}/parts/${kind}/${part}`,
-              chunk,
+              blob.slice(from, to),
             );
-          uploaded += chunk.size;
+          }
+          uploaded += to - from;
           // Each stored part is real progress, so the wait before the next try starts from zero again.
           // Without this a visit that failed often kept waiting the full five minutes between parts.
           // The wait already scheduled is cleared too, or a run cut short here would sit out that wait
