@@ -90,7 +90,7 @@ test("admin creates GPS test location, corrects coordinates, worker finds it and
     .click();
   await expect(modal).toHaveCount(0);
   await page
-    .getByRole("button", { name: "Inventory", exact: true })
+    .getByRole("button", { name: "Sites", exact: true })
     .first()
     .click();
   // Selection and row details live in the table view; the inventory opens by city.

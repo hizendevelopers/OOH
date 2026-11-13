@@ -23,17 +23,19 @@ const text = {
     unassigned: "Unassigned City",
     sites: (n: number) => (n === 1 ? "1 site" : `${n} sites`),
     test: "Test",
+    select: "Select",
   },
   ar: {
     unassigned: "مدينة غير محددة",
     sites: (n: number) => `${n} موقع`,
     test: "تجريبي",
+    select: "اختيار",
   },
 };
 
 // City-wise list of sites: one collapsible card per city, each holding the sites' complete saved details.
-// Shared by the admin Inventory page and the worker's assignments page; callers pass sites already scoped
-// to what the viewer may see, so this component never widens access.
+// Used by the admin Sites page; callers pass sites already scoped to what the viewer may see, so this
+// component never widens access.
 export function CityInventory<T extends InventorySite>({
   sites,
   ar,
@@ -41,6 +43,7 @@ export function CityInventory<T extends InventorySite>({
   emptyText,
   renderActions,
   renderCityActions,
+  selection,
 }: {
   sites: T[];
   ar: boolean;
@@ -49,6 +52,12 @@ export function CityInventory<T extends InventorySite>({
   renderActions?: (site: T) => ReactNode;
   // Optional action in a city's header row, such as assigning the whole city. Not shown for sites without a city.
   renderCityActions?: (city: string) => ReactNode;
+  // Optional checkboxes for picking sites, e.g. to assign them. canSelect decides which sites can be picked.
+  selection?: {
+    isSelected: (site: T) => boolean;
+    canSelect: (site: T) => boolean;
+    toggle: (site: T, checked: boolean) => void;
+  };
 }) {
   const t = ar ? text.ar : text.en;
   const groups = groupSitesByCity(sites);
@@ -80,7 +89,21 @@ export function CityInventory<T extends InventorySite>({
           <div className="site-grid">
             {group.sites.map((site) => {
               return (
-                <article className="site-card" key={keyOf(site)}>
+                <article
+                  className={"site-card" + (selection?.isSelected(site) ? " site-card-selected" : "")}
+                  key={keyOf(site)}
+                >
+                  {selection && selection.canSelect(site) && (
+                    <label className="site-card-select">
+                      <input
+                        type="checkbox"
+                        aria-label={`${t.select} ${site.code}`}
+                        checked={selection.isSelected(site)}
+                        onChange={(e) => selection.toggle(site, e.target.checked)}
+                      />
+                      <span aria-hidden="true">{t.select}</span>
+                    </label>
+                  )}
                   <SiteDetails
                     site={site}
                     ar={ar}

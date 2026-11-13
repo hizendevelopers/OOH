@@ -2601,3 +2601,7 @@ td small {
 .city-card-actions { display: inline-flex; }
 .city-card-assign { min-height: 34px; padding: 0 12px; font-size: 0.85rem; white-space: nowrap; }
 @media (max-width: 520px) { .city-card > summary { flex-wrap: wrap; } }
+/* Picking a site from its card in the By city view. */
+.site-card-select { display: inline-flex; align-items: center; gap: 6px; justify-self: start; min-height: 32px; font-size: 0.8rem; color: var(--muted); cursor: pointer; }
+.site-card-select input { width: 18px; height: 18px; accent-color: var(--blue); }
+.site-card-selected { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
