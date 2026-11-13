@@ -1,7 +1,6 @@
 export const fieldStrings = {
   en: {
     title: "Field workspace",
-    subtitle: "Capture the face. Keep the context.",
     home: "Operations workspace",
     language: "العربية",
     theme: "Switch theme",
@@ -13,36 +12,35 @@ export const fieldStrings = {
     workerOnly: "A worker account is required for field capture.",
     download: "Download assignments",
     downloaded: "Downloaded for this device",
-    downloadFirst:
-      "Open a visit to capture live photos. Download assignments for offline work.",
+    downloadFirst: "Open a visit to take photos.",
     tasks: "My visits",
     empty: "No assignments available.",
     open: "Open inspection",
     back: "Back to visits",
-    locked: "Locked face identity",
-    original: "Registered billboard location",
-    unverified: "Unverified coordinates",
+    locked: "Billboard",
+    original: "Location",
+    unverified: "Accuracy",
     uncertainty: "uncertainty",
-    structure: "Structure / face",
+    structure: "Structure / side",
     due: "Due",
     start: "Start inspection",
     local: "Not sent yet",
     registerSite: "Register a new site",
     registerSiteNote: "For a billboard that is not in the inventory. Needs a connection.",
     queued: "Waiting to send",
-    uploading: "Uploading — not submitted",
-    blocked: "Needs attention",
-    received: "Server received — awaiting human review",
-    receipt: "Server receipt",
-    deviceTime: "Device-claimed capture time",
-    receivedTime: "Server-received time",
+    uploading: "Sending…",
+    blocked: "Needs your attention",
+    received: "Submitted — waiting for review",
+    receipt: "Receipt",
+    deviceTime: "Taken at",
+    receivedTime: "Received at",
     front: "Front photograph",
     wide: "Wide context photograph",
     frontGuide:
       "Show the entire billboard face, edges and readable code where present.",
     wideGuide:
       "Show the structure, supports, nearby road and surroundings. Stop only where safe.",
-    camera: "Start live camera",
+    camera: "Open camera",
     stop: "Stop camera",
     capture: "Capture",
     cameraDenied:
@@ -52,16 +50,11 @@ export const fieldStrings = {
     cameraReady: "Wait for the live camera image before capture.",
     gps: "Record location fix",
     gpsBusy: "Getting a fresh GPS observation…",
-    gpsNone:
-      "Location is requested automatically for each photo. Missing GPS keeps the photo as a draft until retaken or a supervisor exception is authorized.",
+    gpsNone: "Location is recorded with each photo.",
     gpsDenied:
-      "Location permission denied. Photos stay saved as drafts. Enable location permission and retake, or ask a supervisor for an exception.",
+      "Location is off. Allow location for this browser, then retake the photo, or ask your supervisor.",
     gpsFailed: "Location unavailable or timed out. Retry when safe.",
-    gpsOk: "GPS observation (untrusted)",
-    gpsAge:
-      "Each capture collects a fresh GPS reading. Stale or inaccurate readings require a retake or supervisor exception.",
-    gpsWarning:
-      "GPS and browser camera cannot prove physical presence or billboard identity.",
+    gpsOk: "Location",
     challenge: "Online challenge",
     brandTitle: "Advertised brand",
     brandHelp: "Read the brand shown on the advertising face. Required before sending.",
@@ -77,41 +70,31 @@ export const fieldStrings = {
     addAngle: "Add an angle photo",
     needAngle: "Add at least one angle photograph before sending.",
     needs_angle_photo: "This visit was saved before angle photos were required. Your photos are kept. Add one angle photo to send it.",
-    challengeInfo:
-      "A code from the server, sent while you were online. It helps the review, but does not prove the photo was taken on site.",
-    noChallenge:
-      "No server code for this photo. It will be marked as taken offline.",
-    offlinePhoto: "Offline capture • device claim",
-    challengedPhoto: "Online • challenge supplied (untrusted)",
-    onlinePhoto: "Online • no challenge",
-    saved: "Photo saved locally",
+    offlinePhoto: "Taken offline",
+    challengedPhoto: "Taken online",
+    onlinePhoto: "Taken online",
+    saved: "Photo saved",
     notSaved: "Photo is not saved. Keep this page open and retry.",
     saveAgain: "Retry saving photo",
     storage_full:
       "Phone storage is full. Free some space and try again. The current photo is not saved yet.",
     storage_unavailable:
       "The browser cannot save photos right now. Keep this page open until the photo is saved.",
-    queue: "Submit photos",
-    queueNote:
-      "Front, wide and one angle photo are required. Submitting sends them to the server; they are removed from this phone once the server receives them.",
-    retry: "Send again",
-    shellReady: "Offline shell ready",
-    shellPending: "Offline shell not ready — stay online",
+    queue: "Submit visit",
+    queueNote: "Take the front, wide and at least one angle photo, then submit.",
+    retry: "Try sending again",
+    shellPending: "Getting ready for offline use. Stay online for a moment.",
     install: "Install field app",
-    installGuide:
-      "On supported browsers, install this app from the browser menu. On iPhone use Share → Add to Home Screen.",
-    retained:
-      "Photos are removed from this phone as soon as the server confirms it has received them.",
     session_expired:
       "Session expired. Sign in as the original worker, then retry.",
     account_mismatch:
       "Account changed or access denied. Sign in as the original worker.",
     task_conflict:
-      "Task changed or upload conflict. Keep originals and contact your administrator.",
+      "This visit changed while you were working. Your photos are kept. Contact your supervisor.",
     validation_failed:
-      "Server validation failed. Keep originals and contact your administrator.",
+      "This visit could not be accepted. Your photos are kept. Contact your supervisor.",
     verification_failed:
-      "The server rejected a gallery photo. Replace it with the original from your gallery, then queue again.",
+      "The server rejected a gallery photo. Replace it with the original from your gallery, then submit again.",
     chooseGallery: "Choose from gallery",
     galleryChecked:
       "Gallery original. After upload the server checks its date, GPS and distance from the billboard.",
@@ -134,28 +117,23 @@ export const fieldStrings = {
     galleryWarnUnreadable: "This photo's metadata cannot be read. Choose the original photo from your gallery.",
     galleryWarnOk: "Original photo selected. Location and date are checked by the server after upload.",
     connection_interrupted:
-      "Connection interrupted. Your saved photos will retry with backoff.",
-    safe: "Do not photograph while driving. GPS alone cannot distinguish adjacent faces.",
-    missing: "Save front and wide-context photos before queuing.",
+      "Connection lost. Your photos will send automatically when you are back online.",
+    safe: "Do not take photos while driving.",
+    missing: "Take the front and wide photos before submitting.",
     downloadError:
       "Assignments could not be downloaded. Existing local copies remain available.",
-    challengeExpired:
-      "Challenge has expired; capture will be labeled unchallenged.",
     ready: "Ready for capture",
     removeNone: "No photos have been saved yet.",
     continue: "Continue inspection",
     history: "Submitted visits",
     refresh: "Refresh assignments",
     localReceiptWarning:
-      "Not sent yet. Keep this page open until the visit is sent.",
+      "Your photos will send when you are back online.",
     photoTooLarge:
       "Photo exceeds the 6 MB limit. Retake with a lower camera resolution.",
-    privacy:
-      "Location is collected only when you request a fix; there is no background tracking.",
   },
   ar: {
     title: "مساحة العمل الميداني",
-    subtitle: "التقط الواجهة واحتفظ بسياق الموقع.",
     home: "مساحة العمليات",
     language: "English",
     theme: "تغيير المظهر",
@@ -167,14 +145,14 @@ export const fieldStrings = {
     workerOnly: "يلزم حساب موظف ميداني للالتقاط.",
     download: "تنزيل المهام",
     downloaded: "محفوظة على هذا الجهاز",
-    downloadFirst: "افتح زيارة لالتقاط صور مباشرة. نزّل المهام للعمل دون اتصال.",
+    downloadFirst: "افتح زيارة لالتقاط الصور.",
     tasks: "زياراتي",
     empty: "لا توجد مهام متاحة.",
     open: "فتح المعاينة",
     back: "العودة للزيارات",
-    locked: "هوية الواجهة الثابتة",
-    original: "الموقع الأصلي المستورد",
-    unverified: "إحداثيات غير موثّقة",
+    locked: "اللوحة",
+    original: "الموقع",
+    unverified: "الدقة",
     uncertainty: "عدم الدقة",
     structure: "الهيكل / الاتجاه",
     due: "الاستحقاق",
@@ -183,17 +161,17 @@ export const fieldStrings = {
     registerSite: "تسجيل موقع جديد",
     registerSiteNote: "للوحة غير موجودة في النظام. يحتاج إلى اتصال.",
     queued: "بانتظار الإرسال",
-    uploading: "جارٍ الرفع — لم تُسلّم بعد",
-    blocked: "تحتاج إلى إجراء",
-    received: "استلمها الخادم — بانتظار المراجعة البشرية",
-    receipt: "إيصال الخادم",
-    deviceTime: "وقت الالتقاط حسب الجهاز",
-    receivedTime: "وقت استلام الخادم",
+    uploading: "جارٍ الإرسال…",
+    blocked: "تحتاج إلى إجراء منك",
+    received: "تم الإرسال — بانتظار المراجعة",
+    receipt: "الإيصال",
+    deviceTime: "وقت الالتقاط",
+    receivedTime: "وقت الاستلام",
     front: "صورة أمامية",
     wide: "صورة سياق واسعة",
     frontGuide: "أظهر الواجهة كاملة والحواف والرمز المقروء إن وجد.",
     wideGuide: "أظهر الهيكل والدعامات والطريق والمحيط. توقّف في مكان آمن فقط.",
-    camera: "بدء الكاميرا المباشرة",
+    camera: "فتح الكاميرا",
     stop: "إيقاف الكاميرا",
     capture: "التقاط",
     cameraDenied:
@@ -203,17 +181,12 @@ export const fieldStrings = {
     cameraReady: "انتظر ظهور الصورة المباشرة قبل الالتقاط.",
     gps: "تسجيل الموقع",
     gpsBusy: "جارٍ الحصول على قراءة GPS حديثة…",
-    gpsNone:
-      "يُطلب الموقع تلقائياً لكل صورة. عند غيابه تبقى الصورة كمسودة حتى إعادة التقاطها أو موافقة المشرف على استثناء.",
+    gpsNone: "يُسجَّل الموقع مع كل صورة.",
     gpsDenied:
-      "إذن الموقع مرفوض. الصور محفوظة كمسودات. اسمح بالموقع وأعد الالتقاط، أو اطلب استثناء من المشرف.",
+      "الموقع متوقف. اسمح بالموقع لهذا المتصفح ثم أعد التقاط الصورة، أو تواصل مع المشرف.",
     gpsFailed:
       "الموقع غير متاح أو انتهت المهلة. أعد المحاولة عندما يكون ذلك آمناً.",
-    gpsOk: "قراءة GPS (غير موثوقة)",
-    gpsAge:
-      "تُجمع قراءة موقع حديثة لكل صورة. القراءة القديمة أو غير الدقيقة تتطلب إعادة الالتقاط أو استثناء المشرف.",
-    gpsWarning:
-      "الكاميرا وGPS في المتصفح لا يثبتان الحضور الفعلي أو هوية الواجهة.",
+    gpsOk: "الموقع",
     challenge: "تحدٍ عبر الخادم",
     brandTitle: "العلامة التجارية المعلنة",
     brandHelp: "اقرأ العلامة التجارية الظاهرة على وجه الإعلان. مطلوبة قبل الإرسال.",
@@ -229,40 +202,30 @@ export const fieldStrings = {
     addAngle: "إضافة صورة بزاوية أخرى",
     needAngle: "أضف صورة واحدة على الأقل بزاوية أخرى قبل الإرسال.",
     needs_angle_photo: "تم حفظ هذه الزيارة قبل اشتراط صور الزوايا. صورك محفوظة. أضف صورة زاوية واحدة لإرسالها.",
-    challengeInfo:
-      "رمز أرسله الخادم أثناء اتصالك. يساعد المراجعة، لكنه لا يثبت أن الصورة التُقطت في الموقع.",
-    noChallenge:
-      "لا يوجد رمز من الخادم لهذه الصورة. ستُسجَّل على أنها التُقطت دون اتصال.",
-    offlinePhoto: "التقاط دون اتصال • ادعاء الجهاز",
-    challengedPhoto: "متصل • مع تحدٍ (غير موثوق)",
-    onlinePhoto: "متصل • دون تحدٍ",
-    saved: "حُفظت الصورة محلياً",
+    offlinePhoto: "التُقطت دون اتصال",
+    challengedPhoto: "التُقطت مع اتصال",
+    onlinePhoto: "التُقطت مع اتصال",
+    saved: "حُفظت الصورة",
     notSaved: "الصورة غير محفوظة. أبقِ الصفحة مفتوحة وأعد المحاولة.",
     saveAgain: "إعادة محاولة حفظ الصورة",
     storage_full:
       "مساحة الهاتف ممتلئة. احذف بعض الملفات ثم حاول مرة أخرى. الصورة الحالية غير محفوظة بعد.",
     storage_unavailable:
       "المتصفح لا يستطيع حفظ الصور الآن. ابقَ على هذه الصفحة مفتوحة حتى تُحفظ الصورة.",
-    queue: "إرسال الصور",
-    queueNote:
-      "الصورة الأمامية والواسعة وصورة زاوية واحدة مطلوبة. الإرسال ينقلها إلى الخادم، وتُحذف من هذا الهاتف فور استلامها.",
-    retry: "إعادة الإرسال",
-    shellReady: "واجهة عدم الاتصال جاهزة",
-    shellPending: "واجهة عدم الاتصال غير جاهزة — ابقَ متصلاً",
+    queue: "إرسال الزيارة",
+    queueNote: "التقط الصورة الأمامية والواسعة وصورة زاوية واحدة على الأقل، ثم أرسل.",
+    retry: "إعادة محاولة الإرسال",
+    shellPending: "جارٍ التجهيز للعمل دون اتصال. ابقَ متصلاً قليلاً.",
     install: "تثبيت التطبيق الميداني",
-    installGuide:
-      "ثبّت التطبيق من قائمة المتصفح. على آيفون: مشاركة ← إضافة إلى الشاشة الرئيسية.",
-    retained:
-      "تُحذف الصور من هذا الهاتف فور تأكيد الخادم استلامها.",
     session_expired:
       "انتهت الجلسة. سجّل الدخول بحساب الموظف الأصلي ثم أعد المحاولة.",
     account_mismatch:
       "تغيّر الحساب أو رُفض الوصول. سجّل الدخول بحساب الموظف الأصلي.",
     task_conflict:
-      "تغيّرت المهمة أو تعارض الرفع. احتفظ بالأصول وتواصل مع المشرف.",
-    validation_failed: "فشل تحقق الخادم. احتفظ بالأصول وتواصل مع المشرف.",
+      "تغيّرت هذه الزيارة أثناء عملك. صورك محفوظة. تواصل مع المشرف.",
+    validation_failed: "تعذّر قبول هذه الزيارة. صورك محفوظة. تواصل مع المشرف.",
     verification_failed:
-      "رفض الخادم صورة من المعرض. استبدلها بالصورة الأصلية من معرض هاتفك ثم أعد الإرسال إلى الطابور.",
+      "رفض الخادم صورة من المعرض. استبدلها بالصورة الأصلية من معرض هاتفك ثم أعد الإرسال.",
     chooseGallery: "اختر من المعرض",
     galleryChecked:
       "نسخة أصلية من المعرض. بعد الرفع يتحقق الخادم من تاريخ الالتقاط والموقع والمسافة عن اللوحة.",
@@ -285,20 +248,18 @@ export const fieldStrings = {
     galleryWarnUnreadable: "لا يمكن قراءة بيانات هذه الصورة. اختر الصورة الأصلية من معرض هاتفك.",
     galleryWarnOk: "تم اختيار الصورة الأصلية. يتحقق الخادم من الموقع والتاريخ بعد الرفع.",
     connection_interrupted:
-      "انقطع الاتصال. ستُعاد محاولة إرسال الصور المحفوظة تدريجياً.",
-    safe: "لا تلتقط الصور أثناء القيادة. GPS وحده لا يميّز الواجهات المتجاورة.",
-    missing: "احفظ الصورة الأمامية والسياق الواسع قبل الإرسال.",
+      "انقطع الاتصال. ستُرسل صورك تلقائياً عند عودة الاتصال.",
+    safe: "لا تلتقط الصور أثناء القيادة.",
+    missing: "التقط الصورة الأمامية والواسعة قبل الإرسال.",
     downloadError: "تعذّر تنزيل المهام. النسخ المحلية السابقة ما زالت متاحة.",
-    challengeExpired: "انتهت صلاحية التحدي؛ سيُوسم الالتقاط بأنه دون تحدٍ.",
     ready: "جاهز للالتقاط",
     removeNone: "لم تُحفظ صور بعد.",
     continue: "متابعة المعاينة",
     history: "الزيارات المُرسلة",
     refresh: "تحديث المهام",
     localReceiptWarning:
-      "لم تُرسل بعد. أبقِ هذه الصفحة مفتوحة حتى تُرسل الزيارة.",
+      "ستُرسل صورك عند عودة الاتصال.",
     photoTooLarge: "تجاوزت الصورة حد ٦ ميغابايت. أعد الالتقاط بدقة أقل.",
-    privacy: "يُجمع الموقع فقط عند طلب القراءة؛ لا يوجد تتبّع في الخلفية.",
   },
 };
 export type FieldText = typeof fieldStrings.en;

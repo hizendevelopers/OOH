@@ -141,7 +141,7 @@ test("supervisors review adjacent faces, explicitly version references and reque
   });
   await admin.getByRole("link", { name: "Review center", exact: true }).click();
   await expect(
-    admin.getByRole("heading", { name: "Evidence, in perspective." }),
+    admin.getByRole("heading", { name: "Review center", level: 1 }),
   ).toBeVisible();
   await expect(admin.locator(".review-queue-item")).toHaveCount(1);
   await admin
@@ -421,8 +421,8 @@ test("supervisors review adjacent faces, explicitly version references and reque
   }
   await page.goto("/field");
   await expect(
-    page.getByText("Offline shell ready", { exact: true }),
-  ).toBeVisible();
+    page.locator('[data-offline-ready="true"]'),
+  ).toBeAttached();
   await page
     .getByRole("button", { name: "Download assignments", exact: true })
     .click();
@@ -436,7 +436,7 @@ test("supervisors review adjacent faces, explicitly version references and reque
   await page.context().grantPermissions(["camera", "geolocation"]);
   await page.context().setGeolocation({ latitude: task!.latitude!, longitude: task!.longitude!, accuracy: 10 });
   await page
-    .getByRole("button", { name: "Start live camera", exact: true })
+    .getByRole("button", { name: "Open camera", exact: true })
     .click();
   await expect
     .poll(() =>
@@ -459,11 +459,11 @@ test("supervisors review adjacent faces, explicitly version references and reque
   await page.getByRole("button", { name: "Add an angle photo", exact: true }).click();
   await page.getByRole("button", { name: "Capture", exact: true }).click();
   await expect(
-    page.getByText("Photo saved locally", { exact: true }),
+    page.getByText("Photo saved", { exact: true }),
   ).toHaveCount(3);
   await page.getByRole("button", { name: "Blank face", exact: true }).click();
   await page
-    .getByRole("button", { name: "Submit photos", exact: true })
+    .getByRole("button", { name: "Submit visit", exact: true })
     .click();
   // A click starts an IndexedDB transaction; wait for its durable acknowledgement.
   await expect(
@@ -476,7 +476,7 @@ test("supervisors review adjacent faces, explicitly version references and reque
   await page.context().setOffline(false);
   await expect(
     page
-      .getByText("Server received — awaiting human review", { exact: true })
+      .getByText("Submitted — waiting for review", { exact: true })
       .first(),
   ).toBeVisible();
   const currentTasks = await (

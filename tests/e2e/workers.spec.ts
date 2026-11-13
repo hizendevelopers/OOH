@@ -156,15 +156,15 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
     .click();
   await expect(worker).toHaveURL(/\/field\?assignment=/);
   await expect(
-    worker.getByRole("button", { name: "Start live camera", exact: true }),
+    worker.getByRole("button", { name: "Open camera", exact: true }),
   ).toBeVisible();
   await expect(
-    worker.getByRole("button", { name: "Start live camera", exact: true }),
+    worker.getByRole("button", { name: "Open camera", exact: true }),
   ).toBeInViewport();
   // Workers may pick gallery photos, but never import a CSV inventory file.
   await expect(worker.locator('input[type="file"][accept*="csv"]')).toHaveCount(0);
   await worker
-    .getByRole("button", { name: "Start live camera", exact: true })
+    .getByRole("button", { name: "Open camera", exact: true })
     .click();
   await expect
     .poll(() =>
@@ -185,7 +185,7 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
   });
   await worker.getByRole("button", { name: "Capture", exact: true }).click();
   await expect(
-    worker.getByText("Photo saved locally", { exact: true }),
+    worker.getByText("Photo saved", { exact: true }),
   ).toHaveCount(1);
   await context.setGeolocation({
     latitude: 33.3,
@@ -196,15 +196,15 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
   await worker.getByRole("button", { name: "Add an angle photo", exact: true }).click();
   await worker.getByRole("button", { name: "Capture", exact: true }).click();
   await expect(
-    worker.getByText("Photo saved locally", { exact: true }),
+    worker.getByText("Photo saved", { exact: true }),
   ).toHaveCount(3);
   await worker.getByRole("button", { name: "Blank face", exact: true }).click();
   await worker
-    .getByRole("button", { name: "Submit photos", exact: true })
+    .getByRole("button", { name: "Submit visit", exact: true })
     .click();
   await expect(
     worker
-      .getByText("Server received — awaiting human review", { exact: true })
+      .getByText("Submitted — waiting for review", { exact: true })
       .first(),
   ).toBeVisible();
   await context.close();
