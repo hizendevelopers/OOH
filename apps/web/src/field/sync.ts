@@ -132,9 +132,12 @@ export async function syncDraft(
           uploaded += chunk.size;
           // Each stored part is real progress, so the wait before the next try starts from zero again.
           // Without this a visit that failed often kept waiting the full five minutes between parts.
+          // The wait already scheduled is cleared too, or a run cut short here would sit out that wait
+          // even though the count is back to zero.
           await store.drafts.update(id, {
             progress: Math.min(95, Math.round((uploaded / total) * 95)),
             attempts: 0,
+            nextAttemptAt: 0,
           });
         }
         await request(
