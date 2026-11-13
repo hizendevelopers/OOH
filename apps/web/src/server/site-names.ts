@@ -76,7 +76,9 @@ async function askGemini(prompt: string, key: string): Promise<string> {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify(body(withSchema)),
-      signal: AbortSignal.timeout(120000),
+      // Must finish inside the route's own time limit, so a slow answer fails cleanly instead of
+      // being cut off by the platform.
+      signal: AbortSignal.timeout(40000),
     });
     if (response.ok) break;
     if (response.status !== 400 || !withSchema) break;
