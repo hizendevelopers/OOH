@@ -432,7 +432,7 @@ test("supervisors review adjacent faces, explicitly version references and reque
     .locator("article.field-visit")
     .filter({ hasText: instructions });
   await resurvey
-    .getByRole("button", { name: "Open inspection", exact: true })
+    .getByRole("button", { name: "Start visit", exact: true })
     .click();
   await page.context().grantPermissions(["camera", "geolocation"]);
   await page.context().setGeolocation({ latitude: task!.latitude!, longitude: task!.longitude!, accuracy: 10 });
