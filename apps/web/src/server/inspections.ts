@@ -16,6 +16,8 @@ import { getDb, type Database } from "./db";
 import { ApiError, audit } from "./service";
 import { putPrivate, readPrivate } from "./evidence-storage";
 import { assessInspection } from "./risk-analysis";
+import { afterResponse } from "./background";
+import { errorFacts } from "./error-facts";
 import {
   assessPhotoLocation,
   locationMessages,
@@ -580,15 +582,19 @@ export async function submitInspection(actor: Actor, id: string) {
       flags: [...flags],
     };
   });
-  try {
-    // Receipt replay is cheap and immutable. Explicit supervisor reanalysis
-    // remains available when new evidence or risk context needs reconsidering.
-    if (newlyReceived) await assessInspection(actor, id);
-  } catch {
-    console.error(
-      JSON.stringify({ category: "risk_analysis_pending", inspectionId: id }),
-    );
-  }
+  // The receipt is already committed. The risk analysis reads every photo again and can take a while, so it
+  // runs after the reply: the worker's phone is not kept waiting, and a slow analysis can no longer make a
+  // received visit look like a failed upload. Supervisors can still re-run the analysis from the review screen.
+  if (newlyReceived)
+    await afterResponse(async () => {
+      try {
+        await assessInspection(actor, id);
+      } catch (error) {
+        console.error(
+          JSON.stringify({ category: "risk_analysis_pending", inspectionId: id, ...errorFacts(error) }),
+        );
+      }
+    });
   return result;
 }
 export async function inspectionStatus(actor: Actor, id: string) {

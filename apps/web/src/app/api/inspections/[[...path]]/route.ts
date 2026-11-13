@@ -2,6 +2,7 @@ import { purposeForMethod, requireAccess } from "@/server/mfa-gate";
 import { z } from "zod";
 import { currentActor } from "@/server/access";
 import { ApiError } from "@/server/service";
+import { errorFacts } from "@/server/error-facts";
 import {
   beginInspection,
   issueChallenge,
@@ -44,8 +45,16 @@ async function body(request: Request, limit: number) {
     }
   return Buffer.concat(chunks);
 }
+// Which step failed, without ids: e.g. "PUT parts/:kind/:n" or "POST :id/submit".
+function stepOf(request: Request) {
+  const parts = new URL(request.url).pathname.split("/").filter(Boolean).slice(2);
+  return `${request.method} ${parts
+    .map((p) => (/^[0-9a-f-]{36}$/i.test(p) ? ":id" : /^\d+$/.test(p) ? ":n" : p))
+    .join("/")}`;
+}
 async function handle(request: Request) {
   const requestId = crypto.randomUUID();
+  const started = Date.now();
   try {
     const actor = await currentActor();
     requireAccess(actor, purposeForMethod(request.method));
@@ -141,8 +150,15 @@ async function handle(request: Request) {
       );
     if (e instanceof z.ZodError)
       return json({ error: "Invalid inspection request", requestId }, 422);
+    // The reason is logged so a failing upload can be diagnosed from the hosting logs.
     console.error(
-      JSON.stringify({ requestId, category: "inspection_request_failed" }),
+      JSON.stringify({
+        requestId,
+        category: "inspection_request_failed",
+        step: stepOf(request),
+        ms: Date.now() - started,
+        ...errorFacts(e),
+      }),
     );
     return json(
       {
