@@ -341,7 +341,7 @@ export default function FieldWorkspace() {
       (task) =>
         (!cityFilter || task.city === cityFilter) &&
         matchesFilter(
-          `${task.code} ${task.structure_code} ${task.city} ${task.zone} ${task.description ?? ""} ${task.worker_address ?? ""}`,
+          `${task.code} ${task.structure_code} ${task.city} ${task.zone} ${task.description ?? ""} ${task.description_ar ?? ""} ${task.worker_address ?? ""}`,
           search,
         ),
     ),

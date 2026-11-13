@@ -50,3 +50,15 @@ describe("server messages in Arabic", () => {
     expect(localizeError("رسالة عربية", true)).toBe("رسالة عربية");
   });
 });
+
+describe("Arabic site names", () => {
+  const site = { code: "IQ-2", description: "Opposite Al-Kindi Hospital Gate", description_ar: "مقابل بوابة مستشفى الكندي", city: "Baghdad", latitude: null, longitude: null };
+  it("shows the translated name in Arabic and the English name otherwise", () => {
+    expect(siteSummary(site, true).name).toBe("مقابل بوابة مستشفى الكندي");
+    expect(siteSummary(site).name).toBe("Opposite Al-Kindi Hospital Gate");
+  });
+  it("falls back to the English name, then the code, when there is no translation", () => {
+    expect(siteSummary({ ...site, description_ar: null }, true).name).toBe("Opposite Al-Kindi Hospital Gate");
+    expect(siteSummary({ ...site, description: "", description_ar: null }, true).name).toBe("IQ-2");
+  });
+});

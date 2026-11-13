@@ -53,6 +53,7 @@ export async function inventory(actor: Actor) {
 }
 export type Face = {
   description: string;
+  description_ar: string | null;
   width_m?: number | null;
   height_m?: number | null;
   is_test: boolean;

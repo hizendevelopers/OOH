@@ -610,6 +610,7 @@ export type Submission = {
   worker_name: string;
   code: string;
   description: string;
+  description_ar: string | null;
   city: string | null;
   review_state: string;
   kinds: PhotoKind[];
