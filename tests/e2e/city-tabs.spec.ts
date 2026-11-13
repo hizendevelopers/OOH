@@ -44,17 +44,17 @@ test("imported cities, pending GPS and worker assignment appear in admin and fie
   });
   expect(assigned.status()).toBe(200);
 
-  // Administrator dashboard: city tabs with counts, and the pending GPS label.
+  // Administrator dashboard: one city dropdown with counts, and the pending GPS label.
   await page.goto("/");
   await page.getByRole("button", { name: "Inventory", exact: true }).click();
-  const adminCities = page.getByRole("navigation", { name: "Cities" });
-  await expect(adminCities.getByRole("button", { name: /All cities/ })).toBeVisible();
-  await expect(adminCities.getByRole("button", { name: /Kura \(as listed\)/ })).toBeVisible();
-  await expect(adminCities.getByRole("button", { name: /Unspecified City, Anbar/ })).toBeVisible();
-  await adminCities.getByRole("button", { name: /Erbil/ }).click();
+  const adminCities = page.getByRole("combobox", { name: "City", exact: true });
+  await expect(adminCities.locator("option", { hasText: /^All cities/ })).toHaveCount(1);
+  await expect(adminCities.locator("option", { hasText: /Kura \(as listed\)/ })).toHaveCount(1);
+  await expect(adminCities.locator("option", { hasText: /Unspecified City, Anbar/ })).toHaveCount(1);
+  await adminCities.selectOption("Erbil");
   await expect(page.getByText("Pending GPS").first()).toBeVisible();
   await expect(page.getByText("IQ-TST-0003").first()).toBeVisible();
-  await adminCities.getByRole("button", { name: /All cities/ }).click();
+  await adminCities.selectOption("");
 
   // Field dashboard for the assigned worker: only that worker's locations, with city tabs.
   const workerContext = await browser.newContext({ baseURL: origin });
@@ -69,4 +69,39 @@ test("imported cities, pending GPS and worker assignment appear in admin and fie
   await expect(workerPage.getByText("IQ-TST-0001")).toHaveCount(0);
   await expect(workerPage.getByText("Pending GPS").first()).toBeVisible();
   await workerContext.close();
+});
+
+test("administrator assigns every unassigned site in one city to a worker", async ({ page }) => {
+  test.setTimeout(180000);
+  await loginAdmin(page);
+  // A city name used only by this run, so the assignment cannot touch other tests' sites.
+  const suffix = Date.now().toString();
+  const city = `E2E City ${suffix}`;
+  const codes = [1, 2, 3].map((n) => `E2E-CITY-${suffix}-${n}`);
+  const csv = ["code,structure_code,city,latitude,longitude", ...codes.map((code, i) => `${code},STR-${suffix}-${i},${city},33.3${i},44.4${i}`)].join("\n");
+  const imported = await page.request.post("/api/inventory/import", {
+    headers: { origin, "content-type": "application/json" },
+    data: { csv, sourceName: "whole-city.csv" },
+  });
+  expect(imported.status()).toBe(200);
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Inventory", exact: true }).click();
+  await page.getByRole("combobox", { name: "City", exact: true }).selectOption(city);
+  await page.getByRole("button", { name: "Assign whole city (3)", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText(`All 3 unassigned sites in ${city}`, { exact: true })).toBeVisible();
+  await dialog.getByRole("combobox", { name: "Worker", exact: true }).selectOption({ label: "DEMO Ali Hassan" });
+  await dialog.getByLabel("Due date").fill("2026-12-31");
+  await dialog.getByRole("button", { name: "Create assignments", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  const tasks = await (await page.request.get("/api/assignments")).json();
+  const assigned = tasks.filter((t: { code: string }) => codes.includes(t.code));
+  expect(assigned).toHaveLength(3);
+  expect(new Set(assigned.map((t: { worker_name: string }) => t.worker_name))).toEqual(new Set(["DEMO Ali Hassan"]));
+  // Nothing in the city is left to assign, so the button is disabled.
+  await page.getByRole("button", { name: "Inventory", exact: true }).click();
+  await page.getByRole("combobox", { name: "City", exact: true }).selectOption(city);
+  await expect(page.getByRole("button", { name: "Assign whole city (0)", exact: true })).toBeDisabled();
 });
