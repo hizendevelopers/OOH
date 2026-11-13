@@ -542,3 +542,40 @@ it("takes each photo from the device again for every part", async () => {
   // The second part comes from the photo as it stands on the device now, not from the earlier read.
   expect(sent[1]).toBe("D".repeat(chunkSize));
 });
+
+it("ends quietly when another run has already had the visit received", async () => {
+  const store = await prepared();
+  const receipt: Receipt = {
+    inspectionId: crypto.randomUUID(),
+    receiptId: crypto.randomUUID(),
+    receivedAt: new Date().toISOString(),
+    status: "server_received",
+    flags: [],
+  };
+  const transport = (async (url: string) => {
+    if (url === "me") return { ...store.owner, role: "worker" };
+    if (url === "inspections")
+      return {
+        inspectionId: receipt.inspectionId,
+        chunkSize: 256 * 1024,
+        photos: ["front", "wide", "angle_1"].map((kind) => ({ kind, receivedParts: [], receiptId: null })),
+        receipt: null,
+      } as UploadSession;
+    if (url.includes("/parts/")) {
+      // A second run finishes the visit in between, which takes the photos off this phone.
+      await store.drafts.update(task.assignment_id, {
+        state: "server_received",
+        photos: {},
+        receipt,
+        progress: 100,
+      });
+      return { receiptId: "photo-receipt" };
+    }
+    return { receiptId: "photo-receipt" };
+  }) as Transport;
+  await syncDraft(store, task.assignment_id, transport);
+  const draft = (await store.drafts.get(task.assignment_id))!;
+  // A finished visit must not be left looking like a failure to the worker.
+  expect(draft).toMatchObject({ state: "server_received", receipt });
+  expect(draft.lastError).toBeNull();
+});
