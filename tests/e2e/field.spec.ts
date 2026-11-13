@@ -300,9 +300,19 @@ test("GPS success, simulated storage exhaustion and denied camera preserve hones
   await expect(
     page.getByText("Photo is not saved.", { exact: false }),
   ).toBeVisible();
+  // Submitting lives on the Send step and stays disabled while a photo is unsaved.
+  const steps = page.getByRole("navigation", { name: "Visit steps" });
+  await steps.getByRole("button", { name: "Send", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Submit visit", exact: true }),
   ).toBeDisabled();
+  // Back on Photos, the unsaved photo is still waiting to be retried.
+  await steps.getByRole("button", { name: "Photos", exact: true }).click();
+  await expect(
+    page.getByText("Photo is not saved.", { exact: false }),
+  ).toBeVisible();
+  // Leaving Photos stopped the camera; open it again.
+  await camera(page);
   await page.evaluate(() =>
     window.dispatchEvent(new Event("test-clear-quota")),
   );

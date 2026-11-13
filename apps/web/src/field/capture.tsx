@@ -71,7 +71,7 @@ export default function Capture({
   t: FieldText;
   online: boolean;
   arabic?: boolean;
-  step?: "photos" | "brand";
+  step?: "photos" | "brand" | "send";
   onBrandChosen?: () => void;
 }) {
   const messages = arabic ? locationMessagesAr : locationMessages;
@@ -285,6 +285,8 @@ export default function Capture({
       setBusy(false);
     }
   }
+  // Stays mounted on every step so a photo that failed to save is kept for "Retry saving photo".
+  if (step === "send") return null;
   if (step === "brand")
     return (
       <section className="field-capture">

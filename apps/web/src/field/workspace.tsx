@@ -787,18 +787,18 @@ export default function FieldWorkspace() {
                     send: draft.state !== "local_draft",
                   }}
                 />
+                <Capture
+                  arabic={locale === "ar"}
+                  key={draft.id}
+                  store={store}
+                  draft={draft}
+                  t={t}
+                  online={online}
+                  step={step}
+                  onBrandChosen={() => setStep("send")}
+                />
                 {step !== "send" && (
                   <>
-                    <Capture
-                      arabic={locale === "ar"}
-                      key={draft.id}
-                      store={store}
-                      draft={draft}
-                      t={t}
-                      online={online}
-                      step={step}
-                      onBrandChosen={() => setStep("send")}
-                    />
                     <button
                       className="primary field-next"
                       onClick={() => {
