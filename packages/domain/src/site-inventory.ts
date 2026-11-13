@@ -49,3 +49,37 @@ export function siteAddress(site: { worker_address?: string | null; zone?: strin
 export function formatCoordinateValue(value: number | null | undefined) {
   return value == null || !Number.isFinite(value) ? null : value.toFixed(6);
 }
+
+export type SiteSummaryInput = {
+  code: string;
+  description?: string | null;
+  worker_address?: string | null;
+  zone?: string | null;
+  city?: string | null;
+  width_m?: number | null;
+  height_m?: number | null;
+  latitude: number | null;
+  longitude: number | null;
+};
+
+// Everything a site card shows, decided in one place so the field list, the open visit and the admin
+// inventory always agree. The description names the site; the code is only an identifier.
+export function siteSummary(site: SiteSummaryInput) {
+  const name = (site.description ?? "").trim();
+  const size = formatDimensions(site.width_m, site.height_m);
+  const ratio = dimensionRatio(site.width_m, site.height_m);
+  const pinned =
+    site.latitude != null && site.longitude != null && Number.isFinite(site.latitude) && Number.isFinite(site.longitude);
+  return {
+    name: name || site.code,
+    hasName: Boolean(name),
+    code: site.code,
+    address: siteAddress(site),
+    addressFromWorker: Boolean((site.worker_address ?? "").trim()),
+    // "4 × 3 m · 4:3" on one line; null when the size was never measured.
+    size: size ? (ratio ? `${size} · ${ratio}` : size) : null,
+    location: pinned
+      ? { latitude: site.latitude as number, longitude: site.longitude as number, text: `${formatCoordinateValue(site.latitude)}, ${formatCoordinateValue(site.longitude)}` }
+      : null,
+  };
+}

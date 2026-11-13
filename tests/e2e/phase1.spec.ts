@@ -99,7 +99,7 @@ test("admin imports, assigns, worker sees authorized visit; CSRF and scope are e
     .locator("article.field-visit")
     .filter({ has: worker.getByRole("heading", { name: face, exact: true }) });
   await expect(
-    visit.getByRole("button", { name: "Open inspection", exact: true }),
+    visit.getByRole("button", { name: "Start visit", exact: true }),
   ).toBeEnabled();
   // The operations workspace is for administrators: a worker opening it is sent back to the field workspace.
   await worker.goto("/");

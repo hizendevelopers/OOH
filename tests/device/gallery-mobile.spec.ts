@@ -19,7 +19,7 @@ test("a gallery photo without location shows guidance, and is kept for the serve
   test.setTimeout(180000);
   await signIn(page);
   await page.getByRole("button", { name: "Download assignments", exact: true }).click();
-  await page.locator("article.field-visit").first().getByRole("button", { name: "Open inspection", exact: true }).click();
+  await page.locator("article.field-visit").first().getByRole("button", { name: "Start visit", exact: true }).click();
   // A plain JPEG has no EXIF location, like a screenshot or a copy stripped by the picker.
   const jpeg = await sharp({ create: { width: 640, height: 480, channels: 3, background: "#777" } }).jpeg().toBuffer();
   await page.locator('input[type="file"]').setInputFiles({ name: "IMG_9999.jpg", mimeType: "image/jpeg", buffer: jpeg });

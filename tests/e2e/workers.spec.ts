@@ -151,7 +151,7 @@ test("admin creates worker, assigns billboard, and worker signs in with restrict
     path: "test-results/worker-capture-action.png",
     fullPage: true,
   });
-  await visit.getByRole("button", { name: "Open inspection", exact: true }).click();
+  await visit.getByRole("button", { name: "Start visit", exact: true }).click();
   await expect(
     worker.getByRole("heading", { name: code, exact: true }),
   ).toBeVisible();

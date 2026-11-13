@@ -49,11 +49,12 @@ test("pending-GPS location: capture, interrupted upload, server acceptance and s
   await login(field, "worker@demo.ibvs.test");
   await expect(field).toHaveURL(/\/field$/);
   await expect(field.locator('[data-offline-ready="true"]')).toBeAttached();
-  const card = field.locator("article.field-visit").filter({ has: field.getByRole("heading", { name: code, exact: true }) });
+  const card = field.locator("article.field-visit").filter({ hasText: `Site code: ${code}` });
   await field.getByRole("button", { name: "Download assignments", exact: true }).click();
-  await expect(card.getByText("Downloaded for this device", { exact: true })).toBeVisible();
-  await card.getByRole("button", { name: "Open inspection", exact: true }).click();
-  await expect(field.getByRole("heading", { name: code, exact: true })).toBeVisible();
+  await expect(card.getByText("Saved on this phone for offline use", { exact: true })).toBeVisible();
+  await card.getByRole("button", { name: "Start visit", exact: true }).click();
+  // The open visit names the site; its code is the small line under the details.
+  await expect(field.locator(".field-identity").getByText(`Site code: ${code}`, { exact: true })).toBeVisible();
 
   // Location is pending: the visit records its own GPS reading for each photo.
   await field.getByRole("button", { name: "Record location fix", exact: true }).click();
@@ -73,8 +74,8 @@ test("pending-GPS location: capture, interrupted upload, server acceptance and s
   await field.getByRole("button", { name: "Submit visit", exact: true }).click();
   await expect(field.getByText("Connection lost. Your photos will send automatically when you are back online.", { exact: true })).toBeVisible();
   await field.reload();
-  await field.locator("article.field-visit").filter({ has: field.getByRole("heading", { name: code, exact: true }) })
-    .getByRole("button", { name: "Continue inspection", exact: true }).click();
+  await field.locator("article.field-visit").filter({ hasText: `Site code: ${code}` })
+    .getByRole("button", { name: "Continue visit", exact: true }).click();
   // The submitted visit reopens on Send; its saved photos are on the Photos step.
   const steps = field.getByRole("navigation", { name: "Visit steps" });
   await steps.getByRole("button", { name: "Photos", exact: true }).click();
