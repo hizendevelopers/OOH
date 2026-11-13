@@ -1,19 +1,20 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import type { Actor } from "@ibvs/domain";
 import { getDb } from "./db";
 import { ApiError, audit, requireAdmin } from "./service";
 
-// Arabic site names. Each site's English description is machine-translated once and stored with the text it came
-// from (face_name_translations). Only the description is sent to the translation service: no codes, coordinates,
-// people or photos. Nothing else about a site changes.
+// Arabic site names. Each site's English description is machine-translated once by the Gemini API and stored with
+// the text it came from (face_name_translations). Only the description is sent: no codes, coordinates, people or
+// photos. Nothing else about a site changes.
 
-const MODEL = "claude-opus-5-5";
+const MODEL = "gemini-3.5-flash-lite";
+const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 const BATCH = 60;
 
+const apiKey = () => process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
+
 export function translationConfigured() {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  return Boolean(apiKey());
 }
 
 // Sites whose current description has no matching Arabic translation yet.
@@ -30,17 +31,71 @@ const Translations = z.object({
   items: z.array(z.object({ id: z.string(), arabic: z.string() })),
 });
 
+const responseSchema = {
+  type: "object",
+  properties: {
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { id: { type: "string" }, arabic: { type: "string" } },
+        required: ["id", "arabic"],
+      },
+    },
+  },
+  required: ["items"],
+};
+
 const instructions = `You translate the names of billboard locations in Iraq from English into Arabic for an Arabic-language app used by Iraqi field workers and supervisors.
 Each name describes where a billboard stands, for example "Opposite Al-Kindi Hospital Gate towards Al-Nahda".
 Write natural Modern Standard Arabic as it would appear on Iraqi street signs and in local usage.
 Write place, street, district, hospital, bridge, square and brand names in their usual Arabic form (for example Al-Kindi -> الكندي, Al-Nahda -> النهضة, Amana Bridge -> جسر الأمانة); keep Latin letters only for codes or brands that are normally written in Latin letters.
 Keep numbers and directions exact. Do not add, explain or drop anything.
-Return one item for every input item, with the same id.`;
+Return one item for every input item, with the same id, as JSON of the form {"items":[{"id":"0","arabic":"..."}]}.`;
+
+type GeminiResponse = {
+  candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
+  promptFeedback?: { blockReason?: string };
+};
+
+// One call to Gemini. The structured-output schema is dropped and retried once if this API version rejects it,
+// because the answer is validated here either way.
+async function askGemini(prompt: string, key: string): Promise<string> {
+  const body = (withSchema: boolean) => ({
+    systemInstruction: { parts: [{ text: instructions }] },
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: {
+      responseMimeType: "application/json",
+      maxOutputTokens: 8192,
+      ...(withSchema ? { responseJsonSchema: responseSchema } : {}),
+    },
+  });
+  let response: Response | null = null;
+  for (const withSchema of [true, false]) {
+    response = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify(body(withSchema)),
+      signal: AbortSignal.timeout(120000),
+    });
+    if (response.ok) break;
+    if (response.status !== 400 || !withSchema) break;
+  }
+  if (!response || !response.ok) throw new Error(`gemini_http_${response?.status ?? "none"}`);
+  const result = (await response.json()) as GeminiResponse;
+  if (result.promptFeedback?.blockReason) throw new Error(`gemini_blocked_${result.promptFeedback.blockReason}`);
+  const candidate = result.candidates?.[0];
+  if (candidate?.finishReason && candidate.finishReason !== "STOP") throw new Error(`gemini_${candidate.finishReason}`);
+  const text = (candidate?.content?.parts ?? []).map((part) => part.text ?? "").join("");
+  if (!text.trim()) throw new Error("gemini_empty");
+  return text;
+}
 
 // Translates one batch of untranslated names. Called repeatedly by the dashboard until nothing remains.
 export async function translateSiteNames(actor: Actor) {
   requireAdmin(actor);
-  if (!translationConfigured()) throw new ApiError(503, "Site name translation is not set up");
+  const key = apiKey();
+  if (!key) throw new ApiError(503, "Site name translation is not set up");
   const db = await getDb();
   const rows = await db.query<{ id: string; description: string }>(
     `SELECT f.id, f.description ${missing} ORDER BY f.created_at, f.id LIMIT ${BATCH * 3}`,
@@ -50,25 +105,16 @@ export async function translateSiteNames(actor: Actor) {
   // Many sites share the same name text; each distinct text is translated once.
   const texts = [...new Set(rows.map((r) => r.description.trim()))].slice(0, BATCH);
   const input = texts.map((text, i) => ({ id: String(i), english: text }));
-  const client = new Anthropic();
-  let parsed: z.infer<typeof Translations> | null;
+  let parsed: z.infer<typeof Translations>;
   try {
-    const response = await client.messages.parse({
-      model: MODEL,
-      max_tokens: 16000,
-      output_config: { effort: "low", format: zodOutputFormat(Translations) },
-      system: instructions,
-      messages: [{ role: "user", content: JSON.stringify(input) }],
-    });
-    if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") throw new Error(response.stop_reason);
-    parsed = response.parsed_output;
+    parsed = Translations.parse(JSON.parse(await askGemini(JSON.stringify(input), key)));
   } catch (error) {
-    // Only the error type is logged, never the names that were sent.
-    console.error(JSON.stringify({ category: "site_name_translation_failed", error: error instanceof Error ? error.name : "unknown" }));
+    // Only the failure kind is logged, never the names that were sent.
+    console.error(JSON.stringify({ category: "site_name_translation_failed", error: error instanceof Error ? error.message.slice(0, 60) : "unknown" }));
     throw new ApiError(502, "Site name translation failed; try again");
   }
   const arabicByText = new Map<string, string>();
-  for (const item of parsed?.items ?? []) {
+  for (const item of parsed.items) {
     const english = texts[Number(item.id)];
     const arabic = item.arabic.trim();
     if (english !== undefined && arabic && arabic.length <= 1000) arabicByText.set(english, arabic);
