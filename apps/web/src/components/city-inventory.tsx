@@ -1,7 +1,7 @@
 "use client";
 import type { ReactNode } from "react";
 import { MapPin } from "lucide-react";
-import { UNASSIGNED_CITY, groupSitesByCity } from "@ibvs/domain";
+import { UNASSIGNED_CITY, cityName, groupSitesByCity } from "@ibvs/domain";
 import { SiteDetails } from "./site-details";
 
 // Fields every site already has in the inventory and assignment queries. Nothing here is computed from guesses.
@@ -58,7 +58,7 @@ export function CityInventory<T extends InventorySite>({
           <summary>
             <span className="city-card-name">
               <MapPin size={16} aria-hidden="true" />
-              {group.city === UNASSIGNED_CITY ? t.unassigned : group.city}
+              {group.city === UNASSIGNED_CITY ? t.unassigned : cityName(group.city, ar)}
             </span>
             <span className="city-card-count">{t.sites(group.sites.length)}</span>
           </summary>

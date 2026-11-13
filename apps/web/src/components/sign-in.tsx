@@ -6,24 +6,121 @@ import {
   ShieldCheck,
   MapPin,
   LockKeyhole,
+  Languages,
 } from "lucide-react";
+import { localeDirection } from "@ibvs/domain";
 
 type Step = "password" | "totp" | "backup";
+type Locale = "en" | "ar";
+type ErrorKey = "" | "tooMany" | "badCredentials" | "offline" | "badCode";
+type NoticeKey = "" | "reauth" | "enrolled";
+
+const words = {
+  en: {
+    brandSub: "IRAQ BILLBOARD VERIFICATION",
+    eyebrow: "CLARITY FROM THE FIELD",
+    heroLine1: "Every location.",
+    heroLine2: "Every face.",
+    heroLine3: "Accounted for.",
+    heroText: "A shared workspace for dependable billboard operations across Iraq.",
+    factLocation: "Location-aware operations",
+    factHuman: "Human-led verification",
+    footerStory: "Built for the realities of fieldwork.",
+    cardEyebrow: "YOUR OPERATIONS WORKSPACE",
+    welcome: "Welcome back",
+    intro: "Sign in with your organization account.",
+    email: "Email address",
+    password: "Password",
+    signingIn: "Signing in…",
+    signIn: "Sign in",
+    backupCode: "Backup code",
+    authenticatorCode: "Authenticator code",
+    checking: "Checking…",
+    verifyAndSignIn: "Verify and sign in",
+    useAuthenticator: "Use an authenticator code",
+    useBackup: "Use a backup code",
+    loginNote: "Accounts are provisioned by your administrator. Public registration is closed.",
+    footer: "IBVS · Iraq Billboard Verification System",
+    switchLanguage: "Switch language",
+    otherLanguage: "العربية",
+    notices: {
+      reauth: "For security, sign in again with your authenticator code to continue.",
+      enrolled: "Two-factor authentication is on. Sign in with your password and authenticator code.",
+    },
+    errors: {
+      tooMany: "Too many attempts. Try again shortly.",
+      badCredentials: "Unable to sign in. Check your credentials or contact your administrator.",
+      offline: "Connection unavailable. Reconnect to sign in.",
+      badCode: "That code is not valid. Check the code in your authenticator app and try again.",
+    },
+  },
+  ar: {
+    brandSub: "نظام التحقق من اللوحات الإعلانية في العراق",
+    eyebrow: "وضوح من الميدان",
+    heroLine1: "كل موقع.",
+    heroLine2: "كل واجهة.",
+    heroLine3: "محسوبة بدقة.",
+    heroText: "مساحة عمل مشتركة لإدارة موثوقة للوحات الإعلانية في جميع أنحاء العراق.",
+    factLocation: "عمليات مرتبطة بالموقع",
+    factHuman: "تحقق يقوده الإنسان",
+    footerStory: "صُمّم لواقع العمل الميداني.",
+    cardEyebrow: "مساحة عمل العمليات",
+    welcome: "مرحباً بعودتك",
+    intro: "سجّل الدخول بحساب مؤسستك.",
+    email: "البريد الإلكتروني",
+    password: "كلمة المرور",
+    signingIn: "جارٍ تسجيل الدخول…",
+    signIn: "تسجيل الدخول",
+    backupCode: "رمز احتياطي",
+    authenticatorCode: "رمز تطبيق المصادقة",
+    checking: "جارٍ التحقق…",
+    verifyAndSignIn: "تحقّق وسجّل الدخول",
+    useAuthenticator: "استخدم رمز تطبيق المصادقة",
+    useBackup: "استخدم رمزاً احتياطياً",
+    loginNote: "ينشئ المدير الحسابات. التسجيل العام مغلق.",
+    footer: "IBVS · نظام التحقق من اللوحات الإعلانية في العراق",
+    switchLanguage: "تغيير اللغة",
+    otherLanguage: "English",
+    notices: {
+      reauth: "لأمان حسابك، سجّل الدخول مرة أخرى باستخدام رمز تطبيق المصادقة للمتابعة.",
+      enrolled: "تم تفعيل التحقق بخطوتين. سجّل الدخول بكلمة المرور ورمز تطبيق المصادقة.",
+    },
+    errors: {
+      tooMany: "محاولات كثيرة. حاول مرة أخرى بعد قليل.",
+      badCredentials: "تعذّر تسجيل الدخول. تحقّق من بياناتك أو تواصل مع المدير.",
+      offline: "الاتصال غير متاح. أعد الاتصال لتسجيل الدخول.",
+      badCode: "هذا الرمز غير صالح. تحقّق من الرمز في تطبيق المصادقة وحاول مرة أخرى.",
+    },
+  },
+} as const;
 
 export default function SignIn() {
-  const [error, setError] = useState(""),
+  const [error, setError] = useState<ErrorKey>(""),
     [busy, setBusy] = useState(false),
     // "totp" or "backup" appears only after the password is accepted for an account with two-factor sign-in.
     [step, setStep] = useState<Step>("password"),
-    [notice, setNotice] = useState("");
+    [notice, setNotice] = useState<NoticeKey>(""),
+    // English first, so the server render and the first client render match; the saved choice is applied on mount.
+    [locale, setLocale] = useState<Locale>("en");
+  const t = words[locale];
 
   useEffect(() => {
+    if (localStorage.getItem("ibvs-locale") === "ar") setLocale("ar");
     const params = new URLSearchParams(location.search);
-    if (params.get("reauth") === "1")
-      setNotice("For security, sign in again with your authenticator code to continue.");
-    if (params.get("enrolled") === "1")
-      setNotice("Two-factor authentication is on. Sign in with your password and authenticator code.");
+    if (params.get("reauth") === "1") setNotice("reauth");
+    if (params.get("enrolled") === "1") setNotice("enrolled");
   }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = locale;
+    document.documentElement.dir = localeDirection(locale);
+  }, [locale]);
+
+  function switchLocale() {
+    const next: Locale = locale === "en" ? "ar" : "en";
+    setLocale(next);
+    localStorage.setItem("ibvs-locale", next);
+  }
 
   function finishSignIn() {
     localStorage.removeItem("ibvs-field-locked");
@@ -46,11 +143,7 @@ export default function SignIn() {
         }),
       });
       if (!response.ok) {
-        setError(
-          response.status === 429
-            ? "Too many attempts. Try again shortly."
-            : "Unable to sign in. Check your credentials or contact your administrator.",
-        );
+        setError(response.status === 429 ? "tooMany" : "badCredentials");
         return;
       }
       const result = (await response.json().catch(() => ({}))) as { twoFactorRedirect?: boolean };
@@ -61,7 +154,7 @@ export default function SignIn() {
       }
       finishSignIn();
     } catch {
-      setError("Connection unavailable. Reconnect to sign in.");
+      setError("offline");
     } finally {
       setBusy(false);
     }
@@ -86,16 +179,12 @@ export default function SignIn() {
         },
       );
       if (!response.ok) {
-        setError(
-          response.status === 429
-            ? "Too many attempts. Try again shortly."
-            : "That code is not valid. Check the code in your authenticator app and try again.",
-        );
+        setError(response.status === 429 ? "tooMany" : "badCode");
         return;
       }
       finishSignIn();
     } catch {
-      setError("Connection unavailable. Reconnect to sign in.");
+      setError("offline");
     } finally {
       setBusy(false);
     }
@@ -109,55 +198,64 @@ export default function SignIn() {
             <Compass />
           </span>
           <span>
-            IBVS<span className="brand-sub">IRAQ BILLBOARD VERIFICATION</span>
+            IBVS<span className="brand-sub">{t.brandSub}</span>
           </span>
         </div>
         <div>
-          <span className="eyebrow">CLARITY FROM THE FIELD</span>
+          <span className="eyebrow">{t.eyebrow}</span>
           <h1>
-            Every location.
+            {t.heroLine1}
             <br />
-            Every face.
+            {t.heroLine2}
             <br />
-            <em>Accounted for.</em>
+            <em>{t.heroLine3}</em>
           </h1>
-          <p>
-            A shared workspace for dependable billboard operations across Iraq.
-          </p>
+          <p>{t.heroText}</p>
           <div className="login-facts">
             <span>
-              <MapPin size={17} /> Location-aware operations
+              <MapPin size={17} /> {t.factLocation}
             </span>
             <span>
-              <ShieldCheck size={17} /> Human-led verification
+              <ShieldCheck size={17} /> {t.factHuman}
             </span>
           </div>
         </div>
-        <small>Built for the realities of fieldwork.</small>
+        <small>{t.footerStory}</small>
       </section>
       <section className="login-panel">
+        <button
+          type="button"
+          className="icon-button locale"
+          aria-label={t.switchLanguage}
+          onClick={switchLocale}
+          style={{ position: "absolute", top: 24, insetInlineEnd: 24 }}
+        >
+          <Languages size={17} />
+          <span>{t.otherLanguage}</span>
+        </button>
         <div className="login-card">
           <span className="small-icon">
             <LockKeyhole />
           </span>
-          <span className="eyebrow">YOUR OPERATIONS WORKSPACE</span>
-          <h2>Welcome back</h2>
-          <p>Sign in with your organization account.</p>
-          {notice && <div className="notice">{notice}</div>}
+          <span className="eyebrow">{t.cardEyebrow}</span>
+          <h2>{t.welcome}</h2>
+          <p>{t.intro}</p>
+          {notice && <div className="notice">{t.notices[notice]}</div>}
           {step === "password" ? (
             <form onSubmit={submit}>
               <label>
-                Email address
+                {t.email}
                 <input
                   name="email"
                   type="email"
                   autoComplete="username"
                   required
                   placeholder="you@organization.com"
+                  dir="ltr"
                 />
               </label>
               <label>
-                Password
+                {t.password}
                 <input
                   name="password"
                   type="password"
@@ -167,18 +265,18 @@ export default function SignIn() {
               </label>
               {error && (
                 <div role="alert" className="notice danger">
-                  {error}
+                  {t.errors[error]}
                 </div>
               )}
               <button className="primary" disabled={busy}>
-                {busy ? "Signing in…" : "Sign in"}
+                {busy ? t.signingIn : t.signIn}
                 <ArrowRight size={17} />
               </button>
             </form>
           ) : (
             <form onSubmit={verifySecondFactor}>
               <label>
-                {step === "backup" ? "Backup code" : "Authenticator code"}
+                {step === "backup" ? t.backupCode : t.authenticatorCode}
                 <input
                   name="code"
                   inputMode={step === "backup" ? "text" : "numeric"}
@@ -186,15 +284,16 @@ export default function SignIn() {
                   required
                   minLength={6}
                   maxLength={32}
+                  dir="ltr"
                 />
               </label>
               {error && (
                 <div role="alert" className="notice danger">
-                  {error}
+                  {t.errors[error]}
                 </div>
               )}
               <button className="primary" disabled={busy}>
-                {busy ? "Checking…" : "Verify and sign in"}
+                {busy ? t.checking : t.verifyAndSignIn}
                 <ArrowRight size={17} />
               </button>
               <button
@@ -205,16 +304,13 @@ export default function SignIn() {
                   setStep(step === "backup" ? "totp" : "backup");
                 }}
               >
-                {step === "backup" ? "Use an authenticator code" : "Use a backup code"}
+                {step === "backup" ? t.useAuthenticator : t.useBackup}
               </button>
             </form>
           )}
-          <p className="login-note">
-            Accounts are provisioned by your administrator. Public registration
-            is closed.
-          </p>
+          <p className="login-note">{t.loginNote}</p>
         </div>
-        <small>IBVS · Iraq Billboard Verification System</small>
+        <small>{t.footer}</small>
       </section>
     </main>
   );

@@ -7,6 +7,12 @@ export default function EvidenceMap({
   arabic: boolean;
 }) {
   const { inspection: i, report } = detail;
+  const m = arabic ? "م" : "m";
+  const kindName = (kind: string) =>
+    arabic
+      ? ({ front: "أمامية", wide: "واسعة" } as Record<string, string>)[kind] ??
+        (kind.startsWith("angle_") ? "زاوية " + kind.slice(6) : kind)
+      : kind;
   // Pending GPS: there is no verified billboard position to draw around.
   if (i.latitude === null || i.longitude === null || i.uncertainty_m === null)
     return (
@@ -88,7 +94,7 @@ export default function EvidenceMap({
               fill="var(--amber)"
             />
             <title>
-              {c.code} · {Math.round(c.distanceM)} m
+              {c.code} · {Math.round(c.distanceM)} {m}
             </title>
           </g>
         ))}
@@ -109,17 +115,17 @@ export default function EvidenceMap({
               fill={n ? "#b47818" : "#0c927c"}
             />
             <title>
-              {o.kind}: {Math.round(o.distanceM)} m ± {o.accuracy} m
+              {kindName(o.kind)}: {Math.round(o.distanceM)} {m} ± {o.accuracy} {m}
             </title>
           </g>
         ))}
         <path d="M180 158 L192 170 L180 182 L168 170 Z" fill="var(--blue)" />
         <text x="322" y="24" fill="currentColor">
-          N ↑
+          {arabic ? "ش ↑" : "N ↑"}
         </text>
         <path d="M20 310h70m-70-4v8m70-8v8" stroke="currentColor" />
         <text x="20" y="299" fill="currentColor" fontSize="11">
-          {Math.round(70 / k)} m
+          {Math.round(70 / k)} {m}
         </text>
       </svg>
       <figcaption>
@@ -132,7 +138,7 @@ export default function EvidenceMap({
           : "◆ Assigned · ● Front green / wide gold · ■ Neighbors"}
         <br />
         <bdi>
-          {lat}, {lon} ± {unc} m
+          {lat}, {lon} ± {unc} {m}
         </bdi>
       </figcaption>
     </figure>

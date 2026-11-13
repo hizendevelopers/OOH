@@ -8,7 +8,7 @@ const byCode: Record<string, (tag: string) => Message> = {
   }),
   exif_missing: (tag) => ({
     en: `The photo has no ${tag}. Screenshots and edited copies usually lack it. Turn on location for the camera and choose the original photo.`,
-    ar: `الصورة لا تحتوي على ${tag}. لقطات الشاشة والنسخ المعدّلة لا تحتويه غالباً. فعّل الموقع للكاميرا واختر الصورة الأصلية.`,
+    ar: `الصورة لا تحتوي على ${tag === "DateTimeOriginal" ? "تاريخ الالتقاط" : /^GPS/.test(tag) ? "بيانات الموقع" : "بيانات مطلوبة"}. لقطات الشاشة والنسخ المعدّلة لا تحتويه غالباً. فعّل الموقع للكاميرا واختر الصورة الأصلية.`,
   }),
   exif_invalid: () => ({
     en: "The photo's date or location data cannot be read.",
@@ -32,7 +32,7 @@ const byCode: Record<string, (tag: string) => Message> = {
   }),
   gps_time_mismatch: () => ({
     en: "The GPS clock and the phone clock differ by more than 10 minutes. A supervisor will check it.",
-    ar: "ساعة GPS وساعة الهاتف تختلفان بأكثر من 10 دقائق. سيتحقق المشرف من ذلك.",
+    ar: "ساعة تحديد الموقع وساعة الهاتف تختلفان بأكثر من 10 دقائق. سيتحقق المشرف من ذلك.",
   }),
   site_configuration_error: () => ({
     en: "This billboard has no verified coordinates yet. A supervisor must fix the site before approval.",

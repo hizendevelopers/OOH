@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigation, LoaderCircle } from "lucide-react";
 import type { Face } from "@/server/service";
 import { LocationMap } from "./location-map";
+import { localizeError } from "@/lib/server-messages";
 
 type History = {
   id: string;
@@ -124,7 +125,7 @@ export function LocationEditor({
       if (!r.ok) throw new Error(data.error);
       onSaved();
     } catch (e) {
-      setError((e as Error).message);
+      setError(localizeError((e as Error).message, ar));
     } finally {
       setBusy(false);
       onBusyChange?.(false);
@@ -345,16 +346,16 @@ export function LocationEditor({
               </bdi>
             </p>
             {historyError ? (
-              <p role="alert">{historyError}</p>
+              <p role="alert">{localizeError(historyError, ar)}</p>
             ) : history.length ? (
               history.map((h) => (
                 <div className="location-history" key={h.id}>
                   <bdi>
-                    {h.latitude}, {h.longitude} · ±{h.uncertainty_m} m
+                    {h.latitude}, {h.longitude} · ±{h.uncertainty_m} {text("m", "م")}
                   </bdi>
                   <p>{h.reason}</p>
                   <small>
-                    {h.actor_name} · {new Date(h.created_at).toLocaleString()}
+                    {h.actor_name} · {new Date(h.created_at).toLocaleString(ar ? "ar-IQ" : undefined)}
                   </small>
                 </div>
               ))
@@ -583,11 +584,11 @@ function DimensionRecord({ faceId, ar }: { faceId: string; ar: boolean }) {
     <section className="location-dimensions" aria-live="polite">
       <h3>{text("Registered size", "المقاس المسجل")}</h3>
       {loadError ? (
-        <p role="alert">{loadError}</p>
+        <p role="alert">{localizeError(loadError, ar)}</p>
       ) : current ? (
         <p>
           <bdi>
-            {current.width_m} × {current.height_m} m
+            {current.width_m} × {current.height_m} {text("m", "م")}
           </bdi>{" "}
           · {text(
             dimensionStatuses.find(([k]) => k === current.status)?.[1] ?? current.status,
@@ -650,7 +651,7 @@ function DimensionRecord({ faceId, ar }: { faceId: string; ar: boolean }) {
           </label>
           {saveError && (
             <div className="notice danger" role="alert">
-              {saveError}
+              {localizeError(saveError, ar)}
             </div>
           )}
           <button className="secondary" type="submit" disabled={busy}>

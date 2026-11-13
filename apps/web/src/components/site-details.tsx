@@ -20,7 +20,7 @@ const text = {
     code: "رمز الموقع",
     na: "غير متوفر",
     notMeasured: "لم يُقَس بعد",
-    pendingGps: "بانتظار الموقع GPS",
+    pendingGps: "بانتظار تحديد الموقع",
     enteredByYou: "أدخله موظف ميداني",
   },
 };
@@ -49,7 +49,7 @@ export function SiteDetails({
   children?: ReactNode;
 }) {
   const t = ar ? text.ar : text.en;
-  const s = siteSummary(site);
+  const s = siteSummary(site, ar);
   const Heading = heading;
   return (
     <div className="site-details">

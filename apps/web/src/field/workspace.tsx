@@ -22,13 +22,14 @@ import {
   Plus,
 } from "lucide-react";
 import type { Actor } from "@ibvs/domain";
-import { matchesFilter } from "@ibvs/domain";
+import { cityName, matchesFilter } from "@ibvs/domain";
+import { localizeError } from "@/lib/server-messages";
 import { FieldMenu } from "./menu";
 import VisitSteps, { type VisitStep } from "./visit-steps";
 import type { Assignment } from "../server/service";
 import { FieldStore, hasRequiredPhotos, type Draft } from "./store";
 import { fieldRequest, replayQueue, SyncError } from "./sync";
-import { fieldStrings, type FieldText } from "./strings";
+import { fieldStrings, fieldTime, type FieldText } from "./strings";
 import Capture from "./capture";
 import { storageError } from "../../../../packages/domain/src/inspection";
 import { Nearby } from "./nearby";
@@ -401,7 +402,7 @@ export default function FieldWorkspace() {
         {d.lastError
           ? t[d.lastError as keyof FieldText] || t.task_conflict
           : d.receipt
-            ? t.receivedTime + ": " + d.receipt.receivedAt
+            ? t.receivedTime + ": " + fieldTime(d.receipt.receivedAt, locale === "ar")
             : t.localReceiptWarning}
       </p>
       {d.receipt && (
@@ -437,7 +438,7 @@ export default function FieldWorkspace() {
             <Compass />
           </span>
           <span>
-            IBVS<small className="brand-sub">FIELD OPERATIONS</small>
+            IBVS<small className="brand-sub">{locale === "ar" ? "العمليات الميدانية" : "FIELD OPERATIONS"}</small>
           </span>
         </Link>
         <div>
@@ -447,7 +448,7 @@ export default function FieldWorkspace() {
           </span>
           <button
             className="icon-button"
-            aria-label="Switch language"
+            aria-label={locale === "ar" ? "تغيير اللغة" : "Switch language"}
             onClick={() => {
               const next = locale === "en" ? "ar" : "en";
               setLocale(next);
@@ -600,7 +601,7 @@ export default function FieldWorkspace() {
                     </option>
                     {cityCounts(tasks, needsLocationAttention).map((c) => (
                       <option key={c.city} value={c.city}>
-                        {c.city} ({c.count})
+                        {cityName(c.city, locale === "ar")} ({c.count})
                       </option>
                     ))}
                   </select>
@@ -741,7 +742,7 @@ export default function FieldWorkspace() {
                     heading="h2"
                     pendingText={
                       locale === "ar"
-                        ? "بانتظار الموقع GPS — أول صورة لك تحدّده"
+                        ? "بانتظار تحديد الموقع — أول صورة لك تحدّده"
                         : "Pending GPS — your first photo sets it"
                     }
                   >
@@ -768,7 +769,7 @@ export default function FieldWorkspace() {
                         </div>
                         <div>
                           <dt>{t.unverified}</dt>
-                          <dd>± {draft.task.uncertainty_m} m</dd>
+                          <dd>± {draft.task.uncertainty_m} {locale === "ar" ? "م" : "m"}</dd>
                         </div>
                       </dl>
                     </details>
@@ -863,7 +864,7 @@ export default function FieldWorkspace() {
                         {locale === "ar" ? "ينتهي" : "Expires"}{" "}
                         {new Date(
                           draft.task.location_exception.expires_at,
-                        ).toLocaleString()}
+                        ).toLocaleString(locale === "ar" ? "ar-IQ" : undefined)}
                         .{" "}
                         {locale === "ar"
                           ? "لا تزال المراجعة البشرية مطلوبة."
@@ -874,7 +875,13 @@ export default function FieldWorkspace() {
                     const result = assessPhotoLocation(photo, draft.task);
                     return result.status !== "within_area" && result.status !== "first_capture" ? (
                       <p key={photo.kind} className="notice warning">
-                        {photo.kind}: {messages[result.status]}{" "}
+                        {locale === "ar"
+                          ? photo.kind === "front"
+                            ? t.front
+                            : photo.kind === "wide"
+                              ? t.wide
+                              : `${t.angle} ${photo.kind.slice(-1)}`
+                          : photo.kind}: {messages[result.status]}{" "}
                         {locale === "ar"
                           ? "الصورة محفوظة كمسودة."
                           : "Photo remains saved as a draft."}
@@ -930,7 +937,7 @@ export default function FieldWorkspace() {
                               ? messages[known]
                               : message === "brand-required"
                                 ? t.brandNeeded
-                                : message,
+                                : localizeError(message, locale === "ar"),
                           );
                         } finally {
                           setBusy(false);

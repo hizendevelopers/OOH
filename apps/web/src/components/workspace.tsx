@@ -40,7 +40,8 @@ import { WorkerManagement } from "./worker-management";
 import { CityInventory } from "./city-inventory";
 import { Submissions } from "./submissions";
 import { LocationFlags, cityCounts, needsLocationAttention } from "./city-tabs";
-import { cityLine } from "@ibvs/domain";
+import { cityLine, cityName as cityLabel } from "@ibvs/domain";
+import { localizeError } from "@/lib/server-messages";
 type Tab = "overview" | "inventory" | "assignments" | "submissions" | "workers" | "audit";
 type Summary = {
   faces: number;
@@ -207,6 +208,8 @@ function Badge({
     ambiguous: "هوية ملتبسة",
     superseded: "استُبدلت المهمة",
     server_received: "استلمها الخادم",
+    needs_review: "للمراجعة",
+    uploading: "جارٍ الرفع",
   };
   return (
     <span className={"badge " + (status || "unassigned")}>
@@ -216,6 +219,46 @@ function Badge({
         : (status || "unassigned").replaceAll("_", " ")}
     </span>
   );
+}
+// Arabic names for the audit-log operations; unknown operations keep their technical name.
+const auditActions: Record<string, string> = {
+  "advertiser.confirm": "تأكيد المعلن",
+  "assignment.create": "إنشاء مهمة",
+  "baseline.enrolled": "اعتماد مرجع",
+  "baseline.withdrawn": "سحب مرجع",
+  "face.address_recorded": "تسجيل عنوان",
+  "face.dimensions.record": "تسجيل مقاس",
+  "gallery.verified": "توثيق الصور",
+  "inspection.gallery_photo_replaced": "استبدال صورة",
+  "inspection.initiated": "بدء معاينة",
+  "inspection.review_reopened": "إعادة فتح مراجعة",
+  "inspection.reviewed": "مراجعة معاينة",
+  "inspection.risk_assessed": "تقييم المخاطر",
+  "inspection.server_received": "استلام معاينة",
+  "inventory.import": "استيراد المخزون",
+  "location.coordinates.correct": "تصحيح إحداثيات",
+  "location.create": "إضافة موقع",
+  "location.exception.authorized": "السماح باستثناء موقع",
+  "locations.city_corrected": "تصحيح مدينة",
+  "locations.gps_verified": "توثيق الموقع",
+  "locations.import": "استيراد مواقع",
+  "locations.import_assign": "استيراد مواقع وتكليفها",
+  "site.registered": "تسجيل موقع جديد",
+  "user.provisioned": "إنشاء حساب",
+};
+// CSV row problems from the import preview, in Arabic. Column names stay as written in the file.
+function rowErrorAr(message: string) {
+  if (message.startsWith("Duplicate face code: "))
+    return "رمز واجهة مكرر: " + message.slice("Duplicate face code: ".length);
+  if (message === "CSV must contain 1–1000 rows") return "يجب أن يحتوي ملف CSV على ١ إلى ١٠٠٠ صف.";
+  if (message.startsWith("Malformed CSV"))
+    return "ملف CSV غير سليم أو فيه صف كبير جداً؛ راجع الحقول بين علامات التنصيص وعناوين الأعمدة.";
+  if (message === "Duplicate CSV headers") return "عناوين أعمدة مكررة في ملف CSV.";
+  const fields = message
+    .split("; ")
+    .map((part) => part.split(":")[0].trim())
+    .filter(Boolean);
+  return fields.length ? "قيمة غير صالحة في: " + [...new Set(fields)].join("، ") : "صف غير صالح.";
 }
 export default function Workspace({
   actor,
@@ -265,6 +308,8 @@ export default function Workspace({
     [busy, setBusy] = useState(false),
     [formError, setFormError] = useState("");
   const t = words[locale];
+  const isAr = locale === "ar";
+  const metre = isAr ? "م" : "m";
   useEffect(() => {
     const saved = localStorage.getItem("ibvs-locale");
     if (saved === "ar") setLocale("ar");
@@ -343,7 +388,7 @@ export default function Workspace({
         await api<Preview>("inventory/preview", { csv, sourceName: fileName }),
       );
     } catch (e) {
-      setFormError((e as Error).message);
+      setFormError(localizeError((e as Error).message, isAr));
     } finally {
       setBusy(false);
     }
@@ -363,7 +408,7 @@ export default function Workspace({
       );
       await load();
     } catch (e) {
-      setFormError((e as Error).message);
+      setFormError(localizeError((e as Error).message, isAr));
     } finally {
       setBusy(false);
     }
@@ -407,9 +452,9 @@ export default function Workspace({
       setFormError(
         done
           ? locale === "ar"
-            ? `تم تكليف ${done} من ${selected.length} قبل الخطأ: ${message}`
+            ? `تم تكليف ${done} من ${selected.length} قبل الخطأ: ${localizeError(message, true)}`
             : `${done} of ${selected.length} were assigned before this error: ${message}`
-          : message,
+          : localizeError(message, isAr),
       );
       if (done) {
         // Keep only the sites that are still unassigned, so retrying does not repeat the first batches.
@@ -470,7 +515,7 @@ export default function Workspace({
   return (
     <div className="app-shell">
       <a href="#main" className="skip-link">
-        Skip to content
+        {isAr ? "انتقل إلى المحتوى" : "Skip to content"}
       </a>
       {menu && (
         <button
@@ -485,7 +530,7 @@ export default function Workspace({
             <Compass />
           </span>
           <span>
-            IBVS<span className="brand-sub">IRAQ BILLBOARD VERIFICATION</span>
+            IBVS<span className="brand-sub">{isAr ? "التحقق من اللوحات الإعلانية في العراق" : "IRAQ BILLBOARD VERIFICATION"}</span>
           </span>
         </Link>
         <nav>
@@ -508,7 +553,7 @@ export default function Workspace({
             <span className="avatar">{actor.name.slice(0, 1)}</span>
             <span>
               {actor.name}
-              <small>{isAdmin ? "Administrator" : "Field worker"}</small>
+              <small>{isAdmin ? (isAr ? "مدير" : "Administrator") : isAr ? "موظف ميداني" : "Field worker"}</small>
             </span>
             {signInRequired && (
               <button
@@ -525,7 +570,7 @@ export default function Workspace({
                     localStorage.removeItem("ibvs-field-owner-v2");
                     localStorage.setItem("ibvs-field-locked", "1");
                     location.assign("/sign-in");
-                  } else setToast("Sign out failed. Please retry.");
+                  } else setToast(isAr ? "تعذّر تسجيل الخروج. حاول مرة أخرى." : "Sign out failed. Please retry.");
                 }}
               >
                 <LogOut size={17} />
@@ -539,7 +584,7 @@ export default function Workspace({
           <div className="breadcrumbs">
             <button
               className="icon-button mobile-menu"
-              aria-label="Menu"
+              aria-label={isAr ? "القائمة" : "Menu"}
               onClick={() => setMenu(!menu)}
             >
               <Menu size={21} />
@@ -553,11 +598,11 @@ export default function Workspace({
             )}
             <span className="connection">
               <span className={offline ? "offline-dot" : "online-dot"} />
-              {offline ? "Offline" : "Connected"}
+              {offline ? (isAr ? "غير متصل" : "Offline") : isAr ? "متصل" : "Connected"}
             </span>
             <button
               className="icon-button locale"
-              aria-label="Switch language"
+              aria-label={isAr ? "تغيير اللغة" : "Switch language"}
               onClick={() => {
                 const l = locale === "en" ? "ar" : "en";
                 setLocale(l);
@@ -569,7 +614,7 @@ export default function Workspace({
             </button>
             <button
               className="icon-button"
-              aria-label="Toggle theme"
+              aria-label={isAr ? "تبديل المظهر" : "Toggle theme"}
               onClick={() => {
                 setDark(!dark);
                 localStorage.setItem("ibvs-theme", !dark ? "dark" : "light");
@@ -639,7 +684,7 @@ export default function Workspace({
           ) : error ? (
             <div className="notice danger" role="alert">
               {t.error}
-              <p>{error}</p>
+              <p>{localizeError(error, isAr)}</p>
               <button className="secondary" onClick={() => void load()}>
                 {t.retry}
               </button>
@@ -750,7 +795,7 @@ export default function Workspace({
                             return (
                               <div className="progress-row" key={c.city}>
                                 <div className="progress-head">
-                                  <strong>{c.city}</strong>
+                                  <strong>{cityLabel(c.city, isAr)}</strong>
                                   <span>
                                     {c.submitted} / {c.faces} · {pct}%
                                   </span>
@@ -758,7 +803,7 @@ export default function Workspace({
                                 <div
                                   className="progress-track"
                                   role="progressbar"
-                                  aria-label={`${c.city}: ${pct}% ${locale === "ar" ? "مُرسلة" : "submitted"}`}
+                                  aria-label={`${cityLabel(c.city, isAr)}: ${pct}% ${locale === "ar" ? "مُرسلة" : "submitted"}`}
                                   aria-valuemin={0}
                                   aria-valuemax={100}
                                   aria-valuenow={pct}
@@ -837,7 +882,7 @@ export default function Workspace({
                                       minute: "2-digit",
                                     },
                                   )}{" "}
-                                  · Baghdad
+                                  · {isAr ? "بغداد" : "Baghdad"}
                                 </small>
                               </div>
                             </article>
@@ -911,7 +956,7 @@ export default function Workspace({
                         tab === "inventory" ? (f) => needsLocationAttention(f) : () => false,
                       ).map((c) => (
                         <option key={c.city} value={c.city}>
-                          {c.city} ({c.count}
+                          {cityLabel(c.city, isAr)} ({c.count}
                           {c.attention > 0
                             ? locale === "ar"
                               ? ` · ${c.attention} للمتابعة`
@@ -1002,7 +1047,7 @@ export default function Workspace({
                               <th>
                                 <input
                                   type="checkbox"
-                                  aria-label="Select all unassigned faces"
+                                  aria-label={isAr ? "تحديد كل الواجهات غير المكلّفة" : "Select all unassigned faces"}
                                   checked={
                                     filteredFaces.some((f) => !f.status) &&
                                     filteredFaces
@@ -1033,7 +1078,7 @@ export default function Workspace({
                                 <td>
                                   <input
                                     type="checkbox"
-                                    aria-label={`Select ${f.code}`}
+                                    aria-label={isAr ? `تحديد ${f.code}` : `Select ${f.code}`}
                                     disabled={!!f.status}
                                     checked={selected.includes(f.id)}
                                     onChange={(e) =>
@@ -1059,7 +1104,7 @@ export default function Workspace({
                                   </small>
                                 </td>
                                 <td>
-                                  <strong>{f.city}</strong>
+                                  <strong>{cityLabel(f.city, isAr)}</strong>
                                   <small>{f.zone || "—"}</small>
                                   {f.city_label && f.city_label !== f.city && (
                                     <small>
@@ -1083,7 +1128,7 @@ export default function Workspace({
                                   {f.latitude === null || f.longitude === null ? (
                                     <>
                                       <strong className="pending-gps">
-                                        {locale === "ar" ? "بانتظار الموقع GPS" : "Pending GPS"}
+                                        {locale === "ar" ? "بانتظار تحديد الموقع" : "Pending GPS"}
                                       </strong>
                                       <small>
                                         {locale === "ar"
@@ -1106,7 +1151,7 @@ export default function Workspace({
                                     {f.longitude.toFixed(5)}
                                   </bdi>
                                   <small>
-                                    ± {f.uncertainty_m} m ·{" "}
+                                    ± {f.uncertainty_m} {metre} ·{" "}
                                     {locale === "ar"
                                       ? "غير موثّقة"
                                       : "unverified"}
@@ -1167,7 +1212,7 @@ export default function Workspace({
                               try {
                                 setDetail(await api<Assignment>("assignments/" + a.assignment_id));
                               } catch (e) {
-                                setToast((e as Error).message);
+                                setToast(localizeError((e as Error).message, isAr));
                               }
                             }}
                           >
@@ -1199,7 +1244,7 @@ export default function Workspace({
                                   ),
                                 );
                               } catch (e) {
-                                setToast((e as Error).message);
+                                setToast(localizeError((e as Error).message, isAr));
                               }
                             }}
                           >
@@ -1220,7 +1265,7 @@ export default function Workspace({
                             <h3>
                               <bdi>{a.code}</bdi>
                             </h3>
-                            <p>{cityLine(a.city, a.zone)}</p>
+                            <p>{cityLine(a.city, a.zone, isAr)}</p>
                             <LocationFlags item={a} ar={locale === "ar"} />
                             <div className="task-bottom">
                               <span>
@@ -1269,7 +1314,7 @@ export default function Workspace({
                     <div>
                       <dt>{t.city}</dt>
                       <dd>
-                        {detail.city} · {detail.zone}
+                        {cityLabel(detail.city, isAr)} · {detail.zone}
                       </dd>
                     </div>
                     <div>
@@ -1282,7 +1327,7 @@ export default function Workspace({
                     </div>
                     <div>
                       <dt>{t.uncertainty}</dt>
-                      <dd>± {detail.uncertainty_m} m</dd>
+                      <dd>± {detail.uncertainty_m} {metre}</dd>
                     </div>
                     <div>
                       <dt>{t.orientation}</dt>
@@ -1322,7 +1367,7 @@ export default function Workspace({
                         : "Location exception active until"}{" "}
                       {new Date(
                         detail.location_exception.expires_at,
-                      ).toLocaleString()}{" "}
+                      ).toLocaleString(isAr ? "ar-IQ" : undefined)}{" "}
                       · {detail.location_exception.reason}
                     </div>
                   )}
@@ -1396,7 +1441,7 @@ export default function Workspace({
                           {events.map((e) => (
                             <tr key={e.id}>
                               <td>
-                                <bdi className="face-code">{e.action}</bdi>
+                                <bdi className="face-code">{isAr ? auditActions[e.action] ?? e.action : e.action}</bdi>
                                 <small>
                                   <bdi>{e.entity_id}</bdi>
                                 </small>
@@ -1428,7 +1473,7 @@ export default function Workspace({
       {toast && (
         <div className="toast" role="status">
           <Check size={18} />
-          {toast}
+          {localizeError(toast, isAr)}
           <button
             className="icon-button"
             aria-label={t.close}
@@ -1494,7 +1539,7 @@ export default function Workspace({
                 setToast(locale === "ar" ? "تم تصحيح المدينة وحفظ السجل." : "City corrected and recorded in history.");
                 await load();
               } catch (error) {
-                setFormError((error as Error).message);
+                setFormError(localizeError((error as Error).message, isAr));
               } finally {
                 setBusy(false);
               }
@@ -1574,7 +1619,7 @@ export default function Workspace({
                 );
                 await load();
               } catch (error) {
-                setFormError((error as Error).message);
+                setFormError(localizeError((error as Error).message, isAr));
               } finally {
                 setBusy(false);
               }
@@ -1647,9 +1692,9 @@ export default function Workspace({
                 <strong>
                   {locale === "ar" ? "اختر ملف CSV" : "Choose a CSV file"}
                 </strong>
-                <span>UTF-8 · 1,000 rows maximum · 1 MB</span>
+                <span>{isAr ? "UTF-8 · ١٠٠٠ صف كحد أقصى · ١ ميغابايت" : "UTF-8 · 1,000 rows maximum · 1 MB"}</span>
                 <input
-                  aria-label="CSV file"
+                  aria-label={isAr ? "ملف CSV" : "CSV file"}
                   type="file"
                   accept=".csv,text/csv"
                   disabled={busy}
@@ -1659,7 +1704,7 @@ export default function Workspace({
                     setFormError("");
                     setPreview(null);
                     if (file.size > 1000000) {
-                      setFormError("File exceeds 1 MB");
+                      setFormError(isAr ? "حجم الملف أكبر من ١ ميغابايت." : "File exceeds 1 MB");
                       return;
                     }
                     setCsv(await file.text());
@@ -1672,7 +1717,7 @@ export default function Workspace({
                   ? "أو الصق محتوى CSV"
                   : "Or paste CSV contents"}
                 <textarea
-                  aria-label="CSV contents"
+                  aria-label={isAr ? "محتوى CSV" : "CSV contents"}
                   rows={5}
                   value={csv}
                   disabled={busy}
@@ -1695,7 +1740,7 @@ export default function Workspace({
                     <ul>
                       {preview.errors.map((e, i) => (
                         <li key={i}>
-                          Row {e.row}: {e.message}
+                          {isAr ? `الصف ${e.row}: ${rowErrorAr(e.message)}` : `Row ${e.row}: ${e.message}`}
                         </li>
                       ))}
                     </ul>
@@ -1703,14 +1748,14 @@ export default function Workspace({
                   {preview.rows.slice(0, 5).map((r) => (
                     <div className="preview-row" key={r.code}>
                       <bdi>{r.code}</bdi>
-                      <span>{r.city}</span>
+                      <span>{cityLabel(r.city, isAr)}</span>
                       <bdi>
                         {r.latitude}, {r.longitude}
                       </bdi>
                     </div>
                   ))}
                   {preview.rows.length > 5 && (
-                    <small>+ {preview.rows.length - 5} rows</small>
+                    <small>+ {preview.rows.length - 5} {isAr ? "صفوف أخرى" : "rows"}</small>
                   )}
                 </div>
               )}
@@ -1757,7 +1802,7 @@ export default function Workspace({
               <p className="muted">
                 {assignCity
                   ? locale === "ar"
-                    ? `كل المواقع غير المكلّفة في ${assignCity}: ${selected.length}`
+                    ? `كل المواقع غير المكلّفة في ${cityLabel(assignCity, true)}: ${selected.length}`
                     : `All ${selected.length} unassigned sites in ${assignCity}`
                   : `${selected.length} ${t.selected}`}
               </p>
