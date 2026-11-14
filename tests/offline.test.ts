@@ -499,3 +499,83 @@ it("clears a long wait already scheduled when a part is stored", async () => {
   // The next replay may pick it up at once instead of sitting out the old five-minute wait.
   expect(draft.nextAttemptAt - Date.now()).toBeLessThan(10000);
 });
+
+it("takes each photo from the device again for every part", async () => {
+  const store = await prepared();
+  // A photo large enough to need two parts, so the second read happens after a write to the database.
+  const chunkSize = 16;
+  const first = new Blob(["A".repeat(chunkSize), "B".repeat(chunkSize)], { type: "image/jpeg" });
+  const before = (await store.drafts.get(task.assignment_id))!;
+  await store.drafts.update(task.assignment_id, {
+    state: "queued",
+    photos: {
+      ...before.photos,
+      front: { ...before.photos.front!, blob: first, bytes: first.size, sha256: await digestBlob(first) },
+    },
+  });
+  const sent: string[] = [];
+  const transport = (async (url: string, body?: unknown) => {
+    if (url === "me") return { ...store.owner, role: "worker" };
+    if (url === "inspections")
+      return {
+        inspectionId: crypto.randomUUID(),
+        chunkSize,
+        photos: [{ kind: "front", receivedParts: [], receiptId: null }],
+        receipt: null,
+      } as UploadSession;
+    if (url.includes("/parts/")) {
+      sent.push(await (body as Blob).text());
+      // Between parts the photo on the device is replaced, standing in for a phone handing back a
+      // different object on the next read. A stale reference would keep sending the old bytes.
+      const replacement = new Blob(["C".repeat(chunkSize), "D".repeat(chunkSize)], { type: "image/jpeg" });
+      const draft = (await store.drafts.get(task.assignment_id))!;
+      await store.drafts.update(task.assignment_id, {
+        photos: { front: { ...draft.photos.front!, blob: replacement } },
+      });
+      return { receiptId: "photo-receipt" };
+    }
+    throw new SyncError(409, "stop here");
+  }) as Transport;
+  await syncDraft(store, task.assignment_id, transport);
+  expect(sent).toHaveLength(2);
+  expect(sent[0]).toBe("A".repeat(chunkSize));
+  // The second part comes from the photo as it stands on the device now, not from the earlier read.
+  expect(sent[1]).toBe("D".repeat(chunkSize));
+});
+
+it("ends quietly when another run has already had the visit received", async () => {
+  const store = await prepared();
+  const receipt: Receipt = {
+    inspectionId: crypto.randomUUID(),
+    receiptId: crypto.randomUUID(),
+    receivedAt: new Date().toISOString(),
+    status: "server_received",
+    flags: [],
+  };
+  const transport = (async (url: string) => {
+    if (url === "me") return { ...store.owner, role: "worker" };
+    if (url === "inspections")
+      return {
+        inspectionId: receipt.inspectionId,
+        chunkSize: 256 * 1024,
+        photos: ["front", "wide", "angle_1"].map((kind) => ({ kind, receivedParts: [], receiptId: null })),
+        receipt: null,
+      } as UploadSession;
+    if (url.includes("/parts/")) {
+      // A second run finishes the visit in between, which takes the photos off this phone.
+      await store.drafts.update(task.assignment_id, {
+        state: "server_received",
+        photos: {},
+        receipt,
+        progress: 100,
+      });
+      return { receiptId: "photo-receipt" };
+    }
+    return { receiptId: "photo-receipt" };
+  }) as Transport;
+  await syncDraft(store, task.assignment_id, transport);
+  const draft = (await store.drafts.get(task.assignment_id))!;
+  // A finished visit must not be left looking like a failure to the worker.
+  expect(draft).toMatchObject({ state: "server_received", receipt });
+  expect(draft.lastError).toBeNull();
+});
