@@ -1335,8 +1335,10 @@ export default function Workspace({
                               ? `جارٍ ترجمة أسماء المواقع إلى العربية… متبقٍ ${siteNames.remaining}`
                               : `Translating site names to Arabic… ${siteNames.remaining} left`
                             : siteNames.problem
-                              ? (locale === "ar"
-                                  ? `تعذّرت ترجمة أسماء المواقع: ${localizeError(siteNames.problem, true)}`
+                              ? // The reason is a short technical code, shown as it is in both
+                                // languages so it can be reported without translating it back.
+                                (locale === "ar"
+                                  ? `تعذّرت ترجمة أسماء المواقع: ${siteNames.problem}`
                                   : `Site names could not be translated: ${siteNames.problem}`)
                               : locale === "ar"
                                 ? `${siteNames.remaining} اسم موقع لم يُترجم بعد.`

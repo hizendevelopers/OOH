@@ -87,7 +87,20 @@ async function askGemini(prompt: string, key: string): Promise<string> {
     if (response.ok) break;
     if (response.status !== 400 || !withSchema) break;
   }
-  if (!response || !response.ok) throw new Error(`gemini_http_${response?.status ?? "none"}`);
+  if (!response || !response.ok) {
+    // Google's own wording ("API key not valid", "model not found", "API has not been enabled")
+    // identifies the problem far faster than the status alone. The key is sent in a header, so it
+    // cannot appear in this body; it is truncated and stripped of newlines regardless.
+    const detail = await response
+      ?.text()
+      .then((text) => {
+        const parsed = JSON.parse(text) as { error?: { message?: string } };
+        return parsed.error?.message ?? text;
+      })
+      .catch(() => "")
+      .then((text) => text.replace(/\s+/g, " ").trim().slice(0, 120));
+    throw new Error(`gemini_http_${response?.status ?? "none"}${detail ? `: ${detail}` : ""}`);
+  }
   const result = (await response.json()) as GeminiResponse;
   if (result.promptFeedback?.blockReason) throw new Error(`gemini_blocked_${result.promptFeedback.blockReason}`);
   const candidate = result.candidates?.[0];
@@ -129,9 +142,13 @@ export async function translateSiteNames(actor: Actor, city?: string | null) {
   try {
     parsed = Translations.parse(JSON.parse(await askGemini(JSON.stringify(input), key)));
   } catch (error) {
-    // Only the failure kind is logged, never the names that were sent.
-    console.error(JSON.stringify({ category: "site_name_translation_failed", error: error instanceof Error ? error.message.slice(0, 60) : "unknown" }));
-    throw new ApiError(502, "Site name translation failed; try again");
+    // The reason travels to the administrator as well as the log. Without it the dashboard could
+    // only say "try again", which is useless when every attempt fails the same way. These are short
+    // codes produced here (gemini_http_403, gemini_empty, and so on) or a schema complaint: no
+    // request body, no names and no key material.
+    const reason = (error instanceof Error ? error.message : "unknown").slice(0, 200);
+    console.error(JSON.stringify({ category: "site_name_translation_failed", error: reason }));
+    throw new ApiError(502, `Site name translation failed: ${reason}`);
   }
   const arabicByText = new Map<string, string>();
   for (const item of parsed.items) {
