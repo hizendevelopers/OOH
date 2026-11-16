@@ -8,3 +8,7 @@ test-results/
 playwright-report/
 *.tsbuildinfo
 coverage/
+
+# Generated sign-in passwords from scripts/set-worker-passwords.ts. Never committed.
+workers.csv
+*passwords*.csv

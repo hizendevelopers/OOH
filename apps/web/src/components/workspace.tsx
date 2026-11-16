@@ -285,6 +285,9 @@ export default function Workspace({
   const [assignCity, setAssignCity] = useState<string | null>(null);
   const [assignProgress, setAssignProgress] = useState("");
   const [exceptionTask, setExceptionTask] = useState<Assignment | null>(null);
+  // Set when the administrator moves an open visit to a different worker.
+  const [moveTask, setMoveTask] = useState<Assignment | null>(null);
+  const [moveWorker, setMoveWorker] = useState("");
   const [cityFix, setCityFix] = useState<Face | null>(null);
   const [cityName, setCityName] = useState("");
   const [cityReason, setCityReason] = useState("");
@@ -1427,18 +1430,32 @@ export default function Workspace({
                   {["assigned", "resurvey_requested"].includes(
                       detail.status,
                     ) && (
-                      <button
-                        className="secondary"
-                        onClick={() => {
-                          setExceptionTask(detail);
-                          setExceptionReason("");
-                          setFormError("");
-                        }}
-                      >
-                        {locale === "ar"
-                          ? "السماح باستثناء الموقع"
-                          : "Authorize location exception"}
-                      </button>
+                      <>
+                        <button
+                          className="secondary"
+                          onClick={() => {
+                            setExceptionTask(detail);
+                            setExceptionReason("");
+                            setFormError("");
+                          }}
+                        >
+                          {locale === "ar"
+                            ? "السماح باستثناء الموقع"
+                            : "Authorize location exception"}
+                        </button>
+                        <button
+                          className="secondary"
+                          onClick={() => {
+                            setMoveTask(detail);
+                            setMoveWorker("");
+                            setFormError("");
+                          }}
+                        >
+                          {locale === "ar"
+                            ? "نقل إلى موظف آخر"
+                            : "Move to another worker"}
+                        </button>
+                      </>
                     )}
                   <a
                     className="primary"
@@ -1620,6 +1637,92 @@ export default function Workspace({
               <button className="primary" type="submit" disabled={busy}>
                 {busy ? <LoaderCircle className="spin" size={16} /> : null}
                 {locale === "ar" ? "حفظ التصحيح" : "Save correction"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {moveTask && (
+        <Modal
+          title={
+            locale === "ar" ? "نقل الزيارة إلى موظف آخر" : "Move visit to another worker"
+          }
+          close={() => {
+            if (!busy) setMoveTask(null);
+          }}
+          closeLabel={t.close}
+        >
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setBusy(true);
+              setFormError("");
+              try {
+                await api("assignments/reassign", {
+                  assignmentId: moveTask.assignment_id,
+                  workerId: moveWorker,
+                });
+                setMoveTask(null);
+                setDetail(null);
+                setToast(
+                  locale === "ar"
+                    ? "تم نقل الزيارة."
+                    : "Visit moved to the other worker.",
+                );
+                await load();
+              } catch (error) {
+                setFormError(localizeError((error as Error).message, isAr));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <p className="muted">
+              {locale === "ar"
+                ? "تبقى اللوحة وتاريخ الاستحقاق كما هما. ينتهي أي استثناء موقع ممنوح للموظف السابق، ولا يعود بإمكانه فتح هذه الزيارة."
+                : "The site and the due date stay the same. Any location exception granted to the previous worker ends, and they can no longer open this visit."}
+            </p>
+            <p>
+              <bdi>{moveTask.code}</bdi> · {moveTask.worker_name}
+            </p>
+            <label>
+              {locale === "ar" ? "الموظف الجديد" : "New worker"}
+              <select
+                aria-label={locale === "ar" ? "الموظف الجديد" : "New worker"}
+                value={moveWorker}
+                onChange={(e) => setMoveWorker(e.target.value)}
+                required
+                disabled={busy}
+              >
+                <option value="" disabled>
+                  {t.selectWorker}
+                </option>
+                {workers
+                  .filter((w) => w.id !== moveTask.worker_id)
+                  .map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            {formError && (
+              <div className="notice danger" role="alert">
+                {formError}
+              </div>
+            )}
+            <div className="modal-actions">
+              <button
+                className="secondary"
+                type="button"
+                disabled={busy}
+                onClick={() => setMoveTask(null)}
+              >
+                {t.cancel}
+              </button>
+              <button className="primary" type="submit" disabled={busy}>
+                {busy ? <LoaderCircle className="spin" size={16} /> : null}
+                {locale === "ar" ? "نقل الزيارة" : "Move visit"}
               </button>
             </div>
           </form>

@@ -77,6 +77,11 @@ const ar: Record<string, string> = {
   "This structure is shared by other locations; the city cannot be changed here":
     "هذا الهيكل مشترك مع مواقع أخرى؛ لا يمكن تغيير المدينة من هنا.",
   "This visit is closed, so its address can no longer change": "هذه الزيارة مغلقة، فلا يمكن تغيير عنوانها.",
+  "This visit has already been submitted and cannot be moved to another worker":
+    "تم إرسال هذه الزيارة بالفعل ولا يمكن نقلها إلى موظف آخر.",
+  "This worker has already started this visit and cannot be moved off it":
+    "بدأ هذا الموظف الزيارة بالفعل ولا يمكن نقلها عنه.",
+  "This visit is already with that worker": "هذه الزيارة لدى ذلك الموظف بالفعل.",
   "Too many challenges; retry shortly": "طلبات كثيرة؛ أعد المحاولة بعد قليل.",
   "Visit not found": "الزيارة غير موجودة.",
   "Worker access required": "يلزم حساب موظف ميداني.",

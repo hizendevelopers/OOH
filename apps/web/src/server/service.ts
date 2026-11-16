@@ -268,6 +268,73 @@ export async function assign(
     throw e;
   }
 }
+export const reassignmentInput = z
+  .object({
+    assignmentId: z.string().min(1).max(100),
+    workerId: z.string().min(1).max(100),
+  })
+  .strict();
+// Moves an open visit to a different worker: the city it belongs to changed hands, or the worker left.
+// The assignment keeps its identity, its site and its due date, so nothing downstream is orphaned; only
+// the worker changes. The version advances, which retires any location exception granted for the previous
+// worker, since an exception is permission for one person at one place. Work that has already been
+// submitted, or started uploading, is never moved: that visit belongs to the worker who made it.
+export async function reassign(
+  actor: Actor,
+  input: z.infer<typeof reassignmentInput>,
+) {
+  requireAdmin(actor);
+  const parsed = reassignmentInput.parse(input);
+  const db = await getDb();
+  return await db.transaction(async (tx) => {
+    const [task] = await tx.query<{
+      worker_id: string;
+      status: string;
+      face_id: string;
+      version: number;
+    }>(
+      "SELECT worker_id,status,face_id,version FROM assignments WHERE id=$1 AND organization_id=$2 FOR UPDATE",
+      [parsed.assignmentId, actor.organizationId],
+    );
+    if (!task) throw new ApiError(404, "Assignment not found");
+    if (!["assigned", "resurvey_requested"].includes(task.status))
+      throw new ApiError(
+        409,
+        "This visit has already been submitted and cannot be moved to another worker",
+      );
+    const started = await tx.query(
+      "SELECT id FROM inspections WHERE assignment_id=$1",
+      [parsed.assignmentId],
+    );
+    if (started.length)
+      throw new ApiError(
+        409,
+        "This worker has already started this visit and cannot be moved off it",
+      );
+    if (task.worker_id === parsed.workerId)
+      throw new ApiError(422, "This visit is already with that worker");
+    const member = await tx.query(
+      "SELECT m.user_id FROM organization_members m JOIN worker_profiles p ON p.user_id=m.user_id WHERE m.organization_id=$1 AND m.user_id=$2 AND m.role='worker' AND p.active=true",
+      [actor.organizationId, parsed.workerId],
+    );
+    if (!member.length)
+      throw new ApiError(422, "Select an active worker in this organization");
+    await tx.query(
+      "UPDATE assignments SET worker_id=$1,version=version+1 WHERE id=$2",
+      [parsed.workerId, parsed.assignmentId],
+    );
+    await audit(tx, actor, "assignment.reassign", parsed.assignmentId, {
+      faceId: task.face_id,
+      fromWorkerId: task.worker_id,
+      toWorkerId: parsed.workerId,
+    });
+    return {
+      assignmentId: parsed.assignmentId,
+      workerId: parsed.workerId,
+      version: task.version + 1,
+    };
+  });
+}
 export async function overview(actor: Actor) {
   requireAdmin(actor);
   const db = await getDb();
