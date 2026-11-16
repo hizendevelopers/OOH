@@ -13,3 +13,5 @@ coverage/
 workers.csv
 *passwords*.csv
 worker-accounts.md
+worker-accounts.xlsx
+.~lock.*#
