@@ -13,6 +13,8 @@ import {
   importCsv,
   assignmentInput,
   assign,
+  reassignmentInput,
+  reassign,
   overview,
   auditLog,
   requireAdmin,
@@ -167,6 +169,8 @@ async function handle(request: Request) {
         return json(await correctImportedCity(actor, z.object({ faceId: z.string().uuid(), city: z.string(), reason: z.string() }).parse(body)));
       if (route === "assignments")
         return json(await assign(actor, assignmentInput.parse(body)), 201);
+      if (route === "assignments/reassign")
+        return json(await reassign(actor, reassignmentInput.parse(body)));
       // Arabic site names: translates one batch of untranslated names. Administrator only (checked in the service).
       if (route === "site-names") {
         const { translateSiteNames } = await import("@/server/site-names");
