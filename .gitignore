@@ -12,3 +12,4 @@ coverage/
 # Generated sign-in passwords from scripts/set-worker-passwords.ts. Never committed.
 workers.csv
 *passwords*.csv
+worker-accounts.md
