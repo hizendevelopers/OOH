@@ -33,6 +33,8 @@ The ignored local environment file is not uploaded to GitHub or copied into the 
 
 The Docker image includes the public Supabase Root 2021 CA at `/app/db/certs/supabase-ca.crt` and loads it with `NODE_EXTRA_CA_CERTS`. It contains no private key. This keeps certificate and hostname verification enabled without depending on a certificate stored on the developer's Windows machine. The current CA expires on April 26, 2031; refresh it from Supabase's database SSL settings before expiry.
 
+The operator scripts load the same CA: `scripts/with-app-env.mjs` sets `NODE_EXTRA_CA_CERTS` to that file unless the environment already names one. Without it a script fails at the handshake with "self-signed certificate in certificate chain", because Node does not bundle Supabase's private root. Set `NODE_EXTRA_CA_CERTS` yourself to override it; never disable certificate verification to get past this.
+
 Docker supplies `IBVS_EVIDENCE_DIR=/var/lib/ibvs/evidence`. It is used only when `IBVS_EVIDENCE_STORE=filesystem`; local container files are not a durable evidence archive across container replacement.
 
 `GET /api/health` must return HTTP 200, `database: postgresql`, and migration 006 before the deployed workspace is considered connected. A successful build alone does not verify these runtime settings. Configuration failures log setting names only, without values.
