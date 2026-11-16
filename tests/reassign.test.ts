@@ -12,7 +12,7 @@ import {
 } from "../apps/web/src/server/location-exceptions";
 import { beginInspection } from "../apps/web/src/server/inspections";
 import type { InspectionInput } from "../packages/domain/src/inspection";
-import { generatePassword } from "../scripts/set-worker-passwords";
+import { generatePassword, readChosenPasswords, weakness } from "../scripts/set-worker-passwords";
 
 const admin: Actor = { id: "move-admin", organizationId: "move-org", role: "admin", name: "Admin", email: "admin@move.invalid" };
 const worker: Actor = { ...admin, id: "move-worker", role: "worker", name: "First Worker" };
@@ -101,4 +101,33 @@ it("generates distinct passwords of the stated length, with no symbols that are 
     expect(password).not.toMatch(/[ilIO01]/);
   }
   expect(generatePassword(40)).toHaveLength(40);
+});
+
+it("reads chosen passwords, ignoring comments and a header, and keeping a quoted comma", () => {
+  const chosen = readChosenPasswords(
+    [
+      "# a comment",
+      "email,password",
+      "Erbil01@OOH.com,Erbil123",
+      "",
+      '  mosul01@ooh.com , "has,a comma" ',
+      'quoted01@ooh.com,"say ""hello"""',
+    ].join("\n"),
+  );
+  // The address is the key, so its case cannot decide whether an account is found.
+  expect(chosen.get("erbil01@ooh.com")).toBe("Erbil123");
+  expect(chosen.get("mosul01@ooh.com")).toBe("has,a comma");
+  expect(chosen.get("quoted01@ooh.com")).toBe('say "hello"');
+  expect(chosen.size).toBe(3);
+  for (const broken of ["no-comma-here", "missing@ooh.com,", ",password"])
+    expect(() => readChosenPasswords(broken)).toThrow();
+});
+
+it("names a chosen password as weak when it is short or derived from its own address", () => {
+  expect(weakness("erbil01@ooh.com", "Erbil123")).toBe("under 12 characters");
+  expect(weakness("erbil01@ooh.com", "Erbil01-and-more")).toBe("derived from its own email address");
+  expect(weakness("najafkufa@ooh.com", "NajafKufa123")).toBe("derived from its own email address");
+  // Long, and not a restatement of the address.
+  expect(weakness("erbil01@ooh.com", "Marsh-Harrier-Quay-8")).toBeNull();
+  expect(weakness("erbil01@ooh.com", generatePassword())).toBeNull();
 });
