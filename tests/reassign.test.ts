@@ -4,7 +4,7 @@ import type { Actor } from "../packages/domain/src";
 import { testDirectory } from "../scripts/test-directory";
 import { migrate } from "../scripts/migrate";
 import { closeDb, getDb } from "../apps/web/src/server/db";
-import { assign, assignments, reassign } from "../apps/web/src/server/service";
+import { assign, assignments, moveCity, reassign } from "../apps/web/src/server/service";
 import { createLocation } from "../apps/web/src/server/location-management";
 import {
   activeLocationException,
@@ -130,4 +130,36 @@ it("names a chosen password as weak when it is short or derived from its own add
   // Long, and not a restatement of the address.
   expect(weakness("erbil01@ooh.com", "Marsh-Harrier-Quay-8")).toBeNull();
   expect(weakness("erbil01@ooh.com", generatePassword())).toBeNull();
+});
+
+
+it("moves a whole city to one worker and leaves started visits with the worker who began them", async () => {
+  const untouched = await openTask("MOVE-CITY-1");
+  const started = await openTask("MOVE-CITY-2");
+  const alsoMoving = await openTask("MOVE-CITY-3");
+  // One visit is already under way, so it belongs to the worker who started it.
+  const capturedAt = new Date(Date.now() - 3600000).toISOString();
+  const payload: InspectionInput = {
+    operationId: randomUUID(), assignmentId: started.assignment_id, assignmentVersion: started.version, faceId: started.id, faceCode: started.code, challengeId: null,
+    photos: (["front", "wide", "angle_1"] as const).map((kind) => ({ kind, bytes: 10, sha256: (kind === "front" ? "d" : kind === "wide" ? "e" : "f").repeat(64), capturedAt, captureMode: "offline", gps: { status: "ok", latitude: site.latitude, longitude: site.longitude, accuracy: 10, observedAt: capturedAt } })),
+  };
+  expect((await beginInspection(worker, payload)).inspectionId).toBeTruthy();
+
+  const ids = [untouched.assignment_id, started.assignment_id, alsoMoving.assignment_id];
+  await expect(moveCity(worker, { assignmentIds: ids, workerId: other.id })).rejects.toThrow();
+  await expect(moveCity(admin, { assignmentIds: ids, workerId: inactive.id })).rejects.toMatchObject({ status: 422 });
+
+  const result = await moveCity(admin, { assignmentIds: ids, workerId: other.id });
+  expect(result.moved).toBe(2);
+  expect(result.kept.map((k) => k.reason)).toEqual(["started"]);
+
+  const taken = (await assignments(other)).map((row) => row.code).filter((code) => code.startsWith("MOVE-CITY-"));
+  expect(taken.sort()).toEqual(["MOVE-CITY-1", "MOVE-CITY-3"]);
+  const left = (await assignments(worker)).map((row) => row.code);
+  expect(left).toContain("MOVE-CITY-2");
+
+  // Sending the same list again moves nothing, and says why for each one.
+  const again = await moveCity(admin, { assignmentIds: ids, workerId: other.id });
+  expect(again.moved).toBe(0);
+  expect(again.kept.map((k) => k.reason).sort()).toEqual(["already_there", "already_there", "started"]);
 });

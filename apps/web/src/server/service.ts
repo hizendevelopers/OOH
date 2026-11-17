@@ -335,6 +335,65 @@ export async function reassign(
     };
   });
 }
+export const cityMoveInput = z
+  .object({
+    assignmentIds: z.array(z.string().min(1).max(100)).min(1).max(200),
+    workerId: z.string().min(1).max(100),
+  })
+  .strict();
+
+// Moves many open visits to one worker, for when a whole city changes hands. Each visit is judged on its
+// own: anything the current worker has already started or submitted stays with them, and is reported back
+// rather than failing the request, so one started visit cannot block the rest of a city from moving.
+export async function moveCity(actor: Actor, input: z.infer<typeof cityMoveInput>) {
+  requireAdmin(actor);
+  const parsed = cityMoveInput.parse(input);
+  const db = await getDb();
+  return await db.transaction(async (tx) => {
+    const member = await tx.query(
+      "SELECT m.user_id FROM organization_members m JOIN worker_profiles p ON p.user_id=m.user_id WHERE m.organization_id=$1 AND m.user_id=$2 AND m.role='worker' AND p.active=true",
+      [actor.organizationId, parsed.workerId],
+    );
+    if (!member.length) throw new ApiError(422, "Select an active worker in this organization");
+    const moved: string[] = [];
+    const kept: { assignmentId: string; reason: "started" | "submitted" | "already_there" | "not_found" }[] = [];
+    for (const assignmentId of parsed.assignmentIds) {
+      const [task] = await tx.query<{ worker_id: string; status: string; face_id: string }>(
+        "SELECT worker_id,status,face_id FROM assignments WHERE id=$1 AND organization_id=$2 FOR UPDATE",
+        [assignmentId, actor.organizationId],
+      );
+      if (!task) {
+        kept.push({ assignmentId, reason: "not_found" });
+        continue;
+      }
+      if (!["assigned", "resurvey_requested"].includes(task.status)) {
+        kept.push({ assignmentId, reason: "submitted" });
+        continue;
+      }
+      const started = await tx.query("SELECT id FROM inspections WHERE assignment_id=$1", [assignmentId]);
+      if (started.length) {
+        kept.push({ assignmentId, reason: "started" });
+        continue;
+      }
+      if (task.worker_id === parsed.workerId) {
+        kept.push({ assignmentId, reason: "already_there" });
+        continue;
+      }
+      await tx.query("UPDATE assignments SET worker_id=$1,version=version+1 WHERE id=$2", [
+        parsed.workerId,
+        assignmentId,
+      ]);
+      await audit(tx, actor, "assignment.reassign", assignmentId, {
+        faceId: task.face_id,
+        fromWorkerId: task.worker_id,
+        toWorkerId: parsed.workerId,
+        bulk: true,
+      });
+      moved.push(assignmentId);
+    }
+    return { moved: moved.length, kept };
+  });
+}
 export async function overview(actor: Actor) {
   requireAdmin(actor);
   const db = await getDb();

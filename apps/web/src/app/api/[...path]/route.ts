@@ -15,12 +15,14 @@ import {
   assign,
   reassignmentInput,
   reassign,
+  cityMoveInput,
+  moveCity,
   overview,
   auditLog,
   requireAdmin,
 } from "@/server/service";
 import { csvCell } from "@ibvs/domain";
-import { assignImportedLocations, correctImportedCity, importLocations, isoCalendarDate, pendingFieldCaptures, promoteFieldCapture } from "@/server/location-import";
+import { assignImportedLocations, correctImportedCity, importLocations, isoCalendarDate, pendingFieldCaptures, promoteFieldCapture, renameCity } from "@/server/location-import";
 export const dynamic = "force-dynamic";
 // Imports, exports and site-name translation each take longer than the platform's short default.
 export const maxDuration = 60;
@@ -169,8 +171,17 @@ async function handle(request: Request) {
         return json(await correctImportedCity(actor, z.object({ faceId: z.string().uuid(), city: z.string(), reason: z.string() }).parse(body)));
       if (route === "assignments")
         return json(await assign(actor, assignmentInput.parse(body)), 201);
+      if (route === "locations/rename-city")
+        return json(
+          await renameCity(
+            actor,
+            z.object({ from: z.string(), to: z.string(), reason: z.string() }).parse(body),
+          ),
+        );
       if (route === "assignments/reassign")
         return json(await reassign(actor, reassignmentInput.parse(body)));
+      if (route === "assignments/move-city")
+        return json(await moveCity(actor, cityMoveInput.parse(body)));
       // Arabic site names: translates one batch of untranslated names. Administrator only (checked in the service).
       if (route === "site-names") {
         const { translateSiteNames } = await import("@/server/site-names");
