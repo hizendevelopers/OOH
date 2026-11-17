@@ -289,6 +289,9 @@ export default function Workspace({
   const [moveTask, setMoveTask] = useState<Assignment | null>(null);
   const [moveWorker, setMoveWorker] = useState("");
   const [cityFix, setCityFix] = useState<Face | null>(null);
+  // Set when the administrator renames a whole city, or hands all of its visits to one worker.
+  const [renameCityFrom, setRenameCityFrom] = useState<string | null>(null);
+  const [moveCityFrom, setMoveCityFrom] = useState<string | null>(null);
   const [cityName, setCityName] = useState("");
   const [cityReason, setCityReason] = useState("");
   const [exceptionReason, setExceptionReason] = useState("");
@@ -529,6 +532,10 @@ export default function Workspace({
           (locationKind === "test" ? f.is_test : !f.is_test)),
     );
   const cityUnassigned = city ? unassignedIn(city) : [];
+  // Visits in the chosen city that nobody has started yet, so they can still change hands.
+  const cityMovable = city
+    ? tasks.filter((t) => t.city === city && ["assigned", "resurvey_requested"].includes(t.status))
+    : [];
   // Opens the assign form with every unassigned site in one city; shared by the toolbar and the city rows.
   const assignWholeCity = (name: string) => {
     setSelected(unassignedIn(name).map((f) => f.id));
@@ -1041,6 +1048,34 @@ export default function Workspace({
                         <MapPin size={16} />
                         {locale === "ar" ? "تكليف المدينة كاملة" : "Assign whole city"} (
                         {cityUnassigned.length})
+                      </button>
+                    )}
+                    {tab === "inventory" && city && (
+                      <button
+                        className="secondary"
+                        onClick={() => {
+                          setCityName("");
+                          setCityReason("");
+                          setFormError("");
+                          setRenameCityFrom(city);
+                        }}
+                      >
+                        {locale === "ar" ? "إعادة تسمية المدينة" : "Rename city"}
+                      </button>
+                    )}
+                    {tab === "assignments" && city && (
+                      <button
+                        className="secondary"
+                        disabled={!cityMovable.length}
+                        onClick={() => {
+                          setMoveWorker("");
+                          setFormError("");
+                          setMoveCityFrom(city);
+                        }}
+                      >
+                        <Users size={16} />
+                        {locale === "ar" ? "نقل زيارات المدينة" : "Move city visits"} (
+                        {cityMovable.length})
                       </button>
                     )}
                     {tab === "inventory" && (
@@ -1637,6 +1672,177 @@ export default function Workspace({
               <button className="primary" type="submit" disabled={busy}>
                 {busy ? <LoaderCircle className="spin" size={16} /> : null}
                 {locale === "ar" ? "حفظ التصحيح" : "Save correction"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {renameCityFrom && (
+        <Modal
+          title={locale === "ar" ? "إعادة تسمية المدينة" : "Rename city"}
+          close={() => {
+            if (!busy) setRenameCityFrom(null);
+          }}
+          closeLabel={t.close}
+        >
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setBusy(true);
+              setFormError("");
+              try {
+                const result = await api<{ sites: number; to: string }>("locations/rename-city", {
+                  from: renameCityFrom,
+                  to: cityName,
+                  reason: cityReason,
+                });
+                setRenameCityFrom(null);
+                setCity("");
+                setToast(
+                  locale === "ar"
+                    ? `تمت إعادة تسمية ${result.sites} موقعاً إلى ${result.to}.`
+                    : `${result.sites} sites renamed to ${result.to}.`,
+                );
+                await load();
+              } catch (error) {
+                setFormError(localizeError((error as Error).message, isAr));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <p className="muted">
+              {locale === "ar"
+                ? "تتغير المدينة لكل المواقع التي تحمل هذا الاسم. يبقى الاسم الأصلي في السجل مع السبب."
+                : "Every site with this city name changes. The original name stays on record with your reason."}
+            </p>
+            <p>
+              <bdi>{cityLabel(renameCityFrom, isAr)}</bdi> ·{" "}
+              {faces.filter((f) => f.city === renameCityFrom).length}{" "}
+              {locale === "ar" ? "موقعاً" : "sites"}
+            </p>
+            <label>
+              {locale === "ar" ? "الاسم الجديد" : "New name"}
+              <input
+                value={cityName}
+                onChange={(e) => setCityName(e.target.value)}
+                maxLength={120}
+                required
+                disabled={busy}
+              />
+            </label>
+            <label>
+              {locale === "ar" ? "السبب" : "Reason"}
+              <textarea
+                value={cityReason}
+                onChange={(e) => setCityReason(e.target.value)}
+                minLength={10}
+                maxLength={1000}
+                required
+                disabled={busy}
+              />
+            </label>
+            {formError && (
+              <div className="notice danger" role="alert">
+                {formError}
+              </div>
+            )}
+            <div className="modal-actions">
+              <button className="secondary" type="button" disabled={busy} onClick={() => setRenameCityFrom(null)}>
+                {t.cancel}
+              </button>
+              <button className="primary" type="submit" disabled={busy}>
+                {busy ? <LoaderCircle className="spin" size={16} /> : null}
+                {locale === "ar" ? "إعادة التسمية" : "Rename city"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {moveCityFrom && (
+        <Modal
+          title={locale === "ar" ? "نقل زيارات المدينة" : "Move city visits"}
+          close={() => {
+            if (!busy) setMoveCityFrom(null);
+          }}
+          closeLabel={t.close}
+        >
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setBusy(true);
+              setFormError("");
+              try {
+                // A whole city can hold more visits than one request accepts, so send them in batches.
+                let moved = 0;
+                let kept = 0;
+                const ids = cityMovable.map((t) => t.assignment_id);
+                for (let at = 0; at < ids.length; at += 200) {
+                  const result = await api<{ moved: number; kept: { assignmentId: string }[] }>(
+                    "assignments/move-city",
+                    { assignmentIds: ids.slice(at, at + 200), workerId: moveWorker },
+                  );
+                  moved += result.moved;
+                  kept += result.kept.length;
+                }
+                setMoveCityFrom(null);
+                setToast(
+                  kept
+                    ? locale === "ar"
+                      ? `نُقلت ${moved} زيارة. بقيت ${kept} مع الموظف السابق لأن العمل عليها بدأ.`
+                      : `${moved} visits moved. ${kept} stayed with the previous worker because work had started.`
+                    : locale === "ar"
+                      ? `نُقلت ${moved} زيارة.`
+                      : `${moved} visits moved.`,
+                );
+                await load();
+              } catch (error) {
+                setFormError(localizeError((error as Error).message, isAr));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <p className="muted">
+              {locale === "ar"
+                ? "تبقى اللوحات وتواريخ الاستحقاق كما هي. أي زيارة بدأ العمل عليها أو أُرسلت تبقى مع صاحبها."
+                : "The sites and due dates stay the same. Any visit already started or submitted stays with the worker who did the work."}
+            </p>
+            <p>
+              <bdi>{cityLabel(moveCityFrom, isAr)}</bdi> · {cityMovable.length}{" "}
+              {locale === "ar" ? "زيارة قابلة للنقل" : "visits that can move"}
+            </p>
+            <label>
+              {locale === "ar" ? "الموظف الجديد" : "New worker"}
+              <select
+                aria-label={locale === "ar" ? "الموظف الجديد" : "New worker"}
+                value={moveWorker}
+                onChange={(e) => setMoveWorker(e.target.value)}
+                required
+                disabled={busy}
+              >
+                <option value="" disabled>
+                  {t.selectWorker}
+                </option>
+                {workers.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {formError && (
+              <div className="notice danger" role="alert">
+                {formError}
+              </div>
+            )}
+            <div className="modal-actions">
+              <button className="secondary" type="button" disabled={busy} onClick={() => setMoveCityFrom(null)}>
+                {t.cancel}
+              </button>
+              <button className="primary" type="submit" disabled={busy}>
+                {busy ? <LoaderCircle className="spin" size={16} /> : null}
+                {locale === "ar" ? "نقل الزيارات" : "Move visits"}
               </button>
             </div>
           </form>

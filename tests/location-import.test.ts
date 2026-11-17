@@ -13,6 +13,7 @@ import {
   classifyLocationCsv,
   correctImportedCity,
   importLocations,
+  renameCity,
 } from "../apps/web/src/server/location-import";
 import { assessFieldCapture, type CapturePhoto } from "../apps/web/src/server/location-capture";
 
@@ -179,6 +180,38 @@ it("corrects an unclear city while keeping the original label and history", asyn
   const history = await db.query("SELECT previous_city,new_city FROM location_city_history WHERE face_id=$1", [kura.id]);
   expect(history).toEqual([{ previous_city: "Kura (as listed)", new_city: "Kura" }]);
   await expect(db.query("UPDATE location_city_history SET new_city='x' WHERE face_id=$1", [kura.id])).rejects.toThrow("Immutable record");
+});
+
+it("renames a whole city at once, keeping the original name and reason on every site", async () => {
+  const before = (await inventory(admin)).filter((row) => row.city === "Baghdad");
+  expect(before.length).toBeGreaterThan(1);
+  await expect(renameCity(worker, { from: "Baghdad", to: "Baghdad Province", reason: "Renamed to the governorate, agreed with the client" })).rejects.toThrow();
+  await expect(renameCity(admin, { from: "Nowhere", to: "Baghdad Province", reason: "Renamed to the governorate, agreed with the client" })).rejects.toMatchObject({ status: 404 });
+  await expect(renameCity(admin, { from: "Baghdad", to: "Baghdad", reason: "Renamed to the governorate, agreed with the client" })).rejects.toMatchObject({ status: 422 });
+  await expect(renameCity(admin, { from: "Baghdad", to: "Baghdad Province", reason: "too short" })).rejects.toThrow();
+
+  const result = await renameCity(admin, { from: "Baghdad", to: "Baghdad Province", reason: "Renamed to the governorate, agreed with the client" });
+  expect(result).toMatchObject({ from: "Baghdad", to: "Baghdad Province", sites: before.length });
+  const after = await inventory(admin);
+  expect(after.filter((row) => row.city === "Baghdad")).toHaveLength(0);
+  expect(after.filter((row) => row.city === "Baghdad Province").map((row) => row.code).sort()).toEqual(before.map((row) => row.code).sort());
+
+  const db = await getDb();
+  for (const row of before) {
+    const history = await db.query<{ previous_city: string; new_city: string; reason: string }>(
+      "SELECT previous_city,new_city,reason FROM location_city_history WHERE face_id=$1",
+      [row.id],
+    );
+    expect(history).toEqual([
+      { previous_city: "Baghdad", new_city: "Baghdad Province", reason: "Renamed to the governorate, agreed with the client" },
+    ]);
+  }
+  // The name the supplier used is still on record, so the original list can always be traced.
+  const [record] = await db.query<{ city_label: string; city_status: string }>(
+    "SELECT city_label,city_status FROM location_import_records WHERE face_id=$1",
+    [before[0].id],
+  );
+  expect(record).toEqual({ city_label: "Baghdad", city_status: "confirmed" });
 });
 
 it("database rules refuse a pending location that also has reference coordinates", async () => {

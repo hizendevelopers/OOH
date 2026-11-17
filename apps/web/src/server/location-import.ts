@@ -431,6 +431,58 @@ export async function correctImportedCity(actor: Actor, input: { faceId: string;
   });
 }
 
+// Renames a city across every location that carries it: the source list named a whole governorate after one
+// of its towns, so each site had the same wrong label. Structures are renamed rather than faces, so two faces
+// on one structure always keep the same city, which is why the single-site correction refuses a shared
+// structure. Every affected site gets the same history row and reason as a single correction.
+export async function renameCity(
+  actor: Actor,
+  input: { from: string; to: string; reason: string },
+) {
+  requireAdmin(actor);
+  requireAccess(actor, "sensitive");
+  const data = z
+    .object({
+      from: z.string().trim().min(1).max(120),
+      to: z.string().trim().min(1).max(120),
+      reason: z.string().trim().min(10).max(1000),
+    })
+    .parse(input);
+  if (data.from === data.to)
+    throw new ApiError(422, "The new city name is the same as the current one");
+  const db = await getDb();
+  return db.transaction(async (tx) => {
+    const structures = await tx.query<{ id: string }>(
+      "SELECT id FROM billboard_structures WHERE organization_id=$1 AND city=$2 FOR UPDATE",
+      [actor.organizationId, data.from],
+    );
+    if (!structures.length) throw new ApiError(404, "No locations are in that city");
+    const ids = structures.map((row) => row.id);
+    const faces = await tx.query<{ id: string }>(
+      "SELECT id FROM billboard_faces WHERE organization_id=$1 AND structure_id=ANY($2::text[])",
+      [actor.organizationId, ids],
+    );
+    await tx.query("UPDATE billboard_structures SET city=$1 WHERE id=ANY($2::text[])", [data.to, ids]);
+    for (const face of faces) {
+      await tx.query(
+        "INSERT INTO location_city_history(id,organization_id,face_id,previous_city,new_city,reason,changed_by) VALUES($1,$2,$3,$4,$5,$6,$7)",
+        [randomUUID(), actor.organizationId, face.id, data.from, data.to, data.reason, actor.id],
+      );
+      await tx.query(
+        "UPDATE location_import_records SET city_status='confirmed' WHERE face_id=$1 AND organization_id=$2",
+        [face.id, actor.organizationId],
+      );
+    }
+    await audit(tx, actor, "locations.city_renamed", data.to, {
+      previous: data.from,
+      next: data.to,
+      structures: ids.length,
+      sites: faces.length,
+    });
+    return { from: data.from, to: data.to, structures: ids.length, sites: faces.length };
+  });
+}
+
 // One row per coordinate that is not verified: the original source values, the status, and why.
 // Pure: reads the file only, never the database. Used to explain every unverified pin to a supervisor.
 export function unverifiedGpsReport(text: string) {
